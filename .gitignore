@@ -1,0 +1,13 @@
+# Mac
+.DS_Store
+
+# IntelliJ
+.idea
+
+# Python
+*.pyc
+__pycache__
+build/
+dist/
+*.egg-info
+
