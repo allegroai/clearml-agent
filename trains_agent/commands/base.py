@@ -12,11 +12,6 @@ from typing import Text
 from trains_agent.helper.console import ListFormatter, print_text
 from trains_agent.helper.dicts import filter_keys
 
-try:
-    from typing import NoReturn
-except ImportError:
-    from typing_extensions import NoReturn
-
 import six
 from trains_agent.backend_api import services
 
@@ -82,7 +77,7 @@ class BaseCommandSection(object):
         print("trains-agent: {}".format(message % args))
 
     @classmethod
-    def exit(cls, message, code=1):  # type: (Text, int) -> NoReturn
+    def exit(cls, message, code=1):  # type: (Text, int) -> ()
         cls.error(message)
         sys.exit(code)
 
