@@ -72,7 +72,11 @@ class Session(_Session):
             os.environ[LOCAL_CONFIG_FILE_OVERRIDE_VAR] = config_file
             if not Path(config_file).is_file():
                 raise ValueError("Could not open configuration file: {}".format(config_file))
-        super(Session, self).__init__(*args, **kwargs)
+        if kwargs.get('only_load_config'):
+            from trains_agent.backend_api.config import load
+            self.config = load()
+        else:
+            super(Session, self).__init__(*args, **kwargs)
         self.log = self.get_logger(__name__)
         self.trace = kwargs.get('trace', False)
         self._config_file = kwargs.get('config_file') or \
@@ -120,7 +124,8 @@ class Session(_Session):
         if not worker_name.get():
             worker_name.set(platform.node())
 
-        self.create_cache_folders()
+        if not kwargs.get('only_load_config'):
+            self.create_cache_folders()
 
     @staticmethod
     def get_logger(name):

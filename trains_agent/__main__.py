@@ -20,7 +20,9 @@ from .interface import get_parser
 def run_command(parser, args, command_name):
 
     debug = args.debug
-    if len(command_name.split('.')) < 2:
+    if command_name and command_name.lower() == 'config':
+        command_class = commands.Config
+    elif len(command_name.split('.')) < 2:
         command_class = commands.Worker
     elif hasattr(args, 'func') and getattr(args, 'func'):
         command_class = getattr(commands, command_name.capitalize())
