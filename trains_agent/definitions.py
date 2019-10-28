@@ -90,7 +90,7 @@ VIRTUAL_ENVIRONMENT_PATH = {
 }
 
 DEFAULT_BASE_DIR = normalize_path(CONFIG_DIR, "data_cache")
-DEFAULT_HOST = "https://demoai.trainsai.io"
+DEFAULT_HOST = "https://demoapi.trains.allegro.ai"
 MAX_DATASET_SOURCES_COUNT = 50000
 
 INVALID_WORKER_ID = (400, 1001)
