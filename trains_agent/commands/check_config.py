@@ -9,6 +9,11 @@ class Config(ServiceCommandSection):
     def config(self, **_):
         return self._session.print_configuration()
 
+    def init(self, **_):
+        # alias config init
+        from .config import main
+        return main()
+
     @property
     def service(self):
         """ The name of the REST service used by this command """

@@ -557,15 +557,6 @@ class Worker(ServiceCommandSection):
                 )
                 self.dump_config()
 
-    def init(self, **_):
-        # alias config init
-        from .config import main
-        return main()
-
-    def config(self, **_):
-        # alias for check
-        return self.check()
-
     def check(self, **_):
         try:
             check_directory_path(str(Path(".").resolve()))
@@ -609,18 +600,17 @@ class Worker(ServiceCommandSection):
         if not queues:
             default_queue = self._session.send_api(queues_api.GetDefaultRequest())
             queues = [default_queue.id]
-            print('Listening to default queue "{0.name}" ({0.id})'.format(default_queue))
-        else:
-            queues = return_list(queues)
-            queues_info = [
-                self._session.send_api(
-                    queues_api.GetByIdRequest(queue)
-                ).queue.to_dict()
-                for queue in queues
-            ]
-            columns = ("id", "name", "tags")
-            print("Listening to queues:")
-            print_table(queues_info, columns=columns, titles=columns)
+
+        queues = return_list(queues)
+        queues_info = [
+            self._session.send_api(
+                queues_api.GetByIdRequest(queue)
+            ).queue.to_dict()
+            for queue in queues
+        ]
+        columns = ("id", "name", "tags")
+        print("Listening to queues:")
+        print_table(queues_info, columns=columns, titles=columns)
 
         # register worker
         self._register(queues)

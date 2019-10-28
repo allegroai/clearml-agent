@@ -295,8 +295,6 @@ class WorkerParams(object):
         global_args = ("--config-file", str(self.config_file))
         if self.debug:
             global_args += ("--debug",)
-        if self.trace:
-            global_args += ("--trace",)
         worker_args = tuple()
         if self.optimization:
             worker_args += self.get_optimization_flag()

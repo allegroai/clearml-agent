@@ -374,11 +374,6 @@ def base_arguments(top_parser):
         '--config-file',
         help='Use a different configuration file (default: "{}")'.format(definitions.CONFIG_FILE))
     top_parser.add_argument('--debug', '-d', action='store_true', help='print debug information')
-    top_parser.add_argument(
-        '--trace', '-t',
-        action='store_true',
-        help='Trace execution to a temporary file.',
-    )
 
 
 def bound_number_type(minimum=None, maximum=None):

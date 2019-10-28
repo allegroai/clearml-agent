@@ -20,7 +20,7 @@ from .interface import get_parser
 def run_command(parser, args, command_name):
 
     debug = args.debug
-    if command_name and command_name.lower() == 'config':
+    if command_name and command_name.lower() in ('config', 'init'):
         command_class = commands.Config
     elif len(command_name.split('.')) < 2:
         command_class = commands.Worker
@@ -76,25 +76,7 @@ def main():
     except AttributeError:
         parser.error(argparse._('too few arguments'))
 
-    if not args.trace:
-        return run_command(parser, args, command_name)
-
-    with named_temporary_file(
-        mode='w',
-        buffering=FileBuffering.LINE_BUFFERING,
-        prefix='.trains_agent_trace_',
-        suffix='.txt',
-        delete=False,
-    ) as output:
-        print(
-            'Saving trace for command '
-            '"{definitions.PROGRAM_NAME} {command_name} {args.func}" to "{output.name}"'.format(
-                **chain_map(locals(), globals())))
-        tracer = PackageTrace(
-            package=trains_agent,
-            out_file=output,
-            ignore_submodules=(__name__, interface, definitions, session))
-        return tracer.runfunc(run_command, parser, args, command_name)
+    return run_command(parser, args, command_name)
 
 
 if __name__ == "__main__":
