@@ -249,9 +249,18 @@ class PytorchRequirement(SimpleSubstitution):
 
         torch_url, torch_url_key = SimplePytorchRequirement.get_torch_page(self.cuda_version)
         url = self._get_link_from_torch_page(req, torch_url)
-        # try one more time, with a lower cuda version:
-        if not url:
+        # try one more time, with a lower cuda version (never fallback to CPU):
+        while not url and torch_url_key > 0:
+            previous_cuda_key = torch_url_key
             torch_url, torch_url_key = SimplePytorchRequirement.get_torch_page(int(torch_url_key)-1)
+            # never fallback to CPU
+            if torch_url_key < 1:
+                print('Warning! Could not locate PyTorch version {} matching CUDA version {}'.format(
+                    req, previous_cuda_key))
+                raise ValueError('Could not locate PyTorch version {} matching CUDA version {}'.format(
+                    req, self.cuda_version))
+            print('Warning! Could not locate PyTorch version {} matching CUDA version {}, trying CUDA version {}'.format(
+                req, previous_cuda_key, torch_url_key))
             url = self._get_link_from_torch_page(req, torch_url)
 
         if not url:

@@ -255,9 +255,10 @@ class RequirementsManager(object):
             try:
                 return self._replace_one(req)
             except FatalSpecsResolutionError:
+                warning('could not resolve python wheel replacement for {}'.format(req))
                 raise
             except Exception:
-                warning('could not find installed CUDA/CuDNN version for {}, '
+                warning('could not resolve python wheel replacement for {}, '
                         'using original requirements line: {}'.format(req, i))
                 return None
 
