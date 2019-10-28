@@ -21,7 +21,7 @@ def start_check_update_daemon():
 
 def _check_new_version_available():
     cur_version = __version__
-    update_server_releases = requests.get('https://updates.trainsai.io/updates',
+    update_server_releases = requests.get('https://updates.trains.allegro.ai/updates',
                                           data=json.dumps({"versions": {"trains-agent": str(cur_version)}}),
                                           timeout=3.0)
     if update_server_releases.ok:
