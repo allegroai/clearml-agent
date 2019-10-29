@@ -30,7 +30,7 @@ requirements = (here / 'requirements.txt').read_text().splitlines()
 setup(
     name='trains_agent',
     version=version,
-    description='Trains-Agent DevOps for deep learning (DevOps for TRAINS)',
+    description='TRAINS Agent - Auto-Magical DevOps for Deep Learning',
     long_description=long_description,
     long_description_content_type='text/markdown',
     # The project's main homepage.
