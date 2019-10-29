@@ -1645,7 +1645,7 @@ class Worker(ServiceCommandSection):
                     "echo 'Binary::apt::APT::Keep-Downloaded-Packages \"true\";' > /etc/apt/apt.conf.d/docker-clean ; "                    
                     "chown -R root /root/.cache/pip ; "
                     "apt-get update ; "
-                    "apt-get install -y git libsm6 libxext6 libxrender-dev {python_single_digit}-pip ; "
+                    "apt-get install -y git libsm6 libxext6 libxrender-dev libglib2.0-0 {python_single_digit}-pip ; "
                     "{python} -m pip install -U pip ; "
                     "{python} -m pip install -U trains-agent ; "
                     "{python} -u -m trains_agent ".format(
