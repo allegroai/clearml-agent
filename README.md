@@ -1,7 +1,7 @@
 # TRAINS Agent
 ## Deep Learning DevOps For Everyone
 
-"Because you can setup a cluster with only two lines!"
+"All the Deep-Learning DevOps your research needs, and then some... Beacuse ain't nobody got time for that"
 
 [![GitHub license](https://img.shields.io/github/license/allegroai/trains-agent.svg)](https://img.shields.io/github/license/allegroai/trains-agent.svg)
 [![PyPI pyversions](https://img.shields.io/pypi/pyversions/trains-agent.svg)](https://img.shields.io/pypi/pyversions/trains-agent.svg)
@@ -39,11 +39,15 @@ It is a zero configuration fire-and-forget execution agent and combined with tra
 * Flexible and controllable scheduler with priority support
 * Automatic instance spinning in the cloud **(coming soon)**
 
-### Integrating with Kubernetes
-K8S is awesome. It is a great tool and combined with KubeFlow it's a robust solution for production. Let us stress that point again - *"For Production"*.
-It was never designed to help or facilitate R&D efforts of DL/ML. Having to package every experiment in a docker, managing those hundreds (or more) containers and building pipelines on top of it all is complicated (it’s usually out of scope for the research team, and overwhelming even for the DevOps team).
 
-We feel there has to be a better way, that can be just as powerful for R&D and at the same time allow integration with K8S **when the need arises**. If you already have a K8S cluster for AI, detailed instructions on how to integrate TRAINS into your K8S cluster is *coming soon*.
+## But ... K8S?
+We think Kubernetes is awesome. Combined with KubeFlow it is a robust solution for production-grade DevOps.
+However, we obsered that it can be a bit of an overkill as an R&D DL/ML solution.
+If you are considering K8S for your research, also consider that you will soon be managing **hundreds** of containers...
+
+In our experience, handling and building the pipelines, having to package every experiment in a docker, managing those hundreds (or more) containers and building pipelines on top of it all, is very complicated (also, it’s usually out of scope for the research team, and overwhelming even for the DevOps team).
+
+We feel there has to be a better way, that can be just as powerful for R&D and at the same time allow integration with K8S **when the need arises**. If you already have a K8S cluster for AI, detailed instructions on how to integrate TRAINS into your K8S cluster are *coming soon*.
 
 
 ## Using the TRAINS Agent
