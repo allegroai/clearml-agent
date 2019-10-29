@@ -161,7 +161,7 @@ def main():
                      '    api_server: %s\n' \
                      '    web_server: %s\n' \
                      '    files_server: %s\n' \
-                     '    # Credentials are generated in the webapp, %s/profile\n' \
+                     '    # Credentials are generated using the webapp, %s/profile\n' \
                      '    # Override with os environment: TRAINS_API_ACCESS_KEY / TRAINS_API_SECRET_KEY\n' \
                      '    credentials {"access_key": "%s", "secret_key": "%s"}\n' \
                      '}\n\n' % (api_host, web_host, files_host,
