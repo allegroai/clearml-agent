@@ -42,7 +42,7 @@ It is a zero configuration fire-and-forget execution agent and combined with tra
 
 ## But ... K8S?
 We think Kubernetes is awesome. Combined with KubeFlow it is a robust solution for production-grade DevOps.
-However, we obsered that it can be a bit of an overkill as an R&D DL/ML solution.
+However, we observed that it can be a bit of an overkill as an R&D DL/ML solution.
 If you are considering K8S for your research, also consider that you will soon be managing **hundreds** of containers...
 
 In our experience, handling and building the pipelines, having to package every experiment in a docker, managing those hundreds (or more) containers and building pipelines on top of it all, is very complicated (also, it’s usually out of scope for the research team, and overwhelming even for the DevOps team).
@@ -167,6 +167,23 @@ For actual service mode, all the stdout will be stored automatically into a temp
 trains-agent daemon --queue default
 ```
 
+GPU allocation is controlled via the standard OS environment NVIDIA_VISIBLE_DEVICES.
+
+If NVIDIA_VISIBLE_DEVICES variable doesn't exist, all GPU's will be allocated for the `trains-agent` <br>
+If NVIDIA_VISIBLE_DEVICES is an empty string ("") No gpu will be allocated for the `trains-agent`
+
+Example: spin two agents, one per gpu on the same machine:
+```bash
+NVIDIA_VISIBLE_DEVICES=0 trains-agent daemon --queue default &
+NVIDIA_VISIBLE_DEVICES=1 trains-agent daemon --queue default &
+```
+
+Example: spin two agents, with two gpu's per agent:
+```bash
+NVIDIA_VISIBLE_DEVICES=0,1 trains-agent daemon --queue default &
+NVIDIA_VISIBLE_DEVICES=2,3 trains-agent daemon --queue default &
+```
+
 #### Starting the TRAINS Agent in docker mode
 
 For debug and experimentation, start the TRAINS agent in `foreground` mode, where all the output is printed to screen
@@ -179,6 +196,18 @@ For actual service mode, all the stdout will be stored automatically into a file
 trains-agent daemon --queue default --docker
 ```
 
+Example: spin two agents, one per gpu on the same machine:
+```bash
+NVIDIA_VISIBLE_DEVICES=0 trains-agent daemon --queue default --docker &
+NVIDIA_VISIBLE_DEVICES=1 trains-agent daemon --queue default --docker &
+```
+
+Example: spin two agents, with two gpu's per agent:
+```bash
+NVIDIA_VISIBLE_DEVICES=0,1 trains-agent daemon --queue default --docker &
+NVIDIA_VISIBLE_DEVICES=2,3 trains-agent daemon --queue default --docker &
+```
+
 #### Starting the TRAINS Agent - Priority Queues
 
 Priority Queues are also supported, example use case:
@@ -188,23 +217,6 @@ High priority queue: `important_jobs`  Low priority queue: `default`
 trains-agent daemon --queue important_jobs default
 ```
 The **TRAINS agent** will first try to pull jobs from the `important_jobs` queue, only then it will fetch a job from the `default` queue.
-
-# AutoML and Orchestration Pipelines <a name="automl-pipes"></a>
-The TRAINS Agent can also implement AutoML orchestration and Experiment Pipelines in conjunction with the TRAINS package.
-
-Sample AutoML & Orchestration examples can be found in the TRAINS [example/automl](https://github.com/allegroai/trains/tree/master/examples/automl) folder.
-
-AutoML examples
-  - [Toy Keras training experiment](https://github.com/allegroai/trains/blob/master/examples/automl/automl_base_template_keras_simple.py)
-    - In order to create an experiment-template in the system, this code must be executed once manually
-  - [Random Search over the above Keras experiment-template](https://github.com/allegroai/trains/blob/master/examples/automl/automl_random_search_example.py)
-    - This example will create multiple copies of the Keras experiment-template, with different hyper-parameter combinations
-
-Experiment Pipeline examples
-  - [First step experiment](https://github.com/allegroai/trains/blob/master/examples/automl/task_piping_example.py)
-    - This example will "process data", and once done, will launch a copy of the 'second step' experiment-template
-  - [Second step experiment](https://github.com/allegroai/trains/blob/master/examples/automl/toy_base_task.py)
-    - In order to create an experiment-template in the system, this code must be executed once manually
 
  # How do I create an experiment on the TRAINS server? <a name="from-scratch"></a>
 * Integrate [TRAINS](https://github.com/allegroai/trains) with your code
@@ -226,3 +238,20 @@ Experiment Pipeline examples
   - Select a specific docker image to run in (see docker execution mode section)
   - Or simply change nothing to run the same experiment again...
 * Send the newly created experiment for execution, right-click the experiment and select 'enqueue'
+
+# AutoML and Orchestration Pipelines <a name="automl-pipes"></a>
+The TRAINS Agent can also implement AutoML orchestration and Experiment Pipelines in conjunction with the TRAINS package.
+
+Sample AutoML & Orchestration examples can be found in the TRAINS [example/automl](https://github.com/allegroai/trains/tree/master/examples/automl) folder.
+
+AutoML examples
+  - [Toy Keras training experiment](https://github.com/allegroai/trains/blob/master/examples/automl/automl_base_template_keras_simple.py)
+    - In order to create an experiment-template in the system, this code must be executed once manually
+  - [Random Search over the above Keras experiment-template](https://github.com/allegroai/trains/blob/master/examples/automl/automl_random_search_example.py)
+    - This example will create multiple copies of the Keras experiment-template, with different hyper-parameter combinations
+
+Experiment Pipeline examples
+  - [First step experiment](https://github.com/allegroai/trains/blob/master/examples/automl/task_piping_example.py)
+    - This example will "process data", and once done, will launch a copy of the 'second step' experiment-template
+  - [Second step experiment](https://github.com/allegroai/trains/blob/master/examples/automl/toy_base_task.py)
+    - In order to create an experiment-template in the system, this code must be executed once manually
