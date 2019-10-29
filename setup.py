@@ -32,6 +32,7 @@ setup(
     version=version,
     description='Trains-Agent DevOps for deep learning (DevOps for TRAINS)',
     long_description=long_description,
+    long_description_content_type='text/markdown',
     # The project's main homepage.
     url='https://github.com/allegroai/trains-agent',
     author='Allegroai',
