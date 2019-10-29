@@ -15,7 +15,7 @@ It is a zero configuration fire-and-forget execution agent and combined with tra
 **Using the TRAINS Agent, you can now setup a dynamic cluster with only two lines!**
 
 (Experience TRAINS live at [https://demoapp.trains.allegro.ai](https://demoapp.trains.allegro.ai))
-<a href="https://demoapp.trains.allegro.ai"><img src="https://github.com/allegroai/trains-agent/blob/master/docs/screenshots.gif?raw=true" width="100%"></a>
+<a href="https://demoapp.trains.allegro.ai"><img src="https://raw.githubusercontent.com/allegroai/trains-agent/9f1e86c1ca45c984ee13edc9353c7b10c55d7257/docs/screenshots.gif" width="100%"></a>
 
 ## Simple, Flexible Experiment Orchestration
 **The TRAINS Agent was built to address the DL/ML R&D DevOps needs:**
