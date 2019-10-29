@@ -12,7 +12,17 @@ TRAINS Agent is an AI experiment cluster solution.
 
 It is a zero configuration fire-and-forget execution agent and combined with trains-server it is a full AI cluster solution.
 
-**Using the TRAINS Agent, you can now setup a dynamic cluster with only two lines!**
+**Full AutoML in 5 steps** 
+1. Install [trains-server](https://github.com/allegroai/trains-agent) (or use our [open server](https://demoapp.trains.allegro.ai))
+2. `pip install trains_agent` ([install](#installing-the-trains-agent) on any GPU machine: on-premises / cloud / ...)
+3. Add [trains](https://github.com/allegroai/trains) 2 lines to your code & run it once (on your machine / laptop)
+4. Change the [parameters](#using-the-trains-agent) in the UI & send for [execution](#using-the-trains-agent) (or automate with an [AutoML pipeline](#automl-and-orchestration-pipelines-))
+5. :chart_with_downwards_trend: :chart_with_upwards_trend: :eyes:  :beer:
+
+
+**Using the TRAINS Agent, you can now setup a dynamic cluster with \*epsilon DevOps**
+
+*epsilon - because we are scientists :triangular_ruler: and nothing is really zero work
 
 (Experience TRAINS live at [https://demoapp.trains.allegro.ai](https://demoapp.trains.allegro.ai))
 <a href="https://demoapp.trains.allegro.ai"><img src="https://raw.githubusercontent.com/allegroai/trains-agent/9f1e86c1ca45c984ee13edc9353c7b10c55d7257/docs/screenshots.gif" width="100%"></a>
