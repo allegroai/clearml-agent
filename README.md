@@ -78,40 +78,40 @@ The TRAINS agent executes experiments using the following process:
   
 ### System Design & Flow
 ```text
-                                                                                                     +-----------------+              
-                                                                                                     |  GPU  Machine   |              
-    Development Machine                                                                              |                 |              
-    +------------------------+                                                                       |                 |              
-    |    Data Scientist's    |                            +--------------+                           | +-------------+ |              
-    |      DL/ML Code        |                            |    WEB UI    |                           | |TRAINS Agent | |              
-    |                        |                            |              |                           | |             | |              
-    |                        |                            |              |                           | | +---------+ | |              
-    |                        |                            +--------------+                           | | |  DL/ML  | | |              
-    |                        |       User Clones Exp #1  / . . . . . . . /                           | | |  Code   | | |              
-    | +-------------------+  |           into Exp #2    / . . . . . . . /                            | | |         | | |              
-    | |      TRAINS       |  |         +---------------/-_____________-/                             | | |         | | |              
-    | +---------+---------+  |         |                                                             | | +----^----+ | |              
-    +-----------|------------+         |                                                             | +------|------+ |              
-                |                      |                                                             +--------|--------+              
- Auto-Magically |                      |                                                                      |                       
- Creates Exp #1 |                      |                                                                      |                       
-                 \          User Change Hyper-Parameters                                                      |                       
-                 |                     |                                                                      |                       
-                 |                     |                                                                      |                       
-    +------------|------------+        |            +--------------------+                                    |                       
-    |  +---------v---------+  |        |            |   TRAINS-SERVER    |                                    |                       
-    |  | Experiment #1     |  |        |            |                    |                                    |                       
-    |  +-------------------+  |        |            |  Execution Queue   |                                    |                       
-    |            ||           |        |            |                    |                                    |                       
-    |  +-------------------+<----------+            |                    |    The TRAINS Agent                |                       
-    |  |                   |  |                     |                    |    Pulls Exp #2                    |                       
-    |  | Experiment #2     |  |                     |                    |    Sets the environment and code   |                       
-    |  +-------------------<------------\           |                    |    Start execution with the        |                       
-    |                         |          ------------->---------------+  |    new set of Hyper-Parameters     |                       
-    |                         |  User Send Exp #2   | |Execute Exp #2 +---------------------------------------+                       
-    |                         |  For Execution      | +---------------+  |                                                            
-    |     TRAINS-SERVER       |                     |                    |                                                            
-    +-------------------------+                     +--------------------+                                                            
+                                                                              +-----------------+                       
+                                                                              |  GPU  Machine   |                       
+Development Machine                                                           |                 |                       
++------------------------+                                                    | +-------------+ |                       
+|    Data Scientist's    |                            +--------------+        | |TRAINS Agent | |                       
+|      DL/ML Code        |                            |    WEB UI    |        | |             | |                       
+|                        |                            |              |        | | +---------+ | |                       
+|                        |                            |              |        | | |  DL/ML  | | |                       
+|                        |                            +--------------+        | | |  Code   | | |                       
+|                        |       User Clones Exp #1  / . . . . . . . /        | | |         | | |                       
+| +-------------------+  |           into Exp #2    / . . . . . . . /         | | +---------+ | |                       
+| |      TRAINS       |  |         +---------------/-_____________-/          | |             | |                       
+| +---------+---------+  |         |                                          | |      ^      | |                       
++-----------|------------+         |                                          | +------|------+ |                       
+            |                      |                                          +--------|--------+                       
+ Auto-Magically                    |                                                   |                                
+ Creates Exp #1                    |                                      The TRAINS Agent             
+             \          User Change Hyper-Parameters                      Pulls Exp #2, setup the                 
+             |                     |                                      environment & clone code.
+             |                     |                                      Start execution with the     
++------------|------------+        |            +--------------------+    new set of Hyper-Parameters.
+|  +---------v---------+  |        |            |   TRAINS-SERVER    |                 |                                
+|  | Experiment #1     |  |        |            |                    |                 |                                
+|  +-------------------+  |        |            |  Execution Queue   |                 |                      
+|            ||           |        |            |                    |                 |
+|  +-------------------+<----------+            |                    |                 |
+|  |                   |  |                     |                    |                 |
+|  | Experiment #2     |  |                     |                    |                 |
+|  +-------------------<------------\           |                    |                 |
+|                         |          ------------->---------------+  |                 |
+|                         |  User Send Exp #2   | |Execute Exp #2 +--------------------+
+|                         |  For Execution      | +---------------+  |                                                  
+|     TRAINS-SERVER       |                     |                    |                                                  
++-------------------------+                     +--------------------+                                       
 ```
 
 ### Installing the TRAINS Agent
