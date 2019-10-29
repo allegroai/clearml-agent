@@ -29,7 +29,7 @@ It is a zero configuration fire-and-forget execution agent and combined with tra
 * Flexible and controllable scheduler with priority support
 * Automatic instance spinning in the cloud **(coming soon)**
 
-### Integrating with Kubernetes 
+### Integrating with Kubernetes
 K8S is awesome. It is a great tool and combined with KubeFlow it's a robust solution for production. Let us stress that point again - *"For Production"*.
 It was never designed to help or facilitate R&D efforts of DL/ML. Having to package every experiment in a docker, managing those hundreds (or more) containers and building pipelines on top of it all is complicated (it’s usually out of scope for the research team, and overwhelming even for the DevOps team).
 
@@ -51,7 +51,7 @@ A previously run experiment can be put into 'Draft' state by either of two metho
 
 An experiment is scheduled for execution using the **'Enqueue'** action from the experiment
  right-click context menu in the TRAINS UI and selecting the execution queue.
- 
+
 See [creating an experiment, and enqueuing it for execution](#from-scratch).
 
 Once an experiment is enqueued, it will be picked up and executed by a TRAINS agent monitoring this queue.
@@ -60,7 +60,7 @@ The TRAINS UI Workers & Queues page provides ongoing execution information:
   - Workers Tab: Monitor you cluster
     - Review available resources
     - Monitor machines statistics (CPU / GPU / Disk / Network)
-  - Queues Tab: 
+  - Queues Tab:
     - Control the scheduling order of jobs
     - Cancel or abort job execution
     - Move jobs between execution queues
@@ -70,38 +70,38 @@ The TRAINS agent executes experiments using the following process:
   - Create a new virtual environment (or launch the selected docker image)
   - Clone the code into the virtual-environment (or inside the docker)
   - Install python packages based on the package requirements listed for the experiment
-    - Special note for PyTorch, The TRAINS agent will automatically select the 
+    - Special note for PyTorch, The TRAINS agent will automatically select the
       torch packages based on the CUDA_VERSION environment of the machine
   - Execute the code, while monitoring the process
   - Log all stdout/stderr in the TRAINS UI, including the cloning and installation process, for easy debugging
   - Monitor the execution and allow you to manually abort the job using the TRAINS UI (or, in the unfortunate case of a code crash, catch the error and signal the experiment has failed)
-  
+
 ### System Design & Flow
 ```text
-                                                                              +-----------------+                       
-                                                                              |  GPU  Machine   |                       
-Development Machine                                                           |                 |                       
-+------------------------+                                                    | +-------------+ |                       
-|    Data Scientist's    |                            +--------------+        | |TRAINS Agent | |                       
-|      DL/ML Code        |                            |    WEB UI    |        | |             | |                       
-|                        |                            |              |        | | +---------+ | |                       
-|                        |                            |              |        | | |  DL/ML  | | |                       
-|                        |                            +--------------+        | | |  Code   | | |                       
-|                        |       User Clones Exp #1  / . . . . . . . /        | | |         | | |                       
-| +-------------------+  |           into Exp #2    / . . . . . . . /         | | +---------+ | |                       
-| |      TRAINS       |  |         +---------------/-_____________-/          | |             | |                       
-| +---------+---------+  |         |                                          | |      ^      | |                       
-+-----------|------------+         |                                          | +------|------+ |                       
-            |                      |                                          +--------|--------+                       
- Auto-Magically                    |                                                   |                                
- Creates Exp #1                    |                                      The TRAINS Agent             
-             \          User Change Hyper-Parameters                      Pulls Exp #2, setup the                 
+                                                                              +-----------------+
+                                                                              |  GPU  Machine   |
+Development Machine                                                           |                 |
++------------------------+                                                    | +-------------+ |
+|    Data Scientist's    |                            +--------------+        | |TRAINS Agent | |
+|      DL/ML Code        |                            |    WEB UI    |        | |             | |
+|                        |                            |              |        | | +---------+ | |
+|                        |                            |              |        | | |  DL/ML  | | |
+|                        |                            +--------------+        | | |  Code   | | |
+|                        |       User Clones Exp #1  / . . . . . . . /        | | |         | | |
+| +-------------------+  |           into Exp #2    / . . . . . . . /         | | +---------+ | |
+| |      TRAINS       |  |         +---------------/-_____________-/          | |             | |
+| +---------+---------+  |         |                                          | |      ^      | |
++-----------|------------+         |                                          | +------|------+ |
+            |                      |                                          +--------|--------+
+ Auto-Magically                    |                                                   |
+ Creates Exp #1                    |                                      The TRAINS Agent
+             \          User Change Hyper-Parameters                      Pulls Exp #2, setup the
              |                     |                                      environment & clone code.
-             |                     |                                      Start execution with the     
+             |                     |                                      Start execution with the
 +------------|------------+        |            +--------------------+    new set of Hyper-Parameters.
-|  +---------v---------+  |        |            |   TRAINS-SERVER    |                 |                                
-|  | Experiment #1     |  |        |            |                    |                 |                                
-|  +-------------------+  |        |            |  Execution Queue   |                 |                      
+|  +---------v---------+  |        |            |   TRAINS-SERVER    |                 |
+|  | Experiment #1     |  |        |            |                    |                 |
+|  +-------------------+  |        |            |  Execution Queue   |                 |
 |            ||           |        |            |                    |                 |
 |  +-------------------+<----------+            |                    |                 |
 |  |                   |  |                     |                    |                 |
@@ -109,9 +109,9 @@ Development Machine                                                           | 
 |  +-------------------<------------\           |                    |                 |
 |                         |          ------------->---------------+  |                 |
 |                         |  User Send Exp #2   | |Execute Exp #2 +--------------------+
-|                         |  For Execution      | +---------------+  |                                                  
-|     TRAINS-SERVER       |                     |                    |                                                  
-+-------------------------+                     +--------------------+                                       
+|                         |  For Execution      | +---------------+  |
+|     TRAINS-SERVER       |                     |                    |
++-------------------------+                     +--------------------+
 ```
 
 ### Installing the TRAINS Agent
@@ -167,7 +167,7 @@ trains-agent daemon --queue default --docker
 
 #### Starting the TRAINS Agent - Priority Queues
 
-Priority Queues are also supported, example use case: 
+Priority Queues are also supported, example use case:
 
 High priority queue: `important_jobs`  Low priority queue: `default`
 ```bash
@@ -182,7 +182,7 @@ Sample AutoML & Orchestration examples can be found in the TRAINS [example/autom
 
 AutoML examples
   - [Toy Keras training experiment](https://github.com/allegroai/trains/blob/master/examples/automl/automl_base_template_keras_simple.py)
-    - In order to create an experiment-template in the system, this code must be executed once manually 
+    - In order to create an experiment-template in the system, this code must be executed once manually
   - [Random Search over the above Keras experiment-template](https://github.com/allegroai/trains/blob/master/examples/automl/automl_random_search_example.py)
     - This example will create multiple copies of the Keras experiment-template, with different hyper-parameter combinations
 
@@ -191,7 +191,7 @@ Experiment Pipeline examples
     - This example will "process data", and once done, will launch a copy of the 'second step' experiment-template
   - [Second step experiment](https://github.com/allegroai/trains/blob/master/examples/automl/toy_base_task.py)
     - In order to create an experiment-template in the system, this code must be executed once manually
-     
+
  # How do I create an experiment on the TRAINS server? <a name="from-scratch"></a>
 * Integrate [TRAINS](https://github.com/allegroai/trains) with your code
 * Execute the code on your machine (Manually / PyCharm / Jupyter Notebook)
@@ -201,9 +201,9 @@ Experiment Pipeline examples
   - Python packages used by your code (including specific versions used)
   - Hyper-Parameters
   - Input Artifacts
-  
+
   You now have a 'template' of your experiment with everything required for automated execution
-  
+
 * In the TRAINS UI, Right click on the experiment and select 'clone'. A copy of your experiment will be created.
 * You now have a new draft experiment cloned from your original experiment, feel free to edit it
   - Change the Hyper-Parameters
