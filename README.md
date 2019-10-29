@@ -8,17 +8,11 @@
 [![PyPI version shields.io](https://img.shields.io/pypi/v/trains-agent.svg)](https://img.shields.io/pypi/v/trains-agent.svg)
 [![PyPI status](https://img.shields.io/pypi/status/trains-agent.svg)](https://pypi.python.org/pypi/trains-agent/)
 
-TRAINS Agent is a fire-and-forget execution agent enabling trivial configuration and deployment of an AI experiment cluster solution.
+TRAINS Agent is an AI experiment cluster solution.
 
-Using the TRAINS Agent, you can now setup a dynamic cluster with a single click!
+It is a zero configuration fire-and-forget execution agent and combined with trains-server it is a full AI cluster solution.
 
-K8S is awesome. It is a great tool and combined with KubeFlow it's a robust solution for production.
- Let us stress that point again - **"For Production"**. It was never designed to help or facilitate R&D efforts of DL/ML. Having to package every experiment in a docker, managing those hundreds (or more) containers
-and building pipelines on top of it all is complicated (it’s usually out of scope for the research team, and overwhelming even for the DevOps team).
-
-We feel there has to be a better way, that can be just as powerful for R&D and at the same time allow integration with K8S **when the need arises**.
-
-NOTE: If you already have a K8S cluster for AI, see how to integrate TRAINS into your K8S cluster (**coming soon**).
+**Using the TRAINS Agent, you can now setup a dynamic cluster with only two lines!**
 
 (Experience TRAINS live at [https://demoapp.trains.allegro.ai](https://demoapp.trains.allegro.ai))
 <a href="https://demoapp.trains.allegro.ai"><img src="https://github.com/allegroai/trains-agent/blob/master/docs/screenshots.gif?raw=true" width="100%"></a>
@@ -28,12 +22,19 @@ NOTE: If you already have a K8S cluster for AI, see how to integrate TRAINS into
 
 * Easily add & remove machines from the cluster
 * Reuse machines without the need for any dedicated containers or images
-* Combine on-prem GPU resources with any cloud GPU resources
-* No need for yaml/json/template configuration for every job
-* User friendly UI
+* **Combine on-prem GPU resources with any cloud GPU resources**
+* **No need for yaml/json/template configuration of any kind**
+* **User friendly UI**
 * Manageable resource allocation that can be used by researchers and engineers
 * Flexible and controllable scheduler with priority support
 * Automatic instance spinning in the cloud **(coming soon)**
+
+### Integrating with Kubernetes 
+K8S is awesome. It is a great tool and combined with KubeFlow it's a robust solution for production. Let us stress that point again - *"For Production"*.
+It was never designed to help or facilitate R&D efforts of DL/ML. Having to package every experiment in a docker, managing those hundreds (or more) containers and building pipelines on top of it all is complicated (it’s usually out of scope for the research team, and overwhelming even for the DevOps team).
+
+We feel there has to be a better way, that can be just as powerful for R&D and at the same time allow integration with K8S **when the need arises**. If you already have a K8S cluster for AI, detailed instructions on how to integrate TRAINS into your K8S cluster is *coming soon*.
+
 
 ## Using the TRAINS Agent
 **Full scale HPC with a click of a button**
