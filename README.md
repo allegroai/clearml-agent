@@ -8,7 +8,7 @@
 [![PyPI version shields.io](https://img.shields.io/pypi/v/trains-agent.svg)](https://img.shields.io/pypi/v/trains-agent.svg)
 [![PyPI status](https://img.shields.io/pypi/status/trains-agent.svg)](https://pypi.python.org/pypi/trains-agent/)
 
-TRAINS Agent is an AI experiment cluster solution.
+**TRAINS Agent is an AI experiment cluster solution.**
 
 It is a zero configuration fire-and-forget execution agent, which combined with trains-server provides a full AI cluster solution.
 
