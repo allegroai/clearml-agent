@@ -8,7 +8,7 @@
 [![PyPI version shields.io](https://img.shields.io/pypi/v/trains-agent.svg)](https://img.shields.io/pypi/v/trains-agent.svg)
 [![PyPI status](https://img.shields.io/pypi/status/trains-agent.svg)](https://pypi.python.org/pypi/trains-agent/)
 
-TRAINS Agent is an AI experiment cluster solution.
+**TRAINS Agent is an AI experiment cluster solution.**
 
 It is a zero configuration fire-and-forget execution agent, which combined with trains-server provides a full AI cluster solution.
 
@@ -180,10 +180,10 @@ NVIDIA_VISIBLE_DEVICES=0 trains-agent daemon --queue default &
 NVIDIA_VISIBLE_DEVICES=1 trains-agent daemon --queue default &
 ```
 
-Example: spin two agents, with two gpu's per agent:
+Example: spin two agents, pulling from dedicated `dual_gpu` queue, two gpu's per agent
 ```bash
-NVIDIA_VISIBLE_DEVICES=0,1 trains-agent daemon --queue default &
-NVIDIA_VISIBLE_DEVICES=2,3 trains-agent daemon --queue default &
+NVIDIA_VISIBLE_DEVICES=0,1 trains-agent daemon --queue dual_gpu &
+NVIDIA_VISIBLE_DEVICES=2,3 trains-agent daemon --queue dual_gpu &
 ```
 
 #### Starting the TRAINS Agent in docker mode
@@ -198,16 +198,16 @@ For actual service mode, all the stdout will be stored automatically into a file
 trains-agent daemon --queue default --docker
 ```
 
-Example: spin two agents, one per gpu on the same machine:
+Example: spin two agents, one per gpu on the same machine, with default nvidia/cuda docker:
 ```bash
-NVIDIA_VISIBLE_DEVICES=0 trains-agent daemon --queue default --docker &
-NVIDIA_VISIBLE_DEVICES=1 trains-agent daemon --queue default --docker &
+NVIDIA_VISIBLE_DEVICES=0 trains-agent daemon --queue default --docker nvidia/cuda &
+NVIDIA_VISIBLE_DEVICES=1 trains-agent daemon --queue default --docker nvidia/cuda &
 ```
 
-Example: spin two agents, with two gpu's per agent:
+Example: spin two agents, pulling from dedicated `dual_gpu` queue, two gpu's per agent, with default nvidia/cuda docker:
 ```bash
-NVIDIA_VISIBLE_DEVICES=0,1 trains-agent daemon --queue default --docker &
-NVIDIA_VISIBLE_DEVICES=2,3 trains-agent daemon --queue default --docker &
+NVIDIA_VISIBLE_DEVICES=0,1 trains-agent daemon --queue dual_gpu --docker nvidia/cuda &
+NVIDIA_VISIBLE_DEVICES=2,3 trains-agent daemon --queue dual_gpu --docker nvidia/cuda &
 ```
 
 #### Starting the TRAINS Agent - Priority Queues
@@ -220,7 +220,9 @@ trains-agent daemon --queue important_jobs default
 ```
 The **TRAINS agent** will first try to pull jobs from the `important_jobs` queue, only then it will fetch a job from the `default` queue.
 
- # How do I create an experiment on the TRAINS server? <a name="from-scratch"></a>
+Adding queues, managing job order within a queue and moving jobs between queues, is available using the Web UI, see example on our [open server](https://demoapp.trains.allegro.ai/workers-and-queues/queues)
+
+# How do I create an experiment on the TRAINS server? <a name="from-scratch"></a>
 * Integrate [TRAINS](https://github.com/allegroai/trains) with your code
 * Execute the code on your machine (Manually / PyCharm / Jupyter Notebook)
 * As your code is running, **TRAINS** creates an experiment logging all the necessary execution information:
