@@ -38,9 +38,9 @@ class Session(TokenManager):
     _async_status_code = 202
     _session_requests = 0
     _session_initial_timeout = (3.0, 10.)
-    _session_timeout = (10.0, 300.)
+    _session_timeout = (10.0, 30.)
     _write_session_data_size = 15000
-    _write_session_timeout = (300.0, 300.)
+    _write_session_timeout = (30.0, 30.)
 
     api_version = '2.1'
     default_host = "https://demoapi.trains.allegro.ai"
