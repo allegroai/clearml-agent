@@ -59,6 +59,19 @@ def kill_all_child_processes(pid=None):
         parent.kill()
 
 
+def shutdown_docker_process(docker_cmd_ending):
+    try:
+        containers_running = get_bash_output(cmd='docker ps --no-trunc --format \"{{.ID}}: {{.Command}}\"')
+        for docker_line in containers_running.split('\n'):
+            parts = docker_line.split(':')
+            if parts[-1].endswith(docker_cmd_ending):
+                # we found our docker, stop it
+                get_bash_output(cmd='docker stop -t 1 {}'.format(parts[0]))
+                return
+    except Exception:
+        pass
+
+
 def check_if_command_exists(cmd):
     return bool(find_executable(cmd))
 

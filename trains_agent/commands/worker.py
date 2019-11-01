@@ -78,7 +78,7 @@ from trains_agent.helper.process import (
     Argv,
     COMMAND_SUCCESS,
     Executable,
-    get_bash_output)
+    get_bash_output, shutdown_docker_process)
 from trains_agent.helper.package.cython_req import CythonRequirement
 from trains_agent.helper.repo import clone_repository_cached, RepoInfo, VCS
 from trains_agent.helper.resource_monitor import ResourceMonitor
@@ -483,6 +483,8 @@ class Worker(ServiceCommandSection):
             # remove temp files after we sent everything to the backend
             safe_remove_file(temp_stdout_name)
             safe_remove_file(temp_stderr_name)
+            if self.docker_image_func:
+                shutdown_docker_process(docker_cmd_ending='--id {}\'\"'.format(task_id))
 
     def run_tasks_loop(self, queues, worker_params):
         """
@@ -1291,7 +1293,7 @@ class Worker(ServiceCommandSection):
             self.package_api.out_of_scope_install_package('Cython')
 
         cached_requirements_failed = False
-        if cached_requirements:
+        if cached_requirements and ('pip' in cached_requirements or 'conda' in cached_requirements):
             self.log("Found cached requirements, trying to install")
             try:
                 self.package_api.load_requirements(cached_requirements)
@@ -1648,7 +1650,7 @@ class Worker(ServiceCommandSection):
                     "apt-get install -y git libsm6 libxext6 libxrender-dev libglib2.0-0 {python_single_digit}-pip ; "
                     "{python} -m pip install -U pip ; "
                     "{python} -m pip install -U trains-agent ; "
-                    "{python} -u -m trains_agent ".format(
+                    "NVIDIA_VISIBLE_DEVICES=all CUDA_VISIBLE_DEVICES= {python} -u -m trains_agent ".format(
                         python_single_digit=python_version.split('.')[0],
                         python=python_version)]
 
