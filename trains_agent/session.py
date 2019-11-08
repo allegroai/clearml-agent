@@ -72,6 +72,11 @@ class Session(_Session):
             os.environ[LOCAL_CONFIG_FILE_OVERRIDE_VAR] = config_file
             if not Path(config_file).is_file():
                 raise ValueError("Could not open configuration file: {}".format(config_file))
+        cpu_only = kwargs.get('cpu_only')
+        if cpu_only:
+            os.environ['CUDA_VISIBLE_DEVICES'] = os.environ['NVIDIA_VISIBLE_DEVICES'] = 'none'
+        if kwargs.get('gpus'):
+            os.environ['CUDA_VISIBLE_DEVICES'] = os.environ['NVIDIA_VISIBLE_DEVICES'] = kwargs.get('gpus')
         if kwargs.get('only_load_config'):
             from trains_agent.backend_api.config import load
             self.config = load()
@@ -115,7 +120,7 @@ class Session(_Session):
             from trains_agent.helper.package.requirements import RequirementsManager
             agent = self.config['agent']
             agent['cuda_version'], agent['cudnn_version'] = \
-                RequirementsManager.get_cuda_version(self.config)
+                RequirementsManager.get_cuda_version(self.config) if not cpu_only else ('0', '0')
         except Exception:
             pass
 

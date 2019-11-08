@@ -30,7 +30,7 @@ class VirtualenvPip(SystemPip, PackageManager):
         self.session = session
         self.path = path
         self.requirements_manager = requirements_manager
-        self.python = "python{}".format(python)
+        self.python = python
 
     def _make_command(self, command):
         return self.session.command(self.bin, "-m", "pip", *command)

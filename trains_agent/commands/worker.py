@@ -424,7 +424,7 @@ class Worker(ServiceCommandSection):
                                                          docker_arguments=task_docker_cmd[1:])
             else:
                 self.send_logs(task_id=task_id,
-                               lines=['No docker image specified, running Task {} inside docker: {} {}\n'.format(
+                               lines=['running Task {} inside default docker image: {} {}\n'.format(
                                    task_id, self._docker_image, self._docker_arguments or '')],
                                level="INFO")
                 full_docker_cmd = self.docker_image_func(docker_image=self._docker_image,
@@ -1028,11 +1028,20 @@ class Worker(ServiceCommandSection):
                     sys.stdout.flush()
                     sys.stderr.flush()
                     os.chdir(script_dir)
-                    os.execv(command.argv[0].as_posix(), tuple([command.argv[0].as_posix()])+command.argv[1:])
-                    # exit_code = command.check_call(cwd=script_dir)
+                    if not is_windows_platform():
+                        os.execv(command.argv[0].as_posix(), tuple([command.argv[0].as_posix()])+command.argv[1:])
+                    else:
+                        exit_code = command.check_call(cwd=script_dir)
+                        exit(exit_code)
                 except subprocess.CalledProcessError as ex:
                     # non zero return code
                     exit_code = ex.returncode
+                    if is_windows_platform():
+                        exit(exit_code)
+                except Exception as ex:
+                    if is_windows_platform():
+                        exit(-1)
+                    raise ex
             else:
                 # store stdout/stderr into file, and send to backend
                 temp_stdout_fname = log_file or safe_mkstemp(
@@ -1418,12 +1427,28 @@ class Worker(ServiceCommandSection):
             for i in range(len(it) + 1):
                 yield it[:i]
 
-        python_executables = [
-            (version, "python{}".format(version))
-            for version in map(
-                ".".join, reversed(list(suffixes(config_version.split("."))))
-            )
-        ]
+        def rreplace(s, old, new, count):
+            return (s[::-1].replace(old[::-1], new[::-1], count))[::-1]
+
+        if is_windows_platform():
+            python_executables = [
+                (version, config_version if os.path.sep in config_version else 'python{}'.format(version))
+                for version in map(
+                    ".".join, reversed(list(suffixes(
+                        rreplace(
+                            rreplace(config_version.split(os.path.sep)[-1].lower(), 'python', '', 1),
+                            '.exe', '', 1).split("."))))
+                )
+            ]
+        else:
+            python_executables = [
+                (version, config_version if os.path.sep in config_version else 'python{}'.format(version))
+                for version in map(
+                    ".".join, reversed(list(suffixes(
+                        rreplace(config_version.split(os.path.sep)[-1], 'python', '', 1).split("."))))
+                )
+            ]
+
         for version, executable in python_executables:
             self.log.debug("Searching for {}".format(executable))
             if find_executable(executable):
@@ -1435,7 +1460,8 @@ class Worker(ServiceCommandSection):
                     self.log.warning("error getting %s version: %s", executable, ex)
                     continue
                 match = re.search(
-                    r"Python ({}(?:\.\d+)*)".format(config_version or r"\d+"), output
+                    r"Python ({}(?:\.\d+)*)".format(
+                        r"\d+" if not config_version or os.path.sep in config_version else config_version), output
                 )
                 if match:
                     self.log.debug("Found: {}".format(executable))
@@ -1453,13 +1479,17 @@ class Worker(ServiceCommandSection):
         Install a new python virtual environment, removing the old one if exists
         :return: virtualenv directory and requirements manager to use with task
         """
-        requested_python_version = requested_python_version or Text(self._session.config["agent.default_python"])
-        venv_dir = Path(venv_dir) if venv_dir else \
-            Path(self._session.config["agent.venvs_dir"], requested_python_version)
+        requested_python_version = requested_python_version or \
+                                   Text(self._session.config.get("agent.python_binary", None)) or \
+                                   Text(self._session.config.get("agent.default_python", None))
         executable_version, executable_version_suffix, executable_name = self.find_python_executable_for_version(
             requested_python_version
         )
+        venv_dir = Path(venv_dir) if venv_dir else \
+            Path(self._session.config["agent.venvs_dir"], executable_version_suffix)
+
         self._session.config.put("agent.default_python", executable_version)
+        self._session.config.put("agent.python_binary", executable_name)
         first_time = (
             is_windows_platform()
             or self.is_conda
@@ -1474,7 +1504,7 @@ class Worker(ServiceCommandSection):
         rm_tree(normalize_path(venv_dir, WORKING_REPOSITORY_DIR))
         package_manager_params = dict(
             session=self._session,
-            python=executable_version_suffix,
+            python=executable_version_suffix if self.is_conda else executable_name,
             path=venv_dir,
             requirements_manager=requirements_manager,
         )
@@ -1564,6 +1594,9 @@ class Worker(ServiceCommandSection):
         temp_config.put("agent.vcs_cache.path", mounted_vcs_cache)
         temp_config.put("agent.package_manager.system_site_packages", True)
         temp_config.put("agent.default_python", "")
+        temp_config.put("agent.python_binary", "")
+        temp_config.put("agent.cuda_version", "")
+        temp_config.put("agent.cudnn_version", "")
         temp_config.put("agent.venvs_dir", mounted_venv_dir)
 
         host_apt_cache = Path(os.path.expandvars(self._session.config.get(
@@ -1619,9 +1652,9 @@ class Worker(ServiceCommandSection):
 
         base_cmd = [docker, 'run', '-t']
         gpu_devices = os.environ.get('NVIDIA_VISIBLE_DEVICES', None)
-        if gpu_devices is None:
+        if gpu_devices is None or gpu_devices.lower().strip() == 'all':
             base_cmd += ['--gpus', 'all', ]
-        elif gpu_devices.strip():
+        elif gpu_devices.strip() and gpu_devices.strip() != 'none':
             base_cmd += ['--gpus', 'device='+gpu_devices, ]
             # We are using --gpu, so we should not pass NVIDIA_VISIBLE_DEVICES, I think.
             # base_cmd += ['-e', 'NVIDIA_VISIBLE_DEVICES=' + gpu_devices, ]
@@ -1660,8 +1693,15 @@ class Worker(ServiceCommandSection):
         # ensure singleton
         worker_id = self._session.config["agent.worker_id"]
         worker_name = self._session.config["agent.worker_name"]
-        if not worker_id and os.environ.get('NVIDIA_VISIBLE_DEVICES'):
-            worker_id = '{}:gpu{}'.format(worker_name, os.environ.get('NVIDIA_VISIBLE_DEVICES'))
+        if not worker_id and os.environ.get('NVIDIA_VISIBLE_DEVICES') is not None:
+            nvidia_visible_devices = os.environ.get('NVIDIA_VISIBLE_DEVICES')
+            if nvidia_visible_devices and nvidia_visible_devices.lower() != 'none':
+                worker_id = '{}:gpu{}'.format(worker_name, nvidia_visible_devices)
+            elif nvidia_visible_devices == '':
+                pass
+            else:
+                worker_name = '{}:cpu'.format(worker_name)
+
         self.worker_id, worker_slot = Singleton.register_instance(unique_worker_id=worker_id, worker_name=worker_name)
         if self.worker_id is None:
             error('Instance with the same WORKER_ID [{}] is already running'.format(worker_id))

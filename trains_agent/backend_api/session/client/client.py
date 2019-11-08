@@ -212,8 +212,8 @@ class TableResponse(Response):
         fields = fields or self.fields
         from trains_agent.helper.base import create_table
         return create_table(
-            (tuple(getter(item, attr) for attr in fields) for item in self),
-            titles=fields, headers=True,
+            (dict((attr, getter(item, attr)) for attr in fields) for item in self),
+            titles=fields, columns=fields, headers=True,
         )
 
     def display(self, fields=None):
