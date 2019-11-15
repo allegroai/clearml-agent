@@ -145,6 +145,11 @@ class LiteralScriptManager(object):
                     "found task with `script.working_dir` (`%s`) but without `script.repository`, ignoring",
                     execution.working_dir,
                 )
+            if not execution.entry_point:
+                execution.entry_point = 'untitled.py'
+            else:
+                # ignore any folders in the entry point we only need the file name
+                execution.entry_point = execution.entry_point.split(os.path.sep)[-1]
             location = None
         location = location or (repo_info and repo_info.root)
         if not location:
@@ -578,10 +583,10 @@ class Worker(ServiceCommandSection):
                 )
 
         if is_windows_platform():
-            if not self.is_conda:
-                self.warning("Worker on Windows without Conda are not supported")
+            # if not self.is_conda:
+            #     self.warning("Worker on Windows without Conda are not supported")
             if self._session.config.agent.venv_update:
-                self.warning("venv-update is not supported on Windows")
+                # self.warning("venv-update is not supported on Windows")
                 self.is_venv_update = False
 
         self._session.print_configuration()
@@ -980,7 +985,9 @@ class Worker(ServiceCommandSection):
             requirements_manager=requirements_manager,
             cached_requirements=requirements,
         )
-        freeze = self.freeze_task_environment(current_task.id)
+        # do not update the task packages if we are using conda,
+        # it will most likely make the task environment unreproducible
+        freeze = self.freeze_task_environment(current_task.id if not self.is_conda else None)
         script_dir = (directory if isinstance(directory, Path) else Path(directory)).absolute().as_posix()
 
         # run code
@@ -1146,6 +1153,8 @@ class Worker(ServiceCommandSection):
                 execution=execution,
                 destination=Path(venv_folder) / WORKING_REPOSITORY_DIR,
             )
+        except CommandFailedError:
+            raise
         except Exception:
             task.failed(
                 status_reason="failed cloning repository",
@@ -1303,18 +1312,20 @@ class Worker(ServiceCommandSection):
 
         cached_requirements_failed = False
         if cached_requirements and ('pip' in cached_requirements or 'conda' in cached_requirements):
-            self.log("Found cached requirements, trying to install")
+            self.log("Found task requirements section, trying to install")
             try:
                 self.package_api.load_requirements(cached_requirements)
             except Exception as e:
                 self.log_traceback(e)
-                self.error("Could not install cached requirements, installing requirements from repository")
+                self.error("Could not install task requirements! Trying to install requirements from repository")
                 cached_requirements_failed = True
             else:
-                self.log("Cached requirements installation success")
+                self.log("task requirements installation passed")
                 return
 
         if not repo_info:
+            if cached_requirements_failed:
+                raise ValueError("Could not install task requirements!")
             self.log("no repository to install requirements from")
             return
 
@@ -1357,7 +1368,7 @@ class Worker(ServiceCommandSection):
         # if we reached here without installing anything, and
         # we failed installing from cached requirements, them this is an error
         if cached_requirements_failed and not repo_requirements_installed:
-            raise ValueError("Could not install cached requirements or repository requirements")
+            raise ValueError("Failed installing task requirements and repository requirements")
 
     def named_temporary_file(self, *args, **kwargs):
         kwargs.setdefault("delete", not self._session.debug_mode)
@@ -1465,7 +1476,7 @@ class Worker(ServiceCommandSection):
                 )
                 if match:
                     self.log.debug("Found: {}".format(executable))
-                    return match.group(1), version, executable
+                    return match.group(1), version or '.'.join(match.group(1).split('.')[:2]), executable
         raise CommandFailedError(
             "Python executable with version {!r} defined in configuration file, "
             "key 'agent.default_python', not found in path, tried: {}".format(
