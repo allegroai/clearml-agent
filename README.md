@@ -169,21 +169,21 @@ For actual service mode, all the stdout will be stored automatically into a temp
 trains-agent daemon --queue default
 ```
 
-GPU allocation is controlled via the standard OS environment NVIDIA_VISIBLE_DEVICES.
+GPU allocation is controlled via the standard OS environment `NVIDIA_VISIBLE_DEVICES` or `--gpus` flag (or disabled with `--cpu-only`).
 
-If NVIDIA_VISIBLE_DEVICES variable doesn't exist, all GPU's will be allocated for the `trains-agent` <br>
-If NVIDIA_VISIBLE_DEVICES is an empty string ("") No gpu will be allocated for the `trains-agent`
+If no flag is set, and `NVIDIA_VISIBLE_DEVICES` variable doesn't exist, all GPU's will be allocated for the `trains-agent` <br>
+If `--cpu-only` flag is set, or `NVIDIA_VISIBLE_DEVICES` is an empty string (""), no gpu will be allocated for the `trains-agent`
 
 Example: spin two agents, one per gpu on the same machine:
 ```bash
-NVIDIA_VISIBLE_DEVICES=0 trains-agent daemon --queue default &
-NVIDIA_VISIBLE_DEVICES=1 trains-agent daemon --queue default &
+trains-agent daemon --gpus 0 --queue default &
+trains-agent daemon --gpus 1 --queue default &
 ```
 
 Example: spin two agents, pulling from dedicated `dual_gpu` queue, two gpu's per agent
 ```bash
-NVIDIA_VISIBLE_DEVICES=0,1 trains-agent daemon --queue dual_gpu &
-NVIDIA_VISIBLE_DEVICES=2,3 trains-agent daemon --queue dual_gpu &
+trains-agent daemon --gpus 0,1 --queue dual_gpu &
+trains-agent daemon --gpus 2,3 --queue dual_gpu &
 ```
 
 #### Starting the TRAINS Agent in docker mode
@@ -200,14 +200,14 @@ trains-agent daemon --queue default --docker
 
 Example: spin two agents, one per gpu on the same machine, with default nvidia/cuda docker:
 ```bash
-NVIDIA_VISIBLE_DEVICES=0 trains-agent daemon --queue default --docker nvidia/cuda &
-NVIDIA_VISIBLE_DEVICES=1 trains-agent daemon --queue default --docker nvidia/cuda &
+trains-agent daemon --gpus 0 --queue default --docker nvidia/cuda &
+trains-agent daemon --gpus 1 --queue default --docker nvidia/cuda &
 ```
 
 Example: spin two agents, pulling from dedicated `dual_gpu` queue, two gpu's per agent, with default nvidia/cuda docker:
 ```bash
-NVIDIA_VISIBLE_DEVICES=0,1 trains-agent daemon --queue dual_gpu --docker nvidia/cuda &
-NVIDIA_VISIBLE_DEVICES=2,3 trains-agent daemon --queue dual_gpu --docker nvidia/cuda &
+trains-agent daemon --gpus 0,1 --queue dual_gpu --docker nvidia/cuda &
+trains-agent daemon --gpus 2,3 --queue dual_gpu --docker nvidia/cuda &
 ```
 
 #### Starting the TRAINS Agent - Priority Queues
