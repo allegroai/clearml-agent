@@ -288,10 +288,24 @@ class RequirementsManager(object):
         if cuda_version and cudnn_version:
             return normalize_cuda_version(cuda_version), normalize_cuda_version(cudnn_version)
 
+        if not cuda_version and is_windows_platform():
+            try:
+                cuda_vers = [int(k.replace('CUDA_PATH_V', '').replace('_', '')) for k in os.environ.keys()
+                             if k.startswith('CUDA_PATH_V')]
+                cuda_vers = max(cuda_vers)
+                if cuda_vers > 40:
+                    cuda_version = cuda_vers
+            except:
+                pass
+
         if not cuda_version:
             try:
                 try:
-                    output = Argv('nvcc', '--version').get_output()
+                    nvcc = 'nvcc.exe' if is_windows_platform() else 'nvcc'
+                    if is_windows_platform() and 'CUDA_PATH' in os.environ:
+                        nvcc = os.path.join(os.environ['CUDA_PATH'], nvcc)
+
+                    output = Argv(nvcc, '--version').get_output()
                 except OSError:
                     raise CudaNotFound('nvcc not found')
                 match = re.search(r'release (.{3})', output).group(1)

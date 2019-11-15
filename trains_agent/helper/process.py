@@ -137,6 +137,8 @@ class Argv(Executable):
         """
         Returns a string of the shell command
         """
+        if is_windows_platform():
+            return self.ARGV_SEPARATOR.join(map(double_quote, self))
         return self.ARGV_SEPARATOR.join(map(quote, self))
 
     def call_subprocess(self, func, censor_password=False, *args, **kwargs):
@@ -157,6 +159,9 @@ class Argv(Executable):
         return "Executing: {}".format(self.argv)
 
     def __iter__(self):
+        if is_windows_platform():
+            return (word.as_posix().replace('/', '\\') if isinstance(word, Path) else six.text_type(word)
+                    for word in self.argv)
         return (six.text_type(word) for word in self.argv)
 
     def __getitem__(self, item):
@@ -237,7 +242,8 @@ class CommandSequence(Executable):
             return islice(chain.from_iterable(zip(repeat(delimiter), seq)), 1, None)
 
         def normalize(command):
-            return list(command) if is_windows_platform() else command.serialize()
+            # return list(command) if is_windows_platform() else command.serialize()
+            return command.serialize()
 
         return ' '.join(list(intersperse(self.JOIN_COMMAND_OPERATOR, map(normalize, self.commands))))
 
@@ -279,8 +285,6 @@ class CommandSequence(Executable):
 
     def pretty(self):
         serialized = self.serialize()
-        if is_windows_platform():
-            return " ".join(serialized)
         return serialized
 
 
@@ -374,3 +378,18 @@ def quote(s):
     # use single quotes, and put single quotes into double quotes
     # the string $'b is then quoted as '$'"'"'b'
     return "'" + s.replace("'", "'\"'\"'") + "'"
+
+
+def double_quote(s):
+    """
+    Backport of shlex.quote():
+    Return a shell-escaped version of the string *s*.
+    """
+    if not s:
+        return "''"
+    if _find_unsafe(s) is None:
+        return s
+
+    # use single quotes, and put single quotes into double quotes
+    # the string $"b is then quoted as "$"""b"
+    return '"' + s.replace('"', '"\'\"\'"') + '"'
