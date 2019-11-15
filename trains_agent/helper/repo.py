@@ -533,7 +533,8 @@ def clone_repository_cached(session, execution, destination):
     else:
         print("cloning: {}".format(no_password_url))
         rm_tree(cached_repo_path)
-        vcs.clone(branch=execution.branch)
+        # We clone the entire repository, not a specific branch
+        vcs.clone()  # branch=execution.branch)
 
     vcs.pull()
     vcs.checkout()
