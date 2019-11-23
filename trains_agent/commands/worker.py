@@ -1155,7 +1155,8 @@ class Worker(ServiceCommandSection):
             )
         except CommandFailedError:
             raise
-        except Exception:
+        except Exception as ex:
+            print('Repository cloning failed: {}'.format(ex))
             task.failed(
                 status_reason="failed cloning repository",
                 status_message=self._task_status_change_message,

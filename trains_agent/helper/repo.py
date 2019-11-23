@@ -263,8 +263,9 @@ class VCS(object):
         """
         self._set_ssh_url()
         clone_command = ("clone", self.url_with_auth, self.location) + self.clone_flags
-        if branch:
-            clone_command += ("-b", branch)
+        # clone all branches regardless of when we want to later checkout
+        # if branch:
+        #    clone_command += ("-b", branch)
         if self.session.debug_mode:
             self.call(*clone_command)
             return
@@ -453,13 +454,13 @@ class Git(VCS):
         )
 
     def pull(self):
-        self.call("fetch", "origin", cwd=self.location)
+        self.call("fetch", "--all", cwd=self.location)
 
     info_commands = dict(
-        url=Argv("git", "remote", "get-url", "origin"),
-        branch=Argv("git", "rev-parse", "--abbrev-ref", "HEAD"),
-        commit=Argv("git", "rev-parse", "HEAD"),
-        root=Argv("git", "rev-parse", "--show-toplevel"),
+        url=Argv(executable_name, "ls-remote", "--get-url", "origin"),
+        branch=Argv(executable_name, "rev-parse", "--abbrev-ref", "HEAD"),
+        commit=Argv(executable_name, "rev-parse", "HEAD"),
+        root=Argv(executable_name, "rev-parse", "--show-toplevel"),
     )
 
     patch_base = ("apply",)
@@ -493,10 +494,10 @@ class Hg(VCS):
         )
 
     info_commands = dict(
-        url=Argv("hg", "paths", "--verbose"),
-        branch=Argv("hg", "--debug", "id", "-b"),
-        commit=Argv("hg", "--debug", "id", "-i"),
-        root=Argv("hg", "root"),
+        url=Argv(executable_name, "paths", "--verbose"),
+        branch=Argv(executable_name, "--debug", "id", "-b"),
+        commit=Argv(executable_name, "--debug", "id", "-i"),
+        root=Argv(executable_name, "root"),
     )
 
 
@@ -537,8 +538,6 @@ def clone_repository_cached(session, execution, destination):
         vcs.clone()  # branch=execution.branch)
 
     vcs.pull()
-    vcs.checkout()
-
     rm_tree(destination)
     shutil.copytree(Text(cached_repo_path), Text(clone_folder))
     if not clone_folder.is_dir():
@@ -547,6 +546,10 @@ def clone_repository_cached(session, execution, destination):
                 cached_repo_path, clone_folder
             )
         )
+
+    # checkout in the newly copy destination
+    vcs.location = Text(clone_folder)
+    vcs.checkout()
 
     repo_info = vcs.get_repository_copy_info(clone_folder)
 
