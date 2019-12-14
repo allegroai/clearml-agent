@@ -358,7 +358,7 @@ class ServiceCommandSection(BaseCommandSection):
                 **locals())
             self.exit(message)
 
-        message = 'Could not find {} with name "{}"'.format(service.rstrip('s'), name)
+        message = 'Could not find {} with name/id "{}"'.format(service.rstrip('s'), name)
 
         if not response:
             raise NameResolutionError(message)

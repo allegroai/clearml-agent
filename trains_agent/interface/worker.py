@@ -49,7 +49,7 @@ DAEMON_ARGS = dict({
     '--docker': {
         'help': 'Run execution task inside a docker (v19.03 and above). Optional args <image> <arguments> or '
                 'specify default docker image in agent.default_docker.image / agent.default_docker.arguments'
-                'set NVIDIA_VISIBLE_DEVICES to limit gpu visibility for docker',
+                'use --gpus/--cpu-only (or set NVIDIA_VISIBLE_DEVICES) to limit gpu visibility for docker',
         'nargs': '*',
         'default': False,
     },
@@ -60,6 +60,11 @@ DAEMON_ARGS = dict({
         'dest': 'queues',
         'type': foreign_object_id('queues'),
     },
+    '--standalone-mode': {
+        'help': 'Do not use any network connects, assume everything is pre-installed',
+        'action': 'store_true',
+    },
+
 }, **WORKER_ARGS)
 
 COMMANDS = {
@@ -83,6 +88,15 @@ COMMANDS = {
                 'help': 'Full environment setup log & task logging & monitoring (stdout is still visible)',
                 'action': 'store_true',
             },
+            '--require-queue': {
+                'help': 'If the specified task is not queued (in any Queue), the execution will fail. '
+                        '(Used for 3rd party scheduler integration, e.g. K8s, SLURM, etc.)',
+                'action': 'store_true',
+            },
+            '--standalone-mode': {
+                'help': 'Do not use any network connects, assume everything is pre-installed',
+                'action': 'store_true',
+            },
         }, **WORKER_ARGS),
     },
     'build': {
@@ -96,8 +110,25 @@ COMMANDS = {
                 'dest': 'task_id',
                 'type': foreign_object_id('tasks'),
             },
-            '--target-folder': {
-                'help': 'Where to build the task\'s virtual environment and source code',
+            '--target': {
+                'help': 'Where to build the task\'s virtual environment and source code. '
+                        'When used with --docker, target docker image name to create',
+            },
+            '--docker': {
+                'help': 'Build the experiment inside a docker (v19.03 and above). Optional args <image> <arguments> or '
+                'specify default docker image in agent.default_docker.image / agent.default_docker.arguments'
+                'use --gpus/--cpu-only (or set NVIDIA_VISIBLE_DEVICES) to limit gpu visibility for docker',
+                'nargs': '*',
+                'default': False,
+            },
+            '--gpus': {
+                'help': 'Specify active GPUs for the docker to use'
+                        'Equivalent to setting NVIDIA_VISIBLE_DEVICES '
+                        'Examples: --gpus 0 or --gpu 0,1,2 or --gpus all',
+            },
+            '--cpu-only': {
+                'help': 'Disable GPU access (cpu only) for the docker',
+                'action': 'store_true',
             },
             '--python-version': {
                 'help': 'Virtual environment python version to use',
