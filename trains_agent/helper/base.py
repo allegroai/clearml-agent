@@ -176,6 +176,25 @@ def safe_remove_file(filename, error_message=None):
             print(error_message)
 
 
+def get_python_path(script_dir, entry_point, package_api):
+    try:
+        python_path_sep = ';' if is_windows_platform() else ':'
+        python_path_cmd = package_api.get_python_command(
+            ["-c", "import sys; print('{}'.join(sys.path))".format(python_path_sep)])
+        org_python_path = python_path_cmd.get_output(cwd=script_dir)
+        # Add path of the script directory and executable directory
+        python_path = '{}{python_path_sep}{}{python_path_sep}'.format(
+            Path(script_dir).absolute().as_posix(),
+            (Path(script_dir) / Path(entry_point)).parent.absolute().as_posix(),
+            python_path_sep=python_path_sep)
+        if is_windows_platform():
+            return python_path.replace('/', '\\') + org_python_path
+
+        return python_path + org_python_path
+    except Exception:
+        return None
+
+
 class Singleton(ABCMeta):
     _instances = {}
 

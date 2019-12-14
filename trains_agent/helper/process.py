@@ -59,17 +59,47 @@ def kill_all_child_processes(pid=None):
         parent.kill()
 
 
-def shutdown_docker_process(docker_cmd_ending):
+def get_docker_id(docker_cmd_contains):
     try:
         containers_running = get_bash_output(cmd='docker ps --no-trunc --format \"{{.ID}}: {{.Command}}\"')
         for docker_line in containers_running.split('\n'):
             parts = docker_line.split(':')
-            if parts[-1].endswith(docker_cmd_ending):
-                # we found our docker, stop it
-                get_bash_output(cmd='docker stop -t 1 {}'.format(parts[0]))
-                return
+            if docker_cmd_contains in parts[-1]:
+                # we found our docker, return it
+                return parts[0]
     except Exception:
         pass
+    return None
+
+
+def shutdown_docker_process(docker_cmd_contains=None, docker_id=None):
+    try:
+        if not docker_id:
+            docker_id = get_docker_id(docker_cmd_contains=docker_cmd_contains)
+        if docker_id:
+            # we found our docker, stop it
+            get_bash_output(cmd='docker stop -t 1 {}'.format(docker_id))
+    except Exception:
+        pass
+
+
+def commit_docker(container_name, docker_cmd_contains=None, docker_id=None):
+    try:
+        if not docker_id:
+            docker_id = get_docker_id(docker_cmd_contains=docker_cmd_contains)
+        if not docker_id:
+            print("Failed locating requested docker")
+            return False
+
+        if docker_id:
+            # we found our docker, stop it
+            output = get_bash_output(cmd='docker commit {} {}'.format(docker_id, container_name))
+            return output
+    except Exception:
+        pass
+
+    print("Failed storing requested docker")
+    return False
 
 
 def check_if_command_exists(cmd):
