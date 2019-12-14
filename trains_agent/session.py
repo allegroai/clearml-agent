@@ -99,10 +99,12 @@ class Session(_Session):
         if not self.config.get('api.host', None) and self.config.get('api.api_server', None):
             self.config['api']['host'] = self.config.get('api.api_server')
 
-        # initialize nvidia visibility variable
+        # initialize nvidia visibility variables
         os.environ['CUDA_DEVICE_ORDER'] = "PCI_BUS_ID"
         if os.environ.get('NVIDIA_VISIBLE_DEVICES') and not os.environ.get('CUDA_VISIBLE_DEVICES'):
-            os.environ['CUDA_VISIBLE_DEVICES'] = os.environ.get('NVIDIA_VISIBLE_DEVICES')
+            # do not create CUDA_VISIBLE_DEVICES if it doesn't exist, it breaks TF/PyTotch CUDA detection
+            # os.environ['CUDA_VISIBLE_DEVICES'] = os.environ.get('NVIDIA_VISIBLE_DEVICES')
+            pass
         elif os.environ.get('CUDA_VISIBLE_DEVICES') and not os.environ.get('NVIDIA_VISIBLE_DEVICES'):
             os.environ['NVIDIA_VISIBLE_DEVICES'] = os.environ.get('CUDA_VISIBLE_DEVICES')
 
