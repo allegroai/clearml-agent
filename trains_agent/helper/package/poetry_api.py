@@ -96,3 +96,15 @@ class PoetryAPI(object):
 
     def get_python_command(self, extra):
         return Argv("poetry", "run", "python", *extra)
+
+    def upgrade_pip(self, *args, **kwargs):
+        pass
+
+    def set_selected_package_manager(self, *args, **kwargs):
+        pass
+
+    def out_of_scope_install_package(self, *args, **kwargs):
+        pass
+
+    def install_from_file(self, *args, **kwargs):
+        pass
