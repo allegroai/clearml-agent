@@ -206,6 +206,11 @@ class Session(_Session):
         config.pop('env', None)
         if remove_secret_keys:
             recursive_remove_secrets(config, secret_keys=remove_secret_keys)
+        # remove logging.loggers.urllib3.level from the print
+        try:
+            config['logging']['loggers']['urllib3'].pop('level', None)
+        except (KeyError, TypeError, AttributeError):
+            pass
         config = ConfigFactory.from_dict(config)
         self.log.debug("Run by interpreter: %s", sys.executable)
         print(
