@@ -211,6 +211,10 @@ class Session(_Session):
             config['logging']['loggers']['urllib3'].pop('level', None)
         except (KeyError, TypeError, AttributeError):
             pass
+        try:
+            config['logging'].pop('version', None)
+        except (KeyError, TypeError, AttributeError):
+            pass
         config = ConfigFactory.from_dict(config)
         self.log.debug("Run by interpreter: %s", sys.executable)
         print(

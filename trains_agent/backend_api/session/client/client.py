@@ -139,13 +139,25 @@ class Response(object):
         :param dest: if all of a response's data is contained in one field, use that field
         :type dest: Text
         """
+        self.response = None
         self._result = result
         response = getattr(result, "response", result)
+        if getattr(response, "_service") == "events" and \
+                getattr(response, "_action") in ("scalar_metrics_iter_histogram",
+                                                 "multi_task_scalar_metrics_iter_histogram",
+                                                 "vector_metrics_iter_histogram",
+                                                 ):
+            # put all the response data under metrics:
+            response.metrics = result.response_data
+            if 'metrics' not in response.__class__._get_data_props():
+                response.__class__._data_props_list['metrics'] = 'metrics'
         if dest:
             response = getattr(response, dest)
         self.response = response
 
     def __getattr__(self, attr):
+        if self.response is None:
+            return None
         return getattr(self.response, attr)
 
     @property
@@ -493,6 +505,7 @@ class APIClient(object):
     queues = None  # type: Any
     tasks = None  # type: Any
     workers = None  # type: Any
+    events = None  # type: Any
 
     def __init__(self, session=None, api_version=None):
         self.session = session or StrictSession()

@@ -3,6 +3,7 @@ from .v2_4 import debug
 from .v2_4 import queues
 from .v2_4 import tasks
 from .v2_4 import workers
+from .v2_4 import events
 
 __all__ = [
     'auth',
@@ -10,4 +11,5 @@ __all__ = [
     'queues',
     'tasks',
     'workers',
+    'events',
 ]
