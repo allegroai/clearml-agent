@@ -14,7 +14,7 @@ It is a zero configuration fire-and-forget execution agent, which combined with 
 
 **Full AutoML in 5 steps** 
 1. Install the [TRAINS server](https://github.com/allegroai/trains-agent) (or use our [open server](https://demoapp.trains.allegro.ai))
-2. `pip install trains_agent` ([install](#installing-the-trains-agent) the TRAINS agent on any GPU machine: on-premises / cloud / ...)
+2. `pip install trains-agent` ([install](#installing-the-trains-agent) the TRAINS agent on any GPU machine: on-premises / cloud / ...)
 3. Add [TRAINS](https://github.com/allegroai/trains) to your code with just 2 lines & run it once (on your machine / laptop)
 4. Change the [parameters](#using-the-trains-agent) in the UI & schedule for [execution](#using-the-trains-agent) (or automate with an [AutoML pipeline](#automl-and-orchestration-pipelines-))
 5. :chart_with_downwards_trend: :chart_with_upwards_trend: :eyes:  :beer:
@@ -133,7 +133,7 @@ Development Machine                                                           | 
 ### Installing the TRAINS Agent
 
 ```bash
-pip install trains_agent
+pip install trains-agent
 ```
 
 ### TRAINS Agent Usage Examples
