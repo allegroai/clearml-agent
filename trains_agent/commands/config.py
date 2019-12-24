@@ -150,6 +150,18 @@ def main():
         git_user = None
         git_pass = None
 
+    # get extra-index-url for pip installations
+    extra_index_urls = []
+    print('\nEnter additional artifact repository (extra-index-url) to use when installing python packages '
+          '(leave blank if not required):', end='')
+    index_url = input().strip()
+    while index_url:
+        extra_index_urls.append(index_url)
+        print('Another artifact repository? (enter another url or leave blank if done):', end='')
+        index_url = input().strip()
+    if len(extra_index_urls):
+        print("The following artifact repositories will be added:\n\t- {}".format("\n\t- ".join(extra_index_urls)))
+
     # noinspection PyBroadException
     try:
         conf_folder = Path(__file__).parent.absolute() / '..' / 'backend_api' / 'config' / 'default'
@@ -183,6 +195,10 @@ def main():
                               'agent.git_pass=\"{}\"\n' \
                               '\n'.format(git_user or '', git_pass or '')
             f.write(git_credentials)
+            extra_index_str = '# extra_index_url: ["https://allegroai.jfrog.io/trainsai/api/pypi/public/simple"]\n' \
+                              'agent.package_manager.extra_index_url= ' \
+                              '[\n{}\n]\n\n'.format("\n".join(map("\"{}\"".format, extra_index_urls)))
+            f.write(extra_index_str)
             f.write(default_conf)
     except Exception:
         print('Error! Could not write configuration file at: {}'.format(str(conf_file)))
