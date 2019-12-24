@@ -1,5 +1,5 @@
 # TRAINS Agent
-## Deep Learning DevOps For Everyone - Now supports all platforms (Linux, macOS, and Windows)
+## Deep Learning DevOps For Everyone - Now supporting all platforms (Linux, macOS, and Windows)
 
 "All the Deep-Learning DevOps your research needs, and then some... Because ain't nobody got time for that"
 
