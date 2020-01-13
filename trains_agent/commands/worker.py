@@ -753,9 +753,9 @@ class Worker(ServiceCommandSection):
 
         stdout = open(stdout_path, "wt")
         stderr = open(stderr_path, "wt") if stderr_path else stdout
+        stdout_line_count, stdout_last_lines = 0, []
+        stderr_line_count, stderr_last_lines = 0, []
         try:
-            stdout_line_count, stdout_last_lines = 0, []
-            stderr_line_count, stderr_last_lines = 0, []
             status = None
             stopping = False
             _last_machine_update_ts = time()
@@ -803,6 +803,16 @@ class Worker(ServiceCommandSection):
             # non zero return code
             stop_reason = 'Exception occurred'
             status = ex.returncode
+        except KeyboardInterrupt:
+            # so someone else will catch us
+            raise
+        except Exception:
+            # we should not get here, but better safe than sorry
+            stdout_line_count += self.send_logs(task_id, _print_file(stdout_path, stdout_line_count))
+            if stderr_path:
+                stderr_line_count += self.send_logs(task_id, _print_file(stderr_path, stderr_line_count))
+            stop_reason = 'Exception occurred'
+            status = -1
 
         stdout.close()
         if stderr_path:
