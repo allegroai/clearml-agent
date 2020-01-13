@@ -14,7 +14,7 @@ import yaml
 from time import time
 from attr import attrs, attrib, Factory
 from pathlib2 import Path
-from semantic_version import Version
+from packaging import version as packaging_version
 from requirements import parse
 from requirements.requirement import Requirement
 
@@ -59,7 +59,7 @@ class CondaAPI(PackageManager):
     A programmatic interface for controlling conda
     """
 
-    MINIMUM_VERSION = Version("4.3.30", partial=True)
+    MINIMUM_VERSION = packaging_version.parse("4.3.30")
 
     def __init__(self, session, path, python, requirements_manager):
         # type: (Session, PathLike, float, RequirementsManager) -> None
@@ -93,7 +93,7 @@ class CondaAPI(PackageManager):
                 )
             )
         self.conda_version = self.get_conda_version(output)
-        if Version(self.conda_version, partial=True) < self.MINIMUM_VERSION:
+        if packaging_version.parse(self.conda_version) < self.MINIMUM_VERSION:
             raise CommandFailedError(
                 "conda version '{}' is smaller than minimum supported conda version '{}'".format(
                     self.conda_version, self.MINIMUM_VERSION

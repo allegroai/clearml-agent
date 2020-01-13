@@ -10,7 +10,7 @@ from operator import itemgetter
 from os import path
 from typing import Text, List, Type, Optional, Tuple
 
-import semantic_version
+from packaging import version as packaging_version
 from pathlib2 import Path
 from pyhocon import ConfigTree
 from requirements import parse
@@ -177,7 +177,7 @@ class SimpleSubstitution(RequirementSubstitution):
 
         if req.specs:
             _, version_number = req.specs[0]
-            assert semantic_version.Version(version_number, partial=True)
+            assert packaging_version.parse(version_number)
         else:
             version_number = self.get_pip_version(self.name)
 

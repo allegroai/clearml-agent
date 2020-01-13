@@ -10,7 +10,8 @@ from typing import Text
 
 import attr
 import requests
-from semantic_version import Version, Spec
+from packaging import version as packaging_version
+from packaging.specifiers import SpecifierSet
 
 import six
 from .requirements import SimpleSubstitution, FatalSpecsResolutionError
@@ -155,10 +156,16 @@ class PytorchRequirement(SimpleSubstitution):
         self.os = os_name or self.get_platform()
         self.cuda = "cuda{}".format(self.cuda_version).lower()
         self.python_version_string = str(self.config["agent.default_python"])
-        self.python_semantic_version = Version.coerce(
-            self.python_version_string, partial=True
-        )
-        self.python = "python{}.{}".format(self.python_semantic_version.major, self.python_semantic_version.minor)
+        self.python_major_minor_str = '.'.join(packaging_version.parse(
+            self.python_version_string).base_version.split('.')[:2])
+        if '.' not in self.python_major_minor_str:
+            raise PytorchResolutionError(
+                "invalid python version {!r} defined in configuration file, key 'agent.default_python': "
+                "must have both major and minor parts of the version (for example: '3.7')".format(
+                    self.python_version_string
+                )
+            )
+        self.python = "python{}".format(self.python_major_minor_str)
 
         self.exceptions = [
             PytorchResolutionError(message)
@@ -188,9 +195,7 @@ class PytorchRequirement(SimpleSubstitution):
         """
         Make sure python version has both major and minor versions as required for choosing pytorch wheel
         """
-        if self.is_pip and not (
-            self.python_semantic_version.major and self.python_semantic_version.minor
-        ):
+        if self.is_pip and not self.python_major_minor_str:
             raise PytorchResolutionError(
                 "invalid python version {!r} defined in configuration file, key 'agent.default_python': "
                 "must have both major and minor parts of the version (for example: '3.7')".format(
@@ -215,8 +220,10 @@ class PytorchRequirement(SimpleSubstitution):
         links_parser = LinksHTMLParser()
         links_parser.feed(requests.get(torch_url, timeout=10).text)
         platform_wheel = "win" if self.get_platform() == "windows" else self.get_platform()
-        py_ver = "{0.major}{0.minor}".format(self.python_semantic_version)
+        py_ver = self.python_major_minor_str.replace('.', '')
         url = None
+        spec = SpecifierSet(req.format_specs())
+        last_v = None
         # search for our package
         for l in links_parser.links:
             parts = l.split('/')[-1].split('-')
@@ -225,14 +232,19 @@ class PytorchRequirement(SimpleSubstitution):
             if parts[0] != req.name:
                 continue
             # version (ignore +cpu +cu92 etc. + is %2B in the file link)
-            if parts[1].split('%')[0].split('+')[0] != req.specs[0][1]:
+            # version ignore .postX suffix (treat as regular version)
+            try:
+                v = packaging_version.parse(parts[1].split('%')[0].split('+')[0])
+            except Exception:
+                continue
+            if v not in spec or (last_v and last_v > v):
                 continue
             if not parts[2].endswith(py_ver):
                 continue
             if platform_wheel not in parts[4]:
                 continue
             url = '/'.join(torch_url.split('/')[:-1] + l.split('/'))
-            break
+            last_v = v
 
         return url
 
@@ -254,7 +266,8 @@ class PytorchRequirement(SimpleSubstitution):
             pass
 
         # make sure we have a specific version to retrieve
-        assert req.specs
+        if not req.specs:
+            req.specs = [('>', '0')]
 
         try:
             req.specs[0] = (req.specs[0][0], req.specs[0][1].split('+')[0])
@@ -282,7 +295,7 @@ class PytorchRequirement(SimpleSubstitution):
         if not url:
             url = PytorchWheel(
                 torch_version=fix_version(version),
-                python="{0.major}{0.minor}".format(self.python_semantic_version),
+                python=self.python_major_minor_str.replace('.', ''),
                 os_name=self.os,
                 cuda_version=self.cuda_version,
             ).make_url()
@@ -296,13 +309,13 @@ class PytorchRequirement(SimpleSubstitution):
     @staticmethod
     def match_version(req, options):
         versioned_options = sorted(
-            ((Version(fix_version(key)), value) for key, value in options.items()),
+            ((packaging_version.parse(fix_version(key)), value) for key, value in options.items()),
             key=itemgetter(0),
             reverse=True,
         )
         req.specs = [(op, fix_version(version)) for op, version in req.specs]
         if req.specs:
-            specs = Spec(req.format_specs())
+            specs = SpecifierSet(req.format_specs())
         else:
             specs = None
         try:

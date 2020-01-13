@@ -4,7 +4,7 @@ from time import sleep
 import requests
 import json
 from threading import Thread
-from semantic_version import Version
+from packaging import version as packaging_version
 from ..version import __version__
 
 __check_update_thread = None
@@ -30,8 +30,8 @@ def _check_new_version_available():
         return None
     trains_answer = update_server_releases.get("trains-agent", {})
     latest_version = trains_answer.get("version")
-    cur_version = Version(cur_version)
-    latest_version = Version(latest_version)
+    cur_version = packaging_version.parse(cur_version)
+    latest_version = packaging_version.parse(latest_version or '')
     if cur_version >= latest_version:
         return None
     patch_upgrade = latest_version.major == cur_version.major and latest_version.minor == cur_version.minor
