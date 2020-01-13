@@ -354,6 +354,8 @@ class Worker(ServiceCommandSection):
         self.docker_image_func = None
         self._docker_image = None
         self._docker_arguments = None
+        self._extra_docker_arguments = self._session.config.get("agent.extra_docker_arguments", None)
+        self._extra_shell_script = self._session.config.get("agent.extra_docker_shell_script", None)
         self._docker_force_pull = self._session.config.get("agent.docker_force_pull", False)
         self._daemon_foreground = None
         self._standalone_mode = None
@@ -414,6 +416,7 @@ class Worker(ServiceCommandSection):
             )
         )
 
+        docker_image = None
         if self.docker_image_func:
             try:
                 response = get_task(self._session, task_id, only_fields=["execution.docker_cmd"])
@@ -1755,9 +1758,19 @@ class Worker(ServiceCommandSection):
         # store docker arguments
         self._docker_image = docker_image
         self._docker_arguments = docker_arguments
+
+        extra_shell_script_str = ""
+        if self._extra_shell_script:
+            cmds = self._extra_shell_script
+            if not isinstance(cmds, (list, tuple)):
+                cmds = [cmds]
+            extra_shell_script_str = " ; ".join(map(str, cmds)) + " ; "
+
         docker_cmd = dict(worker_id=self.worker_id,
                           # docker_image=docker_image,
                           # docker_arguments=docker_arguments,
+                          extra_docker_arguments=self._extra_docker_arguments,
+                          extra_shell_script=extra_shell_script_str,
                           python_version=python_version, conf_file=self.temp_config_path,
                           host_apt_cache=host_apt_cache,
                           host_pip_cache=host_pip_cache,
@@ -1776,7 +1789,8 @@ class Worker(ServiceCommandSection):
                         host_ssh_cache,
                         host_cache, mounted_cache,
                         host_pip_dl, mounted_pip_dl,
-                        host_vcs_cache, mounted_vcs_cache, standalone_mode=False):
+                        host_vcs_cache, mounted_vcs_cache,
+                        standalone_mode=False, extra_docker_arguments=None, extra_shell_script=None):
         docker = 'docker'
 
         base_cmd = [docker, 'run', '-t']
@@ -1792,6 +1806,11 @@ class Worker(ServiceCommandSection):
             docker_arguments = list(docker_arguments) \
                 if isinstance(docker_arguments, (list, tuple)) else [docker_arguments]
             base_cmd += [a for a in docker_arguments if a]
+
+        if extra_docker_arguments:
+            extra_docker_arguments = [extra_docker_arguments] \
+                if isinstance(extra_docker_arguments, six.string_types) else extra_docker_arguments
+            base_cmd += [str(a) for a in extra_docker_arguments if a]
 
         base_cmd += ['-e', 'TRAINS_WORKER_ID='+worker_id, ]
 
@@ -1831,6 +1850,7 @@ class Worker(ServiceCommandSection):
             '-v', host_vcs_cache+':'+mounted_vcs_cache,
             '--rm', docker_image, 'bash', '-c',
             update_scheme +
+            extra_shell_script +
             "NVIDIA_VISIBLE_DEVICES=all {python} -u -m trains_agent ".format(python=python_version)
         ]
 
