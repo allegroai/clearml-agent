@@ -890,8 +890,6 @@ class Worker(ServiceCommandSection):
     ):
         if not task_id:
             raise CommandFailedError("Worker build must have valid task id")
-        if not check_if_command_exists("virtualenv"):
-            raise CommandFailedError("Worker must have virtualenv installed")
 
         self._session.print_configuration()
 
@@ -1020,8 +1018,6 @@ class Worker(ServiceCommandSection):
     ):
         if not task_id:
             raise CommandFailedError("Worker execute must have valid task id")
-        if not check_if_command_exists("virtualenv"):
-            raise CommandFailedError("Worker must have virtualenv installed")
 
         try:
             current_task = self._session.api_client.tasks.get_by_id(task_id)
