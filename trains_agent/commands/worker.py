@@ -354,6 +354,7 @@ class Worker(ServiceCommandSection):
         self.docker_image_func = None
         self._docker_image = None
         self._docker_arguments = None
+        self._docker_force_pull = self._session.config.get("agent.docker_force_pull", False)
         self._daemon_foreground = None
         self._standalone_mode = None
 
@@ -467,6 +468,19 @@ class Worker(ServiceCommandSection):
         try:
             # set WORKER ID
             os.environ['TRAINS_WORKER_ID'] = self.worker_id
+
+            if self._docker_force_pull and docker_image:
+                full_pull_cmd = ['docker', 'pull', docker_image]
+                pull_cmd = Argv(*full_pull_cmd)
+                status, stop_signal_status = self._log_command_output(
+                    task_id=task_id,
+                    cmd=pull_cmd,
+                    stdout_path=temp_stdout_name,
+                    stderr_path=temp_stderr_name,
+                    daemon=True,
+                    stop_signal=stop_signal,
+                )
+
             status, stop_signal_status = self._log_command_output(
                 task_id=task_id,
                 cmd=cmd,
