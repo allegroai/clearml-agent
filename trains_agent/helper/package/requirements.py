@@ -48,7 +48,7 @@ class MarkerRequirement(object):
 
     def tostr(self, markers=True):
         if not self.uri:
-            parts = [self.name]
+            parts = [self.name or self.line]
 
             if self.extras:
                 parts.append('[{0}]'.format(','.join(sorted(self.extras))))
@@ -258,7 +258,7 @@ class RequirementsManager(object):
                 warning('could not resolve python wheel replacement for {}'.format(req))
                 raise
             except Exception:
-                warning('could not resolve python wheel replacement for {}, '
+                warning('could not resolve python wheel replacement for \"{}\", '
                         'using original requirements line: {}'.format(req, i))
                 return None
 

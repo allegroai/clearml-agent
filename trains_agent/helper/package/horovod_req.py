@@ -14,7 +14,7 @@ class HorovodRequirement(SimpleSubstitution):
 
     def match(self, req):
         # match both horovod
-        return self.name == req.name.lower()
+        return req.name and self.name == req.name.lower()
 
     def post_install(self):
         if self.post_install_req:

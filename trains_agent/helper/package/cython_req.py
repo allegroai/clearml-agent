@@ -13,7 +13,7 @@ class CythonRequirement(SimpleSubstitution):
 
     def match(self, req):
         # match both Cython & cython
-        return self.name == req.name.lower()
+        return req.name and self.name == req.name.lower()
 
     def replace(self, req):
         """
