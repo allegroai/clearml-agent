@@ -29,7 +29,7 @@ class SystemPip(PackageManager):
         pass
 
     def install_from_file(self, path):
-        self.run_with_env(('install', '-r', path) + self.install_flags())
+        self.run_with_env(('install', '-r', path) + self.install_flags(), cwd=self.cwd)
 
     def install_packages(self, *packages):
         self._install(*(packages + self.install_flags()))

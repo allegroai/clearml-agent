@@ -932,6 +932,7 @@ class Worker(ServiceCommandSection):
             repo_info,
             requirements_manager=requirements_manager,
             cached_requirements=requirements,
+            cwd=vcs.location if vcs and vcs.location else directory,
         )
         freeze = self.freeze_task_environment()
         script_dir = directory
@@ -1102,6 +1103,7 @@ class Worker(ServiceCommandSection):
                 repo_info,
                 requirements_manager=requirements_manager,
                 cached_requirements=requirements,
+                cwd=vcs.location if vcs and vcs.location else directory,
             )
 
         # do not update the task packages if we are using conda,
@@ -1409,7 +1411,7 @@ class Worker(ServiceCommandSection):
         return None
 
     def install_requirements(
-        self, execution, repo_info, requirements_manager, cached_requirements=None
+        self, execution, repo_info, requirements_manager, cached_requirements=None, cwd=None,
     ):
         # type: (ExecutionInfo, RepoInfo, RequirementsManager, Optional[dict]) -> None
         """
@@ -1422,6 +1424,8 @@ class Worker(ServiceCommandSection):
         :param requirements_manager: requirements manager for task
         :param cached_requirements: cached requirements from previous run
          """
+        if self.package_api:
+            self.package_api.cwd = cwd
         api = self._install_poetry_requirements(repo_info)
         if api:
             self.package_api = api

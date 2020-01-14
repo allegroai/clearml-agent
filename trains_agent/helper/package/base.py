@@ -16,6 +16,7 @@ class PackageManager(object):
     """
 
     _selected_manager = None
+    _cwd = None
 
     @abc.abstractproperty
     def bin(self):
@@ -96,6 +97,14 @@ class PackageManager(object):
         # set this instance as the selected package manager
         # this is helpful when we want out of context requirement installations
         PackageManager._selected_manager = self
+
+    @property
+    def cwd(self):
+        return self._cwd
+
+    @cwd.setter
+    def cwd(self, value):
+        self._cwd = value
 
     @classmethod
     def out_of_scope_install_package(cls, package_name):
