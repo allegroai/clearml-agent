@@ -3,7 +3,7 @@ from functools import wraps
 import attr
 import sys
 from pathlib2 import Path
-from trains_agent.helper.process import Argv, DEVNULL
+from trains_agent.helper.process import Argv, DEVNULL, check_if_command_exists
 from trains_agent.session import Session, POETRY
 
 
@@ -56,7 +56,10 @@ class PoetryConfig:
     def run(self, *args, **kwargs):
         func = kwargs.pop("func", Argv.get_output)
         kwargs.setdefault("stdin", DEVNULL)
-        argv = Argv(self._python, "-m", "poetry", *args)
+        if check_if_command_exists("poetry"):
+            argv = Argv("poetry", *args)
+        else:
+            argv = Argv(self._python, "-m", "poetry", *args)
         self.log.debug("running: %s", argv)
         return func(argv, **kwargs)
 
@@ -102,7 +105,10 @@ class PoetryAPI(object):
         return {"pip": [parts[0]+'=='+parts[1]+' # '+' '.join(parts[2:]) for parts in lines]}
 
     def get_python_command(self, extra):
-        return Argv("poetry", "run", "python", *extra)
+        if check_if_command_exists("poetry"):
+            return Argv("poetry", "run", "python", *extra)
+        else:
+            return Argv(self.config._python, "-m", "poetry", "run", "python", *extra)
 
     def upgrade_pip(self, *args, **kwargs):
         pass
