@@ -64,6 +64,7 @@ from trains_agent.helper.console import ensure_text
 from trains_agent.helper.package.base import PackageManager
 from trains_agent.helper.package.conda_api import CondaAPI
 from trains_agent.helper.package.horovod_req import HorovodRequirement
+from trains_agent.helper.package.external_req import ExternalRequirements
 from trains_agent.helper.package.pip_api.system import SystemPip
 from trains_agent.helper.package.pip_api.venv import VirtualenvPip
 from trains_agent.helper.package.poetry_api import PoetryConfig, PoetryAPI
@@ -287,6 +288,7 @@ class Worker(ServiceCommandSection):
         PytorchRequirement,
         CythonRequirement,
         HorovodRequirement,
+        ExternalRequirements,
     )
 
     # poll queues every _polling_interval seconds
@@ -350,7 +352,6 @@ class Worker(ServiceCommandSection):
 
         self.is_venv_update = self._session.config.agent.venv_update.enabled
         self.poetry = PoetryConfig(self._session)
-        self.poetry.initialize()
         self.docker_image_func = None
         self._docker_image = None
         self._docker_arguments = None
@@ -934,7 +935,7 @@ class Worker(ServiceCommandSection):
             cached_requirements=requirements,
             cwd=vcs.location if vcs and vcs.location else directory,
         )
-        freeze = self.freeze_task_environment()
+        freeze = self.freeze_task_environment(requirements_manager=requirements_manager)
         script_dir = directory
 
         # Summary
@@ -1108,7 +1109,8 @@ class Worker(ServiceCommandSection):
 
         # do not update the task packages if we are using conda,
         # it will most likely make the task environment unreproducible
-        freeze = self.freeze_task_environment(current_task.id if not self.is_conda else None)
+        freeze = self.freeze_task_environment(current_task.id if not self.is_conda else None,
+                                              requirements_manager=requirements_manager)
         script_dir = (directory if isinstance(directory, Path) else Path(directory)).absolute().as_posix()
 
         # run code
@@ -1371,13 +1373,17 @@ class Worker(ServiceCommandSection):
                 status_message=self._task_status_change_message,
             )
 
-    def freeze_task_environment(self, task_id=None):
+    def freeze_task_environment(self, task_id=None, requirements_manager=None):
         try:
             freeze = self.package_api.freeze()
         except Exception as e:
             print("Could not freeze installed packages")
             self.log_traceback(e)
             return None
+
+        if requirements_manager:
+            freeze = requirements_manager.replace_back(freeze)
+
         if not task_id:
             return freeze
 
@@ -1402,6 +1408,9 @@ class Worker(ServiceCommandSection):
         if not repo_info:
             return None
         try:
+            if not self.poetry.enabled:
+                return None
+            self.poetry.initialize(cwd=repo_info.root)
             api = self.poetry.get_api(repo_info.root)
             if api.enabled:
                 api.install()
@@ -1447,7 +1456,7 @@ class Worker(ServiceCommandSection):
             except Exception as e:
                 self.log_traceback(e)
                 cached_requirements_failed = True
-                raise ValueError("Could not install task requirements!")
+                raise ValueError("Could not install task requirements!\n{}".format(e))
             else:
                 self.log("task requirements installation passed")
                 return

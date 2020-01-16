@@ -8,7 +8,7 @@ from copy import deepcopy
 from itertools import chain, starmap
 from operator import itemgetter
 from os import path
-from typing import Text, List, Type, Optional, Tuple
+from typing import Text, List, Type, Optional, Tuple, Dict
 
 from packaging import version as packaging_version
 from pathlib2 import Path
@@ -184,6 +184,13 @@ class SimpleSubstitution(RequirementSubstitution):
         req.specs = [('==', version_number + self.suffix)]
         return Text(req)
 
+    def replace_back(self, list_of_requirements):  # type: (Dict) -> Dict
+        """
+        :param list_of_requirements: {'pip': ['a==1.0', ]}
+        :return: {'pip': ['a==1.0', ]}
+        """
+        return list_of_requirements
+
 
 @six.add_metaclass(ABCMeta)
 class CudaSensitiveSubstitution(SimpleSubstitution):
@@ -235,15 +242,17 @@ class RequirementsManager(object):
         return None
 
     def replace(self, requirements):  # type: (Text) -> Text
+        def safe_parse(req_str):
+            try:
+                return next(parse(req_str))
+            except Exception as ex:
+                return Requirement(req_str)
+
         parsed_requirements = tuple(
             map(
                 MarkerRequirement,
-                filter(
-                    None,
-                    parse(requirements)
-                    if isinstance(requirements, six.text_type)
-                    else (next(parse(line), None) for line in requirements)
-                )
+                [safe_parse(line) for line in (requirements.splitlines()
+                                               if isinstance(requirements, six.text_type) else requirements)]
             )
         )
         if not parsed_requirements:
@@ -279,6 +288,14 @@ class RequirementsManager(object):
                 h.post_install()
             except Exception as ex:
                 print('RequirementsManager handler {} raised exception: {}'.format(h, ex))
+
+    def replace_back(self, requirements):
+        for h in self.handlers:
+            try:
+                requirements = h.replace_back(requirements)
+            except Exception:
+                pass
+        return requirements
 
     @staticmethod
     def get_cuda_version(config):  # type: (ConfigTree) -> (Text, Text)

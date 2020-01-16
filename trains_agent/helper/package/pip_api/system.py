@@ -35,7 +35,7 @@ class SystemPip(PackageManager):
         self._install(*(packages + self.install_flags()))
 
     def _install(self, *args):
-        self.run_with_env(('install',) + args)
+        self.run_with_env(('install',) + args, cwd=self.cwd)
 
     def uninstall_packages(self, *packages):
         self.run_with_env(('uninstall', '-y') + packages)

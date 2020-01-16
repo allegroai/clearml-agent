@@ -1,6 +1,7 @@
 from functools import wraps
 
 import attr
+import sys
 from pathlib2 import Path
 from trains_agent.helper.process import Argv, DEVNULL
 from trains_agent.session import Session, POETRY
@@ -35,10 +36,12 @@ def prop_guard(prop, log_prop=None):
 
 class PoetryConfig:
 
-    def __init__(self, session):
-        # type: (Session) -> ()
+    def __init__(self, session, interpreter=None):
+        # type: (Session, str) -> ()
         self.session = session
         self._log = session.get_logger(__name__)
+        self._python = interpreter or sys.executable
+        self._initialized = False
 
     @property
     def log(self):
@@ -53,7 +56,7 @@ class PoetryConfig:
     def run(self, *args, **kwargs):
         func = kwargs.pop("func", Argv.get_output)
         kwargs.setdefault("stdin", DEVNULL)
-        argv = Argv("poetry", "-n", *args)
+        argv = Argv(self._python, "-m", "poetry", *args)
         self.log.debug("running: %s", argv)
         return func(argv, **kwargs)
 
@@ -61,10 +64,12 @@ class PoetryConfig:
         return self.run("config", *args, **kwargs)
 
     @_guard_enabled
-    def initialize(self):
-        self._config("settings.virtualenvs.in-project",  "true")
-        # self._config("repositories.{}".format(self.REPO_NAME), PYTHON_INDEX)
-        # self._config("http-basic.{}".format(self.REPO_NAME), *PYTHON_INDEX_CREDENTIALS)
+    def initialize(self, cwd=None):
+        if not self._initialized:
+            self._initialized = True
+            self._config("--local", "virtualenvs.in-project",  "true", cwd=cwd)
+            # self._config("repositories.{}".format(self.REPO_NAME), PYTHON_INDEX)
+            # self._config("http-basic.{}".format(self.REPO_NAME), *PYTHON_INDEX_CREDENTIALS)
 
     def get_api(self, path):
         # type: (Path) -> PoetryAPI
@@ -81,7 +86,7 @@ class PoetryAPI(object):
     def install(self):
         # type: () -> bool
         if self.enabled:
-            self.config.run("install", cwd=str(self.path), func=Argv.check_call)
+            self.config.run("install", "-n", cwd=str(self.path), func=Argv.check_call)
             return True
         return False
 
@@ -92,7 +97,9 @@ class PoetryAPI(object):
         )
 
     def freeze(self):
-        return {"poetry": self.config.run("show", cwd=str(self.path)).splitlines()}
+        lines = self.config.run("show", cwd=str(self.path)).splitlines()
+        lines = [[p for p in line.split(' ') if p] for line in lines]
+        return {"pip": [parts[0]+'=='+parts[1]+' # '+' '.join(parts[2:]) for parts in lines]}
 
     def get_python_command(self, extra):
         return Argv("poetry", "run", "python", *extra)

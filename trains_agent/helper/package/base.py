@@ -107,10 +107,19 @@ class PackageManager(object):
         self._cwd = value
 
     @classmethod
-    def out_of_scope_install_package(cls, package_name):
+    def out_of_scope_install_package(cls, package_name, *args):
         if PackageManager._selected_manager is not None:
             try:
-                return PackageManager._selected_manager._install(package_name)
+                return PackageManager._selected_manager._install(package_name, *args)
             except Exception:
                 pass
         return
+
+    @classmethod
+    def out_of_scope_freeze(cls):
+        if PackageManager._selected_manager is not None:
+            try:
+                return PackageManager._selected_manager.freeze()
+            except Exception:
+                pass
+        return []
