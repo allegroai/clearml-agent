@@ -227,20 +227,20 @@ class CondaAPI(PackageManager):
             self.pip.install_from_file(reqs)
 
     def freeze(self):
-        # result = yaml.load(
-        #     self._run_command((self.conda, "env", "export", "-p", self.path), raw=True)
-        # )
-        # for key in "name", "prefix":
-        #     result.pop(key, None)
-        # freeze = {"conda": result}
-        # try:
-        #     freeze["pip"] = result["dependencies"][-1]["pip"]
-        # except (TypeError, KeyError):
-        #     freeze["pip"] = []
-        # else:
-        #     del result["dependencies"][-1]
-        # return freeze
-        return self.pip.freeze()
+        requirements = self.pip.freeze()
+        try:
+            conda_packages = json.loads(self._run_command((self.conda, "list", "--json", "-p", self.path), raw=True))
+            conda_packages_txt = []
+            requirements_pip = [r.split('==')[0].strip().lower() for r in requirements['pip']]
+            for pkg in conda_packages:
+                # skip if this is a pypi package or it is not a python package at all
+                if pkg['channel'] == 'pypi' or pkg['name'].lower() not in requirements_pip:
+                    continue
+                conda_packages_txt.append('{0}{1}{2}'.format(pkg['name'], '==', pkg['version']))
+            requirements['conda'] = conda_packages_txt
+        except:
+            pass
+        return requirements
 
     def load_requirements(self, requirements):
         # create new environment file
@@ -249,6 +249,8 @@ class CondaAPI(PackageManager):
         reqs = []
         if isinstance(requirements['pip'], six.string_types):
             requirements['pip'] = requirements['pip'].split('\n')
+        if isinstance(requirements.get('conda'), six.string_types):
+            requirements['conda'] = requirements['conda'].split('\n')
         has_torch = False
         has_matplotlib = False
         try:
@@ -256,10 +258,15 @@ class CondaAPI(PackageManager):
         except:
             cuda_version = 0
 
-        for r in requirements['pip']:
+        # notice 'conda' entry with empty string is a valid conda requirements list, it means pip only
+        # this should happen if experiment was executed on non-conda machine or old trains client
+        conda_supported_req = requirements['pip'] if requirements.get('conda', None) is None else requirements['conda']
+        conda_supported_req_names = []
+        for r in conda_supported_req:
             marker = list(parse(r))
             if marker:
                 m = MarkerRequirement(marker[0])
+                conda_supported_req_names.append(m.name.lower())
                 if m.req.name.lower() == 'matplotlib':
                     has_matplotlib = True
                 elif m.req.name.lower().startswith('torch'):
@@ -273,8 +280,20 @@ class CondaAPI(PackageManager):
                     has_torch = True
                     m.req.name = 'tensorflow-gpu' if cuda_version > 0 else 'tensorflow'
 
+                # conda always likes - not _
+                m.req.name = m.req.name.replace('_', '-')
+
                 reqs.append(m)
+
         pip_requirements = []
+        # if we have a conda list, the rest should be installed with pip,
+        if requirements.get('conda', None) is not None:
+            for r in requirements['pip']:
+                marker = list(parse(r))
+                if marker:
+                    m = MarkerRequirement(marker[0])
+                    if m.name.lower() not in conda_supported_req_names:
+                        pip_requirements.append(m)
 
         # Conda requirements Hacks:
         if has_matplotlib:
@@ -284,7 +303,8 @@ class CondaAPI(PackageManager):
             reqs.append(MarkerRequirement(Requirement.parse('cpuonly')))
 
         while reqs:
-            conda_env['dependencies'] = [r.tostr().replace('==', '=') for r in reqs]
+            # notice, we give conda more freedom in version selection, to help it choose best combination
+            conda_env['dependencies'] = [r.tostr().replace('==', '~=') for r in reqs]
             with self.temp_file("conda_env", yaml.dump(conda_env), suffix=".yml") as name:
                 print('Conda: Trying to install requirements:\n{}'.format(conda_env['dependencies']))
                 result = self._run_command(
@@ -338,7 +358,7 @@ class CondaAPI(PackageManager):
                 if len(empty_lines) >= 2:
                     deps = error_lines[empty_lines[0]+1:empty_lines[1]]
                     try:
-                        return yaml.load('\n'.join(deps))
+                        return yaml.load('\n'.join(deps), Loader=yaml.SafeLoader)
                     except:
                         return None
         return None
@@ -412,4 +432,4 @@ class PackageNotFoundError(CondaException):
                           as a singleton YAML list.
     """
 
-    pkg = attrib(default="", converter=lambda val: yaml.load(val)[0].replace(" ", ""))
+    pkg = attrib(default="", converter=lambda val: yaml.load(val, Loader=yaml.SafeLoader)[0].replace(" ", ""))

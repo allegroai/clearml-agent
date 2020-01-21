@@ -1151,7 +1151,8 @@ class Worker(ServiceCommandSection):
             self._update_commit_id(task_id, execution, repo_info)
 
         # Add the script CWD to the python path
-        python_path = get_python_path(script_dir, execution.entry_point, self.package_api)
+        python_path = get_python_path(script_dir, execution.entry_point, self.package_api) \
+            if not self.is_conda else None
         if python_path:
             os.environ['PYTHONPATH'] = python_path
 
@@ -1631,14 +1632,20 @@ class Worker(ServiceCommandSection):
         requested_python_version = requested_python_version or \
                                    Text(self._session.config.get("agent.python_binary", None)) or \
                                    Text(self._session.config.get("agent.default_python", None))
-        executable_version, executable_version_suffix, executable_name = self.find_python_executable_for_version(
-            requested_python_version
-        )
+        if self.is_conda:
+            executable_version_suffix = \
+                requested_python_version[max(requested_python_version.find('python'), 0):].replace('python', '')
+            executable_name = 'python'
+        else:
+            executable_version, executable_version_suffix, executable_name = self.find_python_executable_for_version(
+                requested_python_version
+            )
+            self._session.config.put("agent.default_python", executable_version)
+            self._session.config.put("agent.python_binary", executable_name)
+
         venv_dir = Path(venv_dir) if venv_dir else \
             Path(self._session.config["agent.venvs_dir"], executable_version_suffix)
 
-        self._session.config.put("agent.default_python", executable_version)
-        self._session.config.put("agent.python_binary", executable_name)
         first_time = not standalone_mode and (
             is_windows_platform()
             or self.is_conda
