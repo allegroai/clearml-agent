@@ -35,7 +35,7 @@ def trains_agentyaml(tmpdir):
     def _method(template_file):
         file = tmpdir.join("trains_agent.yaml")
         with (PROJECT_ROOT / "tests/templates" / template_file).open() as f:
-            code = yaml.load(f)
+            code = yaml.load(f, Loader=yaml.SafeLoader)
             yield Namespace(code=code, file=file.strpath)
         file.write(yaml.dump(code))
     return _method
