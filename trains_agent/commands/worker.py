@@ -1164,7 +1164,7 @@ class Worker(ServiceCommandSection):
                     sys.stdout.flush()
                     sys.stderr.flush()
                     os.chdir(script_dir)
-                    if not is_windows_platform():
+                    if not is_windows_platform() and not isinstance(self.package_api, PoetryAPI):
                         os.execv(command.argv[0].as_posix(), tuple([command.argv[0].as_posix()])+command.argv[1:])
                     else:
                         exit_code = command.check_call(cwd=script_dir)
@@ -1414,6 +1414,7 @@ class Worker(ServiceCommandSection):
             self.poetry.initialize(cwd=repo_info.root)
             api = self.poetry.get_api(repo_info.root)
             if api.enabled:
+                print('Poetry Enabled: Ignoring requested python packages, using repository poetry lock file!')
                 api.install()
                 return api
         except Exception:

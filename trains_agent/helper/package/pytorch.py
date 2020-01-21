@@ -249,9 +249,6 @@ class PytorchRequirement(SimpleSubstitution):
         return url
 
     def get_url_for_platform(self, req):
-        assert self.package_manager == "pip"
-        assert self.os != "mac"
-
         # check if package is already installed with system packages
         try:
             if self.config.get("agent.package_manager.system_site_packages"):
