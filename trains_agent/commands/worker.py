@@ -355,6 +355,7 @@ class Worker(ServiceCommandSection):
         self.docker_image_func = None
         self._docker_image = None
         self._docker_arguments = None
+        PackageManager.set_pip_version(self._session.config.get("agent.package_manager.pip_version", None))
         self._extra_docker_arguments = self._session.config.get("agent.extra_docker_arguments", None)
         self._extra_shell_script = self._session.config.get("agent.extra_docker_shell_script", None)
         self._docker_force_pull = self._session.config.get("agent.docker_force_pull", False)
@@ -1867,10 +1868,11 @@ class Worker(ServiceCommandSection):
                 "chown -R root /root/.cache/pip ; " \
                 "apt-get update ; " \
                 "apt-get install -y git libsm6 libxext6 libxrender-dev libglib2.0-0 {python_single_digit}-pip ; " \
-                "{python} -m pip install -U pip ; " \
+                "{python} -m pip install -U \"pip{pip_version}\" ; " \
                 "{python} -m pip install -U trains-agent{specify_version} ; ".format(
                     python_single_digit=python_version.split('.')[0],
-                    python=python_version, specify_version=specify_version)
+                    python=python_version, pip_version=PackageManager.get_pip_version(),
+                    specify_version=specify_version)
 
         base_cmd += [
             '-v', conf_file+':/root/trains.conf',

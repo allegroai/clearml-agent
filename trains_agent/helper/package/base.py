@@ -17,6 +17,7 @@ class PackageManager(object):
 
     _selected_manager = None
     _cwd = None
+    _pip_version = None
 
     @abc.abstractproperty
     def bin(self):
@@ -65,7 +66,7 @@ class PackageManager(object):
         pass
 
     def upgrade_pip(self):
-        return self._install("pip", "--upgrade")
+        return self._install("pip"+self.get_pip_version(), "--upgrade")
 
     def get_python_command(self, extra=()):
         # type: (...) -> Executable
@@ -123,3 +124,17 @@ class PackageManager(object):
             except Exception:
                 pass
         return []
+
+    @classmethod
+    def set_pip_version(cls, version):
+        if not version:
+            return
+        version = version.replace(' ', '')
+        if ('=' in version) or ('~' in version) or ('<' in version) or ('>' in version):
+            cls._pip_version = version
+        else:
+            cls._pip_version = "=="+version
+
+    @classmethod
+    def get_pip_version(cls):
+        return cls._pip_version or ''
