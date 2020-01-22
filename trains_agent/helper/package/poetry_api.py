@@ -1,7 +1,9 @@
+from copy import deepcopy
 from functools import wraps
 
 import attr
 import sys
+import os
 from pathlib2 import Path
 from trains_agent.helper.process import Argv, DEVNULL, check_if_command_exists
 from trains_agent.session import Session, POETRY
@@ -56,6 +58,9 @@ class PoetryConfig:
     def run(self, *args, **kwargs):
         func = kwargs.pop("func", Argv.get_output)
         kwargs.setdefault("stdin", DEVNULL)
+        kwargs['env'] = deepcopy(os.environ)
+        kwargs['env'].pop('VIRTUAL_ENV', None)
+        kwargs['env'].pop('CONDA_PREFIX', None)
         if check_if_command_exists("poetry"):
             argv = Argv("poetry", *args)
         else:
