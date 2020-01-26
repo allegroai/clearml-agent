@@ -157,6 +157,10 @@ def is_windows_platform():
     return any(platform.win32_ver())
 
 
+def is_linux_platform():
+    return 'linux' in platform.system().lower()
+
+
 def normalize_path(*paths):
     """
     normalize_path

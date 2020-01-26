@@ -59,7 +59,7 @@ from trains_agent.helper.base import (
     is_conda,
     named_temporary_file,
     ExecutionInfo,
-    HOCONEncoder, error, get_python_path)
+    HOCONEncoder, error, get_python_path, is_linux_platform)
 from trains_agent.helper.console import ensure_text
 from trains_agent.helper.package.base import PackageManager
 from trains_agent.helper.package.conda_api import CondaAPI
@@ -1161,11 +1161,12 @@ class Worker(ServiceCommandSection):
         exit_code = -1
         try:
             if disable_monitoring:
+                use_execv = is_linux_platform() and not isinstance(self.package_api, (PoetryAPI, CondaAPI))
                 try:
                     sys.stdout.flush()
                     sys.stderr.flush()
                     os.chdir(script_dir)
-                    if not is_windows_platform() and not isinstance(self.package_api, PoetryAPI):
+                    if use_execv:
                         os.execv(command.argv[0].as_posix(), tuple([command.argv[0].as_posix()])+command.argv[1:])
                     else:
                         exit_code = command.check_call(cwd=script_dir)
@@ -1173,10 +1174,10 @@ class Worker(ServiceCommandSection):
                 except subprocess.CalledProcessError as ex:
                     # non zero return code
                     exit_code = ex.returncode
-                    if is_windows_platform():
+                    if not use_execv:
                         exit(exit_code)
                 except Exception as ex:
-                    if is_windows_platform():
+                    if not use_execv:
                         exit(-1)
                     raise ex
             else:
