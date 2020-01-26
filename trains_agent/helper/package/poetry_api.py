@@ -59,8 +59,15 @@ class PoetryConfig:
         func = kwargs.pop("func", Argv.get_output)
         kwargs.setdefault("stdin", DEVNULL)
         kwargs['env'] = deepcopy(os.environ)
-        kwargs['env'].pop('VIRTUAL_ENV', None)
-        kwargs['env'].pop('CONDA_PREFIX', None)
+        if 'VIRTUAL_ENV' in kwargs['env'] or 'CONDA_PREFIX' in kwargs['env']:
+            kwargs['env'].pop('VIRTUAL_ENV', None)
+            kwargs['env'].pop('CONDA_PREFIX', None)
+            kwargs['env'].pop('PYTHONPATH', None)
+            if hasattr(sys, "real_prefix") and hasattr(sys, "base_prefix"):
+                path = ':'+kwargs['env']['PATH']
+                path = path.replace(':'+sys.base_prefix, ':'+sys.real_prefix, 1)
+                kwargs['env']['PATH'] = path
+
         if check_if_command_exists("poetry"):
             argv = Argv("poetry", *args)
         else:
