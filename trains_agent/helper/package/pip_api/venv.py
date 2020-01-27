@@ -33,7 +33,7 @@ class VirtualenvPip(SystemPip, PackageManager):
         self.python = python
 
     def _make_command(self, command):
-        return self.session.command(self.bin, "-m", "pip", *command)
+        return self.session.command(self.bin, "-m", "pip", "--disable-pip-version-check", *command)
 
     def load_requirements(self, requirements):
         if isinstance(requirements, dict) and requirements.get("pip"):

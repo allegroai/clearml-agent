@@ -82,7 +82,7 @@ class SystemPip(PackageManager):
         return (command.get_output if output else command.check_call)(stdin=DEVNULL, **kwargs)
 
     def _make_command(self, command):
-        return Argv(self.bin, '-m', 'pip', *command)
+        return Argv(self.bin, '-m', 'pip', '--disable-pip-version-check', *command)
 
     def install_flags(self):
         if self.indices_args is None:
