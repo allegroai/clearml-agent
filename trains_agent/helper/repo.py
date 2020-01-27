@@ -42,7 +42,9 @@ class VcsFactory(object):
         :param location: (desired) clone location
         """
         url = execution_info.repository
-        is_git = url.endswith(cls.GIT_SUFFIX)
+        # We only support git, hg is deprecated
+        is_git = True
+        # is_git = url.endswith(cls.GIT_SUFFIX)
         vcs_cls = Git if is_git else Hg
         revision = (
             execution_info.version_num
