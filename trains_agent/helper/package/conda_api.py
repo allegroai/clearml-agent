@@ -312,6 +312,8 @@ class CondaAPI(PackageManager):
                 else:
                     # not in conda, it is a pip package
                     pip_requirements.append(m)
+                    if m_name == 'matplotlib':
+                        has_matplotlib = True
 
             # remove any leftover conda packages (they were removed from the pip list)
             if conda_supported_req_names:
@@ -320,6 +322,7 @@ class CondaAPI(PackageManager):
         # Conda requirements Hacks:
         if has_matplotlib:
             reqs.append(MarkerRequirement(Requirement.parse('graphviz')))
+            reqs.append(MarkerRequirement(Requirement.parse('python-graphviz')))
             reqs.append(MarkerRequirement(Requirement.parse('kiwisolver')))
         if has_torch and cuda_version == 0:
             reqs.append(MarkerRequirement(Requirement.parse('cpuonly')))
