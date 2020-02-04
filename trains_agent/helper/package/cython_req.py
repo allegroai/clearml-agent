@@ -6,14 +6,14 @@ from .requirements import SimpleSubstitution
 
 class CythonRequirement(SimpleSubstitution):
 
-    name = "cython"
+    name = ("cython", "numpy", )
 
     def __init__(self, *args, **kwargs):
         super(CythonRequirement, self).__init__(*args, **kwargs)
 
     def match(self, req):
         # match both Cython & cython
-        return req.name and self.name == req.name.lower()
+        return req.name and req.name.lower() in self.name
 
     def replace(self, req):
         """
