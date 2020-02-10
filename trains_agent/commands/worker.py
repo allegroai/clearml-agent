@@ -229,6 +229,8 @@ class TaskStopSignal(object):
             return self._test()
         except Exception as ex:
             self.command.log_traceback(ex)
+            # make sure we break nothing
+            return TaskStopSignal.default
 
     def _test(self):
         # type: () -> TaskStopReason
@@ -780,7 +782,7 @@ class Worker(ServiceCommandSection):
                     if daemon:
                         self.send_logs(
                             task_id=task_id,
-                            lines=["User aborted: stopping task\n"],
+                            lines=["User aborted: stopping task ({})\n".format(str(stop_reason))],
                             level="ERROR",
                         )
                         kill_all_child_processes(process.pid)
