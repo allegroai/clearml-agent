@@ -20,4 +20,4 @@ six>=1.11.0
 tqdm>=4.19.5
 typing>=3.6.4
 urllib3>=1.21.1
-virtualenv>=16
+virtualenv>=16,<20
