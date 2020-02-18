@@ -4,6 +4,7 @@ from .v2_4 import queues
 from .v2_4 import tasks
 from .v2_4 import workers
 from .v2_4 import events
+from .v2_4 import models
 
 __all__ = [
     'auth',
@@ -12,4 +13,5 @@ __all__ = [
     'tasks',
     'workers',
     'events',
+    'models',
 ]
