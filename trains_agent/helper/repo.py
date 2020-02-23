@@ -456,7 +456,7 @@ class Git(VCS):
         )
 
     def pull(self):
-        self.call("fetch", "--all", cwd=self.location)
+        self.call("fetch", "--all", "--recurse-submodules", cwd=self.location)
 
     info_commands = dict(
         url=Argv(executable_name, "ls-remote", "--get-url", "origin"),
