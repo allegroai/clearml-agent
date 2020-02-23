@@ -82,9 +82,13 @@ class PoetryConfig:
     def initialize(self, cwd=None):
         if not self._initialized:
             self._initialized = True
-            self._config("--local", "virtualenvs.in-project",  "true", cwd=cwd)
-            # self._config("repositories.{}".format(self.REPO_NAME), PYTHON_INDEX)
-            # self._config("http-basic.{}".format(self.REPO_NAME), *PYTHON_INDEX_CREDENTIALS)
+            try:
+                self._config("--local", "virtualenvs.in-project",  "true", cwd=cwd)
+                # self._config("repositories.{}".format(self.REPO_NAME), PYTHON_INDEX)
+                # self._config("http-basic.{}".format(self.REPO_NAME), *PYTHON_INDEX_CREDENTIALS)
+            except Exception as ex:
+                print("Exception: {}\nError: Failed configuring Poetry virtualenvs.in-project".format(ex))
+                raise
 
     def get_api(self, path):
         # type: (Path) -> PoetryAPI
