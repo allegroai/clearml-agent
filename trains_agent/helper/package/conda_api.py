@@ -112,7 +112,7 @@ class CondaAPI(PackageManager):
         return self.pip.bin
 
     def upgrade_pip(self):
-        return self.pip.upgrade_pip()
+        return self._install("pip" + self.pip.get_pip_version())
 
     def create(self):
         """
