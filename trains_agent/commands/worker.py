@@ -631,11 +631,13 @@ class Worker(ServiceCommandSection):
         self.log.debug("starting resource monitor thread")
         print("Worker \"{}\" - ".format(self.worker_id), end='')
 
-        if not queues:
+        if queues:
+            queues = return_list(queues)
+            queues = [self._resolve_name(q, "queues") for q in queues]
+        else:
             default_queue = self._session.send_api(queues_api.GetDefaultRequest())
             queues = [default_queue.id]
 
-        queues = return_list(queues)
         queues_info = [
             self._session.send_api(
                 queues_api.GetByIdRequest(queue)
