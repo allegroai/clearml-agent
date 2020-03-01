@@ -924,7 +924,15 @@ class Worker(ServiceCommandSection):
         except AttributeError:
             requirements = None
 
-        # TODO: make sure we pass the correct python_version
+        if not python_version:
+            try:
+                python_version = current_task.script.binary
+                python_version = python_version.split('/')[-1].replace('python', '')
+                # if we can cast it, we are good
+                python_version = '{:.1f}'.format(float(python_version))
+            except:
+                python_version = None
+
         venv_folder, requirements_manager = self.install_virtualenv(venv_dir=target,
                                                                     requested_python_version=python_version)
 
@@ -1089,7 +1097,16 @@ class Worker(ServiceCommandSection):
         except AttributeError:
             requirements = None
 
-        venv_folder, requirements_manager = self.install_virtualenv(standalone_mode=standalone_mode)
+        try:
+            python_ver = current_task.script.binary
+            python_ver = python_ver.split('/')[-1].replace('python', '')
+            # if we can cast it, we are good
+            python_ver = '{:.1f}'.format(float(python_ver))
+        except:
+            python_ver = None
+
+        venv_folder, requirements_manager = self.install_virtualenv(standalone_mode=standalone_mode,
+                                                                    requested_python_version=python_ver)
 
         if not standalone_mode:
             if self._default_pip:
@@ -1631,7 +1648,7 @@ class Worker(ServiceCommandSection):
         )
 
     def install_virtualenv(self, venv_dir=None, requested_python_version=None, standalone_mode=False):
-        # type: (str, str) -> Tuple[Path, RequirementsManager]
+        # type: (str, str, bool) -> Tuple[Path, RequirementsManager]
         """
         Install a new python virtual environment, removing the old one if exists
         :return: virtualenv directory and requirements manager to use with task
@@ -1644,9 +1661,16 @@ class Worker(ServiceCommandSection):
                 requested_python_version[max(requested_python_version.find('python'), 0):].replace('python', '')
             executable_name = 'python'
         else:
-            executable_version, executable_version_suffix, executable_name = self.find_python_executable_for_version(
-                requested_python_version
-            )
+            try:
+                executable_version, executable_version_suffix, executable_name = \
+                    self.find_python_executable_for_version(requested_python_version)
+            except Exception:
+                def_python_version = Text(self._session.config.get("agent.python_binary", None)) or \
+                                     Text(self._session.config.get("agent.default_python", None))
+                print('Warning: could not locate requested Python version {}, reverting to version {}'.format(
+                    requested_python_version, def_python_version))
+                executable_version, executable_version_suffix, executable_name = \
+                    self.find_python_executable_for_version(def_python_version)
             self._session.config.put("agent.default_python", executable_version)
             self._session.config.put("agent.python_binary", executable_name)
 
