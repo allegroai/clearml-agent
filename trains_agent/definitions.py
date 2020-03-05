@@ -114,6 +114,7 @@ DEFAULT_VCS_CACHE = normalize_path(CONFIG_DIR, "vcs-cache")
 PIP_EXTRA_INDICES = [
 ]
 DEFAULT_PIP_DOWNLOAD_CACHE = normalize_path(CONFIG_DIR, "pip-download-cache")
+ENV_TASK_EXECUTE_AS_USER = 'TRAINS_AGENT_EXEC_USER'
 
 
 class FileBuffering(IntEnum):

@@ -15,7 +15,7 @@ from pyhocon import ConfigFactory, HOCONConverter, ConfigTree
 from trains_agent.backend_api.session import Session as _Session, Request
 from trains_agent.backend_api.session.client import APIClient
 from trains_agent.backend_config.defs import LOCAL_CONFIG_FILE_OVERRIDE_VAR, LOCAL_CONFIG_FILES
-from trains_agent.definitions import ENVIRONMENT_CONFIG
+from trains_agent.definitions import ENVIRONMENT_CONFIG, ENV_TASK_EXECUTE_AS_USER
 from trains_agent.errors import APIError
 from trains_agent.helper.base import HOCONEncoder
 from trains_agent.helper.process import Argv
@@ -166,6 +166,10 @@ class Session(_Session):
                        'agent.pip_download_cache.path',
                        'agent.docker_pip_cache', 'agent.docker_apt_cache')
         singleton_folders = ('agent.venvs_dir', 'agent.vcs_cache.path',)
+
+        if os.environ.get(ENV_TASK_EXECUTE_AS_USER):
+            folder_keys = tuple(list(folder_keys) + ['sdk.storage.cache.default_base_dir'])
+            singleton_folders = tuple(list(singleton_folders) + ['sdk.storage.cache.default_base_dir'])
 
         for key in folder_keys:
             folder_key = ConfigValue(self.config, key)

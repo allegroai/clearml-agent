@@ -17,7 +17,7 @@ from datetime import datetime
 from distutils.spawn import find_executable
 from functools import partial
 from itertools import chain
-from tempfile import gettempdir, mkdtemp
+from tempfile import mkdtemp
 from time import sleep, time
 from typing import Text, Optional, Any, Tuple
 
@@ -28,9 +28,6 @@ from trains_agent.backend_api.services import queues as queues_api
 from trains_agent.backend_api.services import tasks as tasks_api
 from pathlib2 import Path
 from pyhocon import ConfigTree, ConfigFactory
-from requests import Session as HTTPSession
-from requests.adapters import HTTPAdapter
-from urllib3.util import Retry
 from six.moves.urllib.parse import quote
 
 from trains_agent.helper.check_update import start_check_update_daemon
@@ -40,7 +37,9 @@ from trains_agent.definitions import (
     ENVIRONMENT_SDK_PARAMS,
     INVALID_WORKER_ID,
     PROGRAM_NAME,
-    DEFAULT_VENV_UPDATE_URL)
+    DEFAULT_VENV_UPDATE_URL,
+    ENV_TASK_EXECUTE_AS_USER
+)
 from trains_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
 from trains_agent.errors import APIError, CommandFailedError, Sigterm
 from trains_agent.helper.base import (
@@ -1177,6 +1176,16 @@ class Worker(ServiceCommandSection):
             if not self.is_conda else None
         if python_path:
             os.environ['PYTHONPATH'] = python_path
+
+        # check if we want to run as another user, only supported on linux
+        if os.environ.get(ENV_TASK_EXECUTE_AS_USER, None) and is_linux_platform():
+            command, script_dir = self._run_as_user_patch(
+                command, script_dir, venv_folder,
+                self._session.config.get('sdk.storage.cache.default_base_dir'),
+                os.environ.get(ENV_TASK_EXECUTE_AS_USER))
+            use_execv = False
+        else:
+            use_execv = is_linux_platform() and not isinstance(self.package_api, (PoetryAPI, CondaAPI))
 
         print("Starting Task Execution:\n".format(task_id))
         exit_code = -1
