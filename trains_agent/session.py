@@ -75,7 +75,8 @@ class Session(_Session):
         cpu_only = kwargs.get('cpu_only')
         if cpu_only:
             os.environ['CUDA_VISIBLE_DEVICES'] = os.environ['NVIDIA_VISIBLE_DEVICES'] = 'none'
-        if kwargs.get('gpus'):
+        if kwargs.get('gpus') and not os.environ.get('KUBERNETES_SERVICE_HOST') \
+                and not os.environ.get('KUBERNETES_PORT'):
             os.environ['CUDA_VISIBLE_DEVICES'] = os.environ['NVIDIA_VISIBLE_DEVICES'] = kwargs.get('gpus')
         if kwargs.get('only_load_config'):
             from trains_agent.backend_api.config import load

@@ -1882,6 +1882,17 @@ class Worker(ServiceCommandSection):
                 if isinstance(extra_docker_arguments, six.string_types) else extra_docker_arguments
             base_cmd += [str(a) for a in extra_docker_arguments if a]
 
+        # check if running inside a kubernetes
+        if os.environ.get('KUBERNETES_SERVICE_HOST') and os.environ.get('KUBERNETES_PORT'):
+            # map network to sibling docker
+            try:
+                network_mode = get_bash_output(
+                    'docker inspect --format=\'{{.HostConfig.NetworkMode}}\' $(basename $(cat /proc/1/cpuset))')
+                base_cmd += ['--network', network_mode]
+            except:
+                pass
+            base_cmd += ['-e', 'NVIDIA_VISIBLE_DEVICES={}'.format(dockers_nvidia_visible_devices)]
+
         base_cmd += ['-e', 'TRAINS_WORKER_ID='+worker_id, ]
 
         if host_ssh_cache:
