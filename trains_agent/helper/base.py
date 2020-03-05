@@ -463,6 +463,17 @@ def rm_tree(root):  # type: (Union[Path, Text]) -> None
     return shutil.rmtree(os.path.expanduser(os.path.expandvars(Text(root))), onerror=on_error)
 
 
+def rm_file(filename):  # type: (Union[Path, Text]) -> None
+    """
+    A version of os.unlink that will not raise error
+    """
+    try:
+        os.unlink(os.path.expanduser(os.path.expandvars(Text(filename))))
+    except:
+        return False
+    return True
+
+
 def is_conda(config):
     return config['agent.package_manager.type'].lower() == 'conda'
 
