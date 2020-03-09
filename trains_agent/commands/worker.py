@@ -65,7 +65,7 @@ from trains_agent.helper.base import (
     is_linux_platform,
     rm_file
 )
-from trains_agent.helper.console import ensure_text
+from trains_agent.helper.console import ensure_text, print_text, decode_binary_lines
 from trains_agent.helper.package.base import PackageManager
 from trains_agent.helper.package.conda_api import CondaAPI
 from trains_agent.helper.package.horovod_req import HorovodRequirement
@@ -758,9 +758,11 @@ class Worker(ServiceCommandSection):
     ):
         # type: (...) -> Tuple[Optional[int], TaskStopReason]
         def _print_file(file_path, prev_line_count):
-            with open(file_path, "rt") as f:
+            with open(file_path, "rb") as f:
+                binary_text = f.read()
                 # skip the previously printed lines,
-                return f.readlines()[prev_line_count:]
+                blines = binary_text.split(b'\n')[prev_line_count:]
+                return decode_binary_lines(blines)
 
         stdout = open(stdout_path, "wt")
         stderr = open(stderr_path, "wt") if stderr_path else stdout
@@ -853,7 +855,8 @@ class Worker(ServiceCommandSection):
         """
         if not lines:
             return 0
-        print("".join(lines), end="")
+        print_text("".join(lines))
+
         # remove backspaces from the text log, they look bad.
         for i, l in enumerate(lines):
             lines[i] = l.replace('\x08', '')

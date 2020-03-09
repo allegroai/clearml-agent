@@ -22,6 +22,18 @@ def print_text(text, newline=True):
         sys.stdout.write(data)
 
 
+def decode_binary_lines(binary_lines, encoding='utf-8'):
+    # decode per line, if we failed decoding skip the line
+    lines = []
+    for b in binary_lines:
+        try:
+            l = b.decode(encoding=encoding, errors='replace').replace('\r', '\n')
+        except:
+            l = ''
+        lines.append(l + '\n' if l and l[-1] != '\n' else l)
+    return lines
+
+
 def ensure_text(s, encoding='utf-8', errors='strict'):
     """Coerce *s* to six.text_type.
     For Python 2:
