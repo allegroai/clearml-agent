@@ -82,11 +82,7 @@ from trains_agent.helper.process import (
     Argv,
     COMMAND_SUCCESS,
     Executable,
-    get_bash_output,
-    shutdown_docker_process,
-    get_docker_id,
-    commit_docker
-)
+    get_bash_output, shutdown_docker_process, get_docker_id, commit_docker)
 from trains_agent.helper.package.cython_req import CythonRequirement
 from trains_agent.helper.repo import clone_repository_cached, RepoInfo, VCS
 from trains_agent.helper.resource_monitor import ResourceMonitor
@@ -370,6 +366,7 @@ class Worker(ServiceCommandSection):
         self._docker_force_pull = self._session.config.get("agent.docker_force_pull", False)
         self._daemon_foreground = None
         self._standalone_mode = None
+        self._force_current_version = None
 
     def _get_requirements_manager(self, os_override=None, base_interpreter=None):
         requirements_manager = RequirementsManager(
@@ -665,6 +662,7 @@ class Worker(ServiceCommandSection):
 
         # print docker image
         if docker is not False and docker is not None:
+            self._force_current_version = kwargs.get('force_current_version', False)
             temp_config, docker_image_func = self.get_docker_config_cmd(docker)
             self.dump_config(temp_config)
             self.docker_image_func = docker_image_func
@@ -1852,7 +1850,7 @@ class Worker(ServiceCommandSection):
                           host_cache=host_cache, mounted_cache=mounted_cache_dir,
                           host_pip_dl=host_pip_dl, mounted_pip_dl=mounted_pip_dl_dir,
                           host_vcs_cache=host_vcs_cache, mounted_vcs_cache=mounted_vcs_cache,
-                          standalone_mode=self._standalone_mode)
+                          standalone_mode=self._standalone_mode, force_current_version=self._force_current_version)
         return temp_config, partial(docker_cmd_functor, docker_cmd)
 
     @staticmethod
@@ -1864,7 +1862,8 @@ class Worker(ServiceCommandSection):
                         host_cache, mounted_cache,
                         host_pip_dl, mounted_pip_dl,
                         host_vcs_cache, mounted_vcs_cache,
-                        standalone_mode=False, extra_docker_arguments=None, extra_shell_script=None):
+                        standalone_mode=False, extra_docker_arguments=None, extra_shell_script=None,
+                        force_current_version=None):
         docker = 'docker'
 
         base_cmd = [docker, 'run', '-t']
@@ -1945,15 +1944,13 @@ class Worker(ServiceCommandSection):
         try:
             from trains_agent.version import __version__
             _version_parts = __version__.split('.')
-            if 'rc' in _version_parts[-1].lower() or 'rc' in _version_parts[-2].lower():
+            if force_current_version or 'rc' in _version_parts[-1].lower() or 'rc' in _version_parts[-2].lower():
                 specify_version = '=={}'.format(__version__)
         except:
             pass
 
-        if standalone_mode:
-            update_scheme = ""
-        else:
-            update_scheme = \
+        if not standalone_mode:
+            update_scheme += \
                 "echo 'Binary::apt::APT::Keep-Downloaded-Packages \"true\";' > /etc/apt/apt.conf.d/docker-clean ; " \
                 "chown -R root /root/.cache/pip ; " \
                 "apt-get update ; " \
