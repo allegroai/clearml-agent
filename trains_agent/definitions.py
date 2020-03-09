@@ -73,6 +73,12 @@ ENVIRONMENT_CONFIG = {
     "agent.cpu_only": EnvironmentConfig(
         "TRAINS_CPU_ONLY", "ALG_CPU_ONLY", "CPU_ONLY", type=bool
     ),
+    "sdk.aws.s3.key": EnvironmentConfig("AWS_ACCESS_KEY_ID"),
+    "sdk.aws.s3.secret": EnvironmentConfig("AWS_SECRET_ACCESS_KEY"),
+    "sdk.aws.s3.region": EnvironmentConfig("AWS_DEFAULT_REGION"),
+    "sdk.azure.storage.containers.0": {'account_name': EnvironmentConfig("AZURE_STORAGE_ACCOUNT"),
+                                       'account_key': EnvironmentConfig("AZURE_STORAGE_KEY")},
+    "sdk.google.storage.credentials_json": EnvironmentConfig("GOOGLE_APPLICATION_CREDENTIALS"),
 }
 
 CONFIG_FILE_ENV = EnvironmentConfig("ALG_CONFIG_FILE")
