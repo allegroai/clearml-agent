@@ -1870,6 +1870,7 @@ class Worker(ServiceCommandSection):
         docker = 'docker'
 
         base_cmd = [docker, 'run', '-t']
+        update_scheme = ""
         dockers_nvidia_visible_devices = 'all'
         gpu_devices = os.environ.get('NVIDIA_VISIBLE_DEVICES', None)
         if gpu_devices is None or gpu_devices.lower().strip() == 'all':
