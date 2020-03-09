@@ -37,21 +37,29 @@ DAEMON_ARGS = dict({
         'help': 'Pipe full log to stdout/stderr, should not be used if running in background',
         'action': 'store_true',
     },
-    '--gpus': {
-        'help': 'Specify active GPUs for the daemon to use (docker / virtual environment), '
-                'Equivalent to setting NVIDIA_VISIBLE_DEVICES '
-                'Examples: --gpus 0 or --gpu 0,1,2 or --gpus all',
-    },
-    '--cpu-only': {
-        'help': 'Disable GPU access for the daemon, only use CPU in either docker or virtual environment',
-        'action': 'store_true',
-    },
     '--docker': {
         'help': 'Run execution task inside a docker (v19.03 and above). Optional args <image> <arguments> or '
                 'specify default docker image in agent.default_docker.image / agent.default_docker.arguments'
                 'use --gpus/--cpu-only (or set NVIDIA_VISIBLE_DEVICES) to limit gpu visibility for docker',
         'nargs': '*',
         'default': False,
+        'group': 'Docker support',
+    },
+    '--gpus': {
+        'help': 'Specify active GPUs for the daemon to use (docker / virtual environment), '
+                'Equivalent to setting NVIDIA_VISIBLE_DEVICES '
+                'Examples: --gpus 0 or --gpu 0,1,2 or --gpus all',
+        'group': 'Docker support',
+    },
+    '--cpu-only': {
+        'help': 'Disable GPU access for the daemon, only use CPU in either docker or virtual environment',
+        'action': 'store_true',
+        'group': 'Docker support',
+    },
+    '--force-current-version': {
+        'help': 'Force trains-agent to use the current trains-agent version when running in the docker',
+        'action': 'store_true',
+        'group': 'Docker support',
     },
     '--queue': {
         'help': 'Queue ID(s)/Name(s) to pull tasks from (\'default\' queue)',
