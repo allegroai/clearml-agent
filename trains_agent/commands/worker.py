@@ -663,9 +663,7 @@ class Worker(ServiceCommandSection):
         # print docker image
         if docker is not False and docker is not None:
             self._force_current_version = kwargs.get('force_current_version', False)
-            temp_config, docker_image_func = self.get_docker_config_cmd(docker)
-            self.dump_config(temp_config)
-            self.docker_image_func = docker_image_func
+            self.set_docker_variables(docker)
         else:
             self.dump_config()
 
@@ -1050,6 +1048,8 @@ class Worker(ServiceCommandSection):
         require_queue=False,
         log_file=None,
         standalone_mode=None,
+        docker=False,
+        clone=False,
         **_
     ):
         if not task_id:
@@ -1062,17 +1062,33 @@ class Worker(ServiceCommandSection):
         except Exception:
             raise ValueError("Could not find task id={}".format(task_id))
 
-        # make sure this task is not stuck in an execution queue, it shouldn't have been, but just in case.
-        try:
-            res = self._session.api_client.tasks.dequeue(task=current_task.id)
-            if require_queue and res.meta.result_code != 200:
-                raise ValueError("Execution required enqueued task, "
-                                 "but task id={} is not queued.".format(current_task.id))
-        except Exception:
-            if require_queue:
-                raise
+        if clone:
+            try:
+                print("Cloning task id={}".format(task_id))
+                current_task = self._session.api_client.tasks.get_by_id(
+                    self._session.send_api(
+                        tasks_api.CloneRequest(task=current_task.id, new_task_name='Clone of {}'.format(current_task.name))
+                    ).id
+                )
+                print("Task cloned, new task id={}".format(current_task.id))
+            except Exception:
+                raise CommandFailedError("Cloning failed")
+        else:
+            # make sure this task is not stuck in an execution queue, it shouldn't have been, but just in case.
+            try:
+                res = self._session.api_client.tasks.dequeue(task=current_task.id)
+                if require_queue and res.meta.result_code != 200:
+                    raise ValueError("Execution required enqueued task, "
+                                     "but task id={} is not queued.".format(current_task.id))
+            except Exception:
+                if require_queue:
+                    raise
 
-        if full_monitoring:
+        if docker is not False and docker is not None:
+            self.set_docker_variables(docker)
+
+        # We expect the same behaviour in case full_monitoring was set, and in case docker mode is used
+        if full_monitoring or docker is not False:
             worker_params = WorkerParams(
                 log_level=log_level,
                 config_file=self._session.config_file,
@@ -1254,6 +1270,11 @@ class Worker(ServiceCommandSection):
             self._unregister()
 
         return 1 if exit_code is None else exit_code
+
+    def set_docker_variables(self, docker):
+        temp_config, docker_image_func = self.get_docker_config_cmd(docker)
+        self.dump_config(temp_config)
+        self.docker_image_func = docker_image_func
 
     def get_execution_info(self, current_task):
         # type: (...) -> ExecutionInfo
