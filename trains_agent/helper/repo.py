@@ -458,6 +458,16 @@ class Git(VCS):
     def pull(self):
         self.call("fetch", "--all", "--recurse-submodules", cwd=self.location)
 
+    def checkout(self):  # type: () -> None
+        """
+        Checkout repository at specified revision
+        """
+        self.call("checkout", self.revision, *self.checkout_flags, cwd=self.location)
+        try:
+            self.call("submodule", "update", "--recursive", cwd=self.location)
+        except:
+            pass
+
     info_commands = dict(
         url=Argv(executable_name, "ls-remote", "--get-url", "origin"),
         branch=Argv(executable_name, "rev-parse", "--abbrev-ref", "HEAD"),
