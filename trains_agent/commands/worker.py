@@ -396,13 +396,14 @@ class Worker(ServiceCommandSection):
         except Exception:
             pass
 
-    def run_one_task(self, queue, task_id, worker_args):
+    def run_one_task(self, queue, task_id, worker_args, docker=None):
         # type: (Text, Text, WorkerParams) -> ()
         """
         Run one task pulled from queue.
         :param queue: ID of queue that task was pulled from
         :param task_id: ID of task to run
         :param worker_args: Worker command line arguments
+        :param docker: Docker image in which the execution task will run
         """
         # start new process and execute task id
         print("Running task '{}'".format(task_id))
@@ -428,7 +429,7 @@ class Worker(ServiceCommandSection):
         if self.docker_image_func:
             try:
                 response = get_task(self._session, task_id, only_fields=["execution.docker_cmd"])
-                task_docker_cmd = response.execution.docker_cmd
+                task_docker_cmd = docker or response.execution.docker_cmd
                 task_docker_cmd = task_docker_cmd.strip() if task_docker_cmd else None
             except Exception:
                 task_docker_cmd = None
@@ -1096,7 +1097,7 @@ class Worker(ServiceCommandSection):
                 trace=self._session.trace,
             )
             self.report_monitor(ResourceMonitor.StatusReport(task=task_id))
-            self.run_one_task(queue='', task_id=task_id, worker_args=worker_params)
+            self.run_one_task(queue='', task_id=task_id, worker_args=worker_params, docker=docker)
             self.stop_monitor()
             self._unregister()
             return
