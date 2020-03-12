@@ -87,7 +87,7 @@ class Session(_Session):
         self.trace = kwargs.get('trace', False)
         self._config_file = kwargs.get('config_file') or \
                             os.environ.get(LOCAL_CONFIG_FILE_OVERRIDE_VAR) or LOCAL_CONFIG_FILES[0]
-        self.api_client = APIClient(session=self, api_version="2.4")
+        self.api_client = APIClient(session=self, api_version="2.5")
         # HACK make sure we have python version to execute,
         # if nothing was specific, use the one that runs us
         def_python = ConfigValue(self.config, "agent.default_python")
