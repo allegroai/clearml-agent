@@ -39,8 +39,8 @@ from trains_agent.definitions import (
     PROGRAM_NAME,
     DEFAULT_VENV_UPDATE_URL,
     ENV_TASK_EXECUTE_AS_USER,
-    ENV_K8S_HOST_MOUNT
-)
+    ENV_K8S_HOST_MOUNT,
+    ENV_TASK_EXTRA_PYTHON_PATH)
 from trains_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
 from trains_agent.errors import APIError, CommandFailedError, Sigterm
 from trains_agent.helper.base import (
@@ -63,8 +63,8 @@ from trains_agent.helper.base import (
     error,
     get_python_path,
     is_linux_platform,
-    rm_file
-)
+    rm_file,
+    add_python_path)
 from trains_agent.helper.console import ensure_text, print_text, decode_binary_lines
 from trains_agent.helper.package.base import PackageManager
 from trains_agent.helper.package.conda_api import CondaAPI
@@ -862,7 +862,7 @@ class Worker(ServiceCommandSection):
         """
         if not lines:
             return 0
-        print_text("".join(lines))
+        print_text("".join(lines), newline=False)
 
         # remove backspaces from the text log, they look bad.
         for i, l in enumerate(lines):
@@ -1209,6 +1209,8 @@ class Worker(ServiceCommandSection):
         # Add the script CWD to the python path
         python_path = get_python_path(script_dir, execution.entry_point, self.package_api) \
             if not self.is_conda else None
+        if os.environ.get(ENV_TASK_EXTRA_PYTHON_PATH):
+            python_path = add_python_path(python_path, os.environ.get(ENV_TASK_EXTRA_PYTHON_PATH))
         if python_path:
             os.environ['PYTHONPATH'] = python_path
 
@@ -2030,7 +2032,7 @@ class Worker(ServiceCommandSection):
 
         return base_cmd
 
-    def _run_as_user_patch(self, command, script_dir, venv_folder, sdk_cache_folder, user_uid):
+    def _run_as_user_patch(self, command, trains_conf, script_dir, venv_folder, sdk_cache_folder, user_uid):
         class RunasArgv(Argv):
             def __init__(self, *args):
                 super(RunasArgv, self).__init__(*args)

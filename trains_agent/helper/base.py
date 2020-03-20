@@ -199,6 +199,20 @@ def get_python_path(script_dir, entry_point, package_api):
         return None
 
 
+def add_python_path(base_path, extra_path):
+    try:
+        if not extra_path:
+            return base_path
+        python_path_sep = ';' if is_windows_platform() else ':'
+        base_path = base_path or ''
+        if not base_path.endswith(python_path_sep):
+            base_path += python_path_sep
+        base_path += extra_path.replace(':', python_path_sep)
+    except:
+        pass
+    return base_path
+
+
 class Singleton(ABCMeta):
     _instances = {}
 
