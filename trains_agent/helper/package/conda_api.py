@@ -14,13 +14,13 @@ import yaml
 from time import time
 from attr import attrs, attrib, Factory
 from pathlib2 import Path
-from packaging import version as packaging_version
 from requirements import parse
 from requirements.requirement import Requirement
 
 from trains_agent.errors import CommandFailedError
 from trains_agent.helper.base import rm_tree, NonStrictAttrs, select_for_platform, is_windows_platform
 from trains_agent.helper.process import Argv, Executable, DEVNULL, CommandSequence, PathLike
+from trains_agent.helper.package.requirements import SimpleVersion
 from trains_agent.session import Session
 from .base import PackageManager
 from .pip_api.venv import VirtualenvPip
@@ -59,7 +59,7 @@ class CondaAPI(PackageManager):
     A programmatic interface for controlling conda
     """
 
-    MINIMUM_VERSION = packaging_version.parse("4.3.30")
+    MINIMUM_VERSION = "4.3.30"
 
     def __init__(self, session, path, python, requirements_manager):
         # type: (Session, PathLike, float, RequirementsManager) -> None
@@ -93,7 +93,7 @@ class CondaAPI(PackageManager):
                 )
             )
         self.conda_version = self.get_conda_version(output)
-        if packaging_version.parse(self.conda_version) < self.MINIMUM_VERSION:
+        if SimpleVersion.compare_versions(self.conda_version, '<', self.MINIMUM_VERSION):
             raise CommandFailedError(
                 "conda version '{}' is smaller than minimum supported conda version '{}'".format(
                     self.conda_version, self.MINIMUM_VERSION

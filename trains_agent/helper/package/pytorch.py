@@ -10,11 +10,9 @@ from typing import Text
 
 import attr
 import requests
-from packaging import version as packaging_version
-from packaging.specifiers import SpecifierSet
 
 import six
-from .requirements import SimpleSubstitution, FatalSpecsResolutionError
+from .requirements import SimpleSubstitution, FatalSpecsResolutionError, SimpleVersion
 
 OS_TO_WHEEL_NAME = {"linux": "linux_x86_64", "windows": "win_amd64"}
 
@@ -156,8 +154,7 @@ class PytorchRequirement(SimpleSubstitution):
         self.os = os_name or self.get_platform()
         self.cuda = "cuda{}".format(self.cuda_version).lower()
         self.python_version_string = str(self.config["agent.default_python"])
-        self.python_major_minor_str = '.'.join(packaging_version.parse(
-            self.python_version_string).base_version.split('.')[:2])
+        self.python_major_minor_str = '.'.join(self.python_version_string.split('.')[:2])
         if '.' not in self.python_major_minor_str:
             raise PytorchResolutionError(
                 "invalid python version {!r} defined in configuration file, key 'agent.default_python': "
@@ -222,7 +219,6 @@ class PytorchRequirement(SimpleSubstitution):
         platform_wheel = "win" if self.get_platform() == "windows" else self.get_platform()
         py_ver = self.python_major_minor_str.replace('.', '')
         url = None
-        spec = SpecifierSet(req.format_specs())
         last_v = None
         # search for our package
         for l in links_parser.links:
@@ -234,10 +230,11 @@ class PytorchRequirement(SimpleSubstitution):
             # version (ignore +cpu +cu92 etc. + is %2B in the file link)
             # version ignore .postX suffix (treat as regular version)
             try:
-                v = packaging_version.parse(parts[1].split('%')[0].split('+')[0])
+                v = str(parts[1].split('%')[0].split('+')[0])
             except Exception:
                 continue
-            if v not in spec or (last_v and last_v > v):
+            if not req.compare_version(v) or \
+                    (last_v and SimpleVersion.compare_versions(last_v, '>', v, ignore_sub_versions=False)):
                 continue
             if not parts[2].endswith(py_ver):
                 continue
@@ -307,20 +304,17 @@ class PytorchRequirement(SimpleSubstitution):
     @staticmethod
     def match_version(req, options):
         versioned_options = sorted(
-            ((packaging_version.parse(fix_version(key)), value) for key, value in options.items()),
+            ((fix_version(key), value) for key, value in options.items()),
             key=itemgetter(0),
             reverse=True,
         )
         req.specs = [(op, fix_version(version)) for op, version in req.specs]
-        if req.specs:
-            specs = SpecifierSet(req.format_specs())
-        else:
-            specs = None
+
         try:
             return next(
                 replacement
                 for version, replacement in versioned_options
-                if not specs or version in specs
+                if req.compare_version(version)
             )
         except StopIteration:
             raise PytorchResolutionError(

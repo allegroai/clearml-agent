@@ -10,7 +10,6 @@ from operator import itemgetter
 from os import path
 from typing import Text, List, Type, Optional, Tuple, Dict
 
-from packaging import version as packaging_version
 from pathlib2 import Path
 from pyhocon import ConfigTree
 from requirements import parse
@@ -69,8 +68,19 @@ class MarkerRequirement(object):
     def __repr__(self):
         return '{self.__class__.__name__}[{self}]'.format(self=self)
 
-    def format_specs(self):
-        return ','.join(starmap(operator.add, self.specs))
+    def format_specs(self, num_parts=None, max_num_parts=None):
+        max_num_parts = max_num_parts or num_parts
+        if max_num_parts is None or not self.specs:
+            return ','.join(starmap(operator.add, self.specs))
+
+        op, version = self.specs[0]
+        for v in self._sub_versions_pep440:
+            version = version.replace(v, '.')
+        if num_parts:
+            version = (version.strip('.').split('.') + ['0'] * num_parts)[:max_num_parts]
+        else:
+            version = version.strip('.').split('.')[:max_num_parts]
+        return op+'.'.join(version)
 
     def __getattr__(self, item):
         return getattr(self.req, item)
@@ -98,6 +108,186 @@ class MarkerRequirement(object):
             self.specs = equal
         else:
             self.specs = greater + smaller
+
+    def compare_version(self, requested_version, op=None, num_parts=3):
+        """
+        compare the requested version with the one we have in the spec,
+        If the requested version is 1.2.3 the self.spec should be 1.2.3*
+        If the requested version is 1.2 the self.spec should be 1.2*
+        etc.
+
+        :param str requested_version:
+        :param str op: '==', '>', '>=', '<=', '<', '~='
+        :param int num_parts: number of parts to compare
+        :return: True if we answer the requested version
+        """
+        # if we have no specific version, we cannot compare, so assume it's okay
+        if not self.specs:
+            return True
+
+        version = self.specs[0][1]
+        op = (op or self.specs[0][0]).strip()
+
+        return SimpleVersion.compare_versions(requested_version, op, version)
+
+
+class SimpleVersion:
+    _sub_versions_pep440 = ['a', 'b', 'rc', '.post', '.dev', '+', ]
+    VERSION_PATTERN = r"""
+        v?
+        (?:
+            (?:(?P<epoch>[0-9]+)!)?                           # epoch
+            (?P<release>[0-9]+(?:\.[0-9]+)*)                  # release segment
+            (?P<pre>                                          # pre-release
+                [-_\.]?
+                (?P<pre_l>(a|b|c|rc|alpha|beta|pre|preview))
+                [-_\.]?
+                (?P<pre_n>[0-9]+)?
+            )?
+            (?P<post>                                         # post release
+                (?:-(?P<post_n1>[0-9]+))
+                |
+                (?:
+                    [-_\.]?
+                    (?P<post_l>post|rev|r)
+                    [-_\.]?
+                    (?P<post_n2>[0-9]+)?
+                )
+            )?
+            (?P<dev>                                          # dev release
+                [-_\.]?
+                (?P<dev_l>dev)
+                [-_\.]?
+                (?P<dev_n>[0-9]+)?
+            )?
+        )
+        (?:\+(?P<local>[a-z0-9]+(?:[-_\.][a-z0-9]+)*))?       # local version
+    """
+    _local_version_separators = re.compile(r"[\._-]")
+    _regex = re.compile(r"^\s*" + VERSION_PATTERN + r"\s*$", re.VERBOSE | re.IGNORECASE)
+
+    @classmethod
+    def compare_versions(cls, version_a, op, version_b, ignore_sub_versions=True):
+        """
+        Compare two versions based on the op operator
+        returns bool(version_a op version_b)
+        Notice: Ignores a/b/rc/post/dev markers on the version
+
+        :param str version_a:
+        :param str op: '==', '===', '>', '>=', '<=', '<', '~='
+        :param str version_b:
+        :param bool ignore_sub_versions: if true compare only major.minor.patch
+            (ignore a/b/rc/post/dev in the comparison)
+        :return bool: version_a op version_b
+        """
+
+        if not version_b:
+            return True
+        num_parts = 3
+
+        if op == '~=':
+            num_parts = max(num_parts, 2)
+            op = '=='
+            ignore_sub_versions = True
+        elif op == '===':
+            op = '=='
+
+        try:
+            version_a_key = cls._get_match_key(cls._regex.search(version_a), num_parts, ignore_sub_versions)
+            version_b_key = cls._get_match_key(cls._regex.search(version_b), num_parts, ignore_sub_versions)
+        except:
+            # revert to string based
+            for v in cls._sub_versions_pep440:
+                version_a = version_a.replace(v, '.')
+                version_b = version_b.replace(v, '.')
+
+            version_a = (version_a.strip('.').split('.') + ['0'] * num_parts)[:num_parts]
+            version_b = (version_b.strip('.').split('.') + ['0'] * num_parts)[:num_parts]
+            version_a_key = ''
+            version_b_key = ''
+            for i in range(num_parts):
+                pad = '{:0>%d}.' % max([9, 1 + len(version_a[i]), 1 + len(version_b[i])])
+                version_a_key += pad.format(version_a[i])
+                version_b_key += pad.format(version_b[i])
+
+        if op == '==':
+            return version_a_key == version_b_key
+        if op == '<=':
+            return version_a_key <= version_b_key
+        if op == '>=':
+            return version_a_key >= version_b_key
+        if op == '>':
+            return version_a_key > version_b_key
+        if op == '<':
+            return version_a_key < version_b_key
+        raise ValueError('Unrecognized comparison operator [{}]'.format(op))
+
+    @staticmethod
+    def _parse_letter_version(
+            letter,  # type: str
+            number,  # type: Union[str, bytes, SupportsInt]
+    ):
+        # type: (...) -> Optional[Tuple[str, int]]
+
+        if letter:
+            # We consider there to be an implicit 0 in a pre-release if there is
+            # not a numeral associated with it.
+            if number is None:
+                number = 0
+
+            # We normalize any letters to their lower case form
+            letter = letter.lower()
+
+            # We consider some words to be alternate spellings of other words and
+            # in those cases we want to normalize the spellings to our preferred
+            # spelling.
+            if letter == "alpha":
+                letter = "a"
+            elif letter == "beta":
+                letter = "b"
+            elif letter in ["c", "pre", "preview"]:
+                letter = "rc"
+            elif letter in ["rev", "r"]:
+                letter = "post"
+
+            return letter, int(number)
+        if not letter and number:
+            # We assume if we are given a number, but we are not given a letter
+            # then this is using the implicit post release syntax (e.g. 1.0-1)
+            letter = "post"
+
+            return letter, int(number)
+
+        return ()
+
+    @staticmethod
+    def _get_match_key(match, num_parts, ignore_sub_versions):
+        if ignore_sub_versions:
+            return (0, tuple(int(i) for i in match.group("release").split(".")[:num_parts]),
+                    (), (), (), (),)
+        return (
+            int(match.group("epoch")) if match.group("epoch") else 0,
+            tuple(int(i) for i in match.group("release").split(".")[:num_parts]),
+            SimpleVersion._parse_letter_version(match.group("pre_l"), match.group("pre_n")),
+            SimpleVersion._parse_letter_version(
+                match.group("post_l"), match.group("post_n1") or match.group("post_n2")
+            ),
+            SimpleVersion._parse_letter_version(match.group("dev_l"), match.group("dev_n")),
+            SimpleVersion._parse_local_version(match.group("local")),
+        )
+
+    @staticmethod
+    def _parse_local_version(local):
+        # type: (str) -> Optional[LocalType]
+        """
+        Takes a string like abc.1.twelve and turns it into ("abc", 1, "twelve").
+        """
+        if local is not None:
+            return tuple(
+                part.lower() if not part.isdigit() else int(part)
+                for part in SimpleVersion._local_version_separators.split(local)
+            )
+        return ()
 
 
 @six.add_metaclass(ABCMeta)
@@ -177,7 +367,7 @@ class SimpleSubstitution(RequirementSubstitution):
 
         if req.specs:
             _, version_number = req.specs[0]
-            assert packaging_version.parse(version_number)
+            # assert packaging_version.parse(version_number)
         else:
             version_number = self.get_pip_version(self.name)
 

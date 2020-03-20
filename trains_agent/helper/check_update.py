@@ -4,7 +4,7 @@ from time import sleep
 import requests
 import json
 from threading import Thread
-from packaging import version as packaging_version
+from .package.requirements import SimpleVersion
 from ..version import __version__
 
 __check_update_thread = None
@@ -30,11 +30,11 @@ def _check_new_version_available():
         return None
     trains_answer = update_server_releases.get("trains-agent", {})
     latest_version = trains_answer.get("version")
-    cur_version = packaging_version.parse(cur_version)
-    latest_version = packaging_version.parse(latest_version or '')
-    if cur_version >= latest_version:
+    cur_version = cur_version
+    latest_version = latest_version or ''
+    if SimpleVersion.compare_versions(cur_version, '>=', latest_version):
         return None
-    patch_upgrade = latest_version.major == cur_version.major and latest_version.minor == cur_version.minor
+    patch_upgrade = True  # latest_version.major == cur_version.major and latest_version.minor == cur_version.minor
     return str(latest_version), patch_upgrade, trains_answer.get("description").split("\r\n")
 
 
