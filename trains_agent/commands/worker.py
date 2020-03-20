@@ -1861,6 +1861,16 @@ class Worker(ServiceCommandSection):
             log.warning('Failed creating temporary copy of ~/.ssh for git credential')
             pass
 
+        # check if the .git credentials exist:
+        host_git_credentials = Path('~/.git-credentials').expanduser()
+        try:
+            if host_git_credentials.is_file():
+                host_git_credentials = host_git_credentials.as_posix()
+            else:
+                host_git_credentials = None
+        except Exception:
+            host_git_credentials = None
+
         # store docker arguments
         self._docker_image = docker_image
         self._docker_arguments = docker_arguments
@@ -1884,7 +1894,7 @@ class Worker(ServiceCommandSection):
                           python_version=python_version, conf_file=self.temp_config_path,
                           host_apt_cache=host_apt_cache,
                           host_pip_cache=host_pip_cache,
-                          host_ssh_cache=host_ssh_cache,
+                          host_ssh_cache=host_ssh_cache, host_git_credentials=host_git_credentials,
                           host_cache=host_cache, mounted_cache=mounted_cache_dir,
                           host_pip_dl=host_pip_dl, mounted_pip_dl=mounted_pip_dl_dir,
                           host_vcs_cache=host_vcs_cache, mounted_vcs_cache=mounted_vcs_cache,
@@ -1901,7 +1911,7 @@ class Worker(ServiceCommandSection):
                         host_pip_dl, mounted_pip_dl,
                         host_vcs_cache, mounted_vcs_cache,
                         standalone_mode=False, extra_docker_arguments=None, extra_shell_script=None,
-                        force_current_version=None):
+                        force_current_version=None, host_git_credentials=None):
         docker = 'docker'
 
         base_cmd = [docker, 'run', '-t']
@@ -2003,6 +2013,7 @@ class Worker(ServiceCommandSection):
 
         base_cmd += (
             ['-v', conf_file+':/root/trains.conf'] +
+            (['-v', host_git_credentials+':/root/.git-credentials'] if host_git_credentials else []) +
             (['-v', host_ssh_cache+':/root/.ssh'] if host_ssh_cache else []) +
             (['-v', host_apt_cache+':/var/cache/apt/archives'] if host_apt_cache else []) +
             (['-v', host_pip_cache+':/root/.cache/pip'] if host_pip_cache else []) +
