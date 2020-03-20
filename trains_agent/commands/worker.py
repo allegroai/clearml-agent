@@ -1215,7 +1215,8 @@ class Worker(ServiceCommandSection):
         # check if we want to run as another user, only supported on linux
         if os.environ.get(ENV_TASK_EXECUTE_AS_USER, None) and is_linux_platform():
             command, script_dir = self._run_as_user_patch(
-                command, script_dir, venv_folder,
+                command, self._session.config_file,
+                script_dir, venv_folder,
                 self._session.config.get('sdk.storage.cache.default_base_dir'),
                 os.environ.get(ENV_TASK_EXECUTE_AS_USER))
             use_execv = False
@@ -2081,12 +2082,22 @@ class Worker(ServiceCommandSection):
                 except:
                     pass
 
+        # make sure we could access the trains_conf file
+        try:
+            user_trains_conf = os.path.join(home_folder, 'trains.conf')
+            shutil.copy(trains_conf, user_trains_conf)
+            Path(user_trains_conf).chmod(0o0777)
+        except:
+            user_trains_conf = trains_conf
+
         # patch venv folder to new location
         script_dir = script_dir.replace(venv_folder, new_venv_folder)
         # New command line execution
-        command = RunasArgv('bash', '-c', 'HOME=\"{}\" PATH=\"{}\" {}'.format(
+        command = RunasArgv('bash', '-c', 'HOME=\"{}\" PATH=\"{}\" PYTHONPATH=\"{}\" TRAINS_CONFIG_FILE={} {}'.format(
             home_folder,
             os.environ.get('PATH', '').replace(venv_folder, new_venv_folder),
+            os.environ.get('PYTHONPATH', '').replace(venv_folder, new_venv_folder),
+            user_trains_conf,
             command.serialize().replace(venv_folder, new_venv_folder)))
         command.set_uid(user_uid=user_uid, user_gid=user_uid)
 
