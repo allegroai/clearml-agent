@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from typing import Iterator, ContextManager, Sequence, IO, Text
 from uuid import uuid4
 
-from trains_agent.backend_api.services.tasks import Script
+from trains_agent.backend_api.services import tasks
 from trains_agent.backend_api.session.client import APIClient
 from pathlib2 import Path
 from pytest import fixture
@@ -154,7 +154,7 @@ def test_entry_point_warning(client):
     """
     with create_task(
         client,
-        script=Script(diff="print('hello')", entry_point="foo.py", repository=""),
+        script=tasks.Script(diff="print('hello')", entry_point="foo.py", repository=""),
         **DEFAULT_TASK_ARGS
     ) as task, iterate_output(SHORT_TIMEOUT, run_task(task)) as output:
         for line in output:
@@ -172,7 +172,7 @@ def test_run_no_dirs(client):
     script = "print('{}')".format(uuid)
     with create_task(
         client,
-        script=Script(diff=script, entry_point="", repository="", working_dir=""),
+        script=tasks.Script(diff=script, entry_point="", repository="", working_dir=""),
         **DEFAULT_TASK_ARGS
     ) as task, iterate_output(SHORT_TIMEOUT, run_task(task)) as output:
         search_lines(
@@ -196,7 +196,7 @@ def test_run_working_dir(client):
     script = "print('{}')".format(uuid)
     with create_task(
         client,
-        script=Script(
+        script=tasks.Script(
             diff=script,
             entry_point="",
             repository="git@bitbucket.org:seematics/roee_test_git.git",
@@ -223,7 +223,7 @@ def test_regular_task(client):
     """
     with create_task(
         client,
-        script=Script(
+        script=tasks.Script(
             entry_point="noop.py",
             repository="git@bitbucket.org:seematics/roee_test_git.git",
         ),
@@ -241,7 +241,7 @@ def test_regular_task_nested(client):
     """
     with create_task(
         client,
-        script=Script(
+        script=tasks.Script(
             entry_point="noop_nested.py",
             working_dir="no_reqs",
             repository="git@bitbucket.org:seematics/roee_test_git.git",
