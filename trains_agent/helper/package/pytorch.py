@@ -254,9 +254,10 @@ class PytorchRequirement(SimpleSubstitution):
             if self.config.get("agent.package_manager.system_site_packages"):
                 from pip._internal.commands.show import search_packages_info
                 installed_torch = list(search_packages_info([req.name]))
-                op, version = req.specs[0] if req.specs else (None, None)
                 # notice the comparision order, the first part will make sure we have a valid installed package
-                if installed_torch[0]['version'] and (installed_torch[0]['version'] == version or not version):
+                if installed_torch[0]['version'] and req.compare_version(installed_torch[0]['version']):
+                    print('PyTorch: requested "{}" version {}, using pre-installed version {}'.format(
+                        req.name, req.specs[0] if req.specs else 'unspecified', installed_torch[0]['version']))
                     # package already installed, do nothing
                     return str(req), True
         except:
