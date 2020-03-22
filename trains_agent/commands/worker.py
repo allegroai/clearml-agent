@@ -17,7 +17,7 @@ from datetime import datetime
 from distutils.spawn import find_executable
 from functools import partial
 from itertools import chain
-from tempfile import mkdtemp
+from tempfile import mkdtemp, gettempdir
 from time import sleep, time
 from typing import Text, Optional, Any, Tuple
 
@@ -2066,14 +2066,20 @@ class Worker(ServiceCommandSection):
                 os.setuid(self.uid)
 
         # create a home folder for our user
+        trains_agent_home = 'trains_agent_home{}'.format('.'+str(Singleton.get_slot()) if Singleton.get_slot() else '')
         try:
-            home_folder = '/trains_agent_home'
+            home_folder = (Path('/') / trains_agent_home).absolute().as_posix()
             rm_tree(home_folder)
             Path(home_folder).mkdir(parents=True, exist_ok=True)
         except:
-            home_folder = '/home/trains_agent_home'
-            rm_tree(home_folder)
-            Path(home_folder).mkdir(parents=True, exist_ok=True)
+            try:
+                home_folder = (Path.home().parent / trains_agent_home).absolute().as_posix()
+                rm_tree(home_folder)
+                Path(home_folder).mkdir(parents=True, exist_ok=True)
+            except:
+                home_folder = (Path(gettempdir()) / trains_agent_home).absolute().as_posix()
+                rm_tree(home_folder)
+                Path(home_folder).mkdir(parents=True, exist_ok=True)
 
         # move our entire venv into the new home
         venv_folder = venv_folder.as_posix()

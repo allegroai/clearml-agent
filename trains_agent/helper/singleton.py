@@ -137,3 +137,7 @@ class Singleton(object):
         if os.environ.get(ENV_K8S_HOST_MOUNT):
             return os.environ.get(ENV_K8S_HOST_MOUNT).split(':')[-1]
         return gettempdir()
+
+    @classmethod
+    def get_slot(cls):
+        return cls.instance_slot or 0
