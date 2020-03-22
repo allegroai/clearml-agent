@@ -35,6 +35,7 @@ def get_parser():
         for group_name, group in groups:
             p = parser if not group_name else parser.add_argument_group(group_name)
             for key, value in group:
-                p.add_argument(key, **value)
+                aliases = value.pop("aliases", [])
+                p.add_argument(key, *aliases, **value)
 
     return top_parser

@@ -66,6 +66,7 @@ from trains_agent.helper.base import (
     rm_file,
     add_python_path)
 from trains_agent.helper.console import ensure_text, print_text, decode_binary_lines
+from trains_agent.helper.os.daemonize import daemonize_process
 from trains_agent.helper.package.base import PackageManager
 from trains_agent.helper.package.conda_api import CondaAPI
 from trains_agent.helper.package.horovod_req import HorovodRequirement
@@ -626,7 +627,7 @@ class Worker(ServiceCommandSection):
         self._session.print_configuration()
 
     @resolve_names
-    def daemon(self, queues, log_level, foreground=False, docker=False, **kwargs):
+    def daemon(self, queues, log_level, foreground=False, docker=False, detached=False, **kwargs):
         # make sure we only have a single instance,
         # also make sure we set worker_id properly and cache folders
         self._singleton()
@@ -686,7 +687,18 @@ class Worker(ServiceCommandSection):
                     name
                 )
             )
-            sys.stdout = sys.stderr = out_file
+
+            if not detached:
+                # redirect std out/err to new file
+                sys.stdout = sys.stderr = out_file
+            else:
+                # in detached mode
+                # fully detach stdin.stdout/stderr and leave main process, running in the background
+                daemonize_process(out_file.fileno())
+                # reprint headers to std file (we are now inside the daemon process)
+                print("Worker \"{}\" :".format(self.worker_id))
+                self._session.print_configuration()
+                print_table(queues_info, columns=columns, titles=columns)
 
         try:
             while True:
