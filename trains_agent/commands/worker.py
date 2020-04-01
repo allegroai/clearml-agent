@@ -1817,7 +1817,7 @@ class Worker(ServiceCommandSection):
             args.update(kwargs)
             return self._get_docker_cmd(**args)
 
-        docker_image = str(os.environ.get("TRAINS_DOCKER_IMAGE") or os.environ.get("ALG_DOCKER_IMAGE") or
+        docker_image = str(os.environ.get("TRAINS_DOCKER_IMAGE") or
                            self._session.config.get("agent.default_docker.image", "nvidia/cuda")) \
             if not docker_args else docker_args[0]
         docker_arguments = docker_image.split(' ') if docker_image else []

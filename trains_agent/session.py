@@ -15,7 +15,7 @@ from pyhocon import ConfigFactory, HOCONConverter, ConfigTree
 from trains_agent.backend_api.session import Session as _Session, Request
 from trains_agent.backend_api.session.client import APIClient
 from trains_agent.backend_config.defs import LOCAL_CONFIG_FILE_OVERRIDE_VAR, LOCAL_CONFIG_FILES
-from trains_agent.definitions import ENVIRONMENT_CONFIG, ENV_TASK_EXECUTE_AS_USER
+from trains_agent.definitions import ENVIRONMENT_CONFIG, ENV_TASK_EXECUTE_AS_USER, ENVIRONMENT_BACKWARD_COMPATIBLE
 from trains_agent.errors import APIError
 from trains_agent.helper.base import HOCONEncoder
 from trains_agent.helper.process import Argv
@@ -95,8 +95,10 @@ class Session(_Session):
             def_python.set("{version.major}.{version.minor}".format(version=sys.version_info))
 
         # HACK: backwards compatibility
-        os.environ['ALG_CONFIG_FILE'] = self._config_file
-        os.environ['SM_CONFIG_FILE'] = self._config_file
+        if ENVIRONMENT_BACKWARD_COMPATIBLE.get():
+            os.environ['ALG_CONFIG_FILE'] = self._config_file
+            os.environ['SM_CONFIG_FILE'] = self._config_file
+
         if not self.config.get('api.host', None) and self.config.get('api.api_server', None):
             self.config['api']['host'] = self.config.get('api.api_server')
 

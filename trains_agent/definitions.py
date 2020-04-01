@@ -55,23 +55,23 @@ class EnvironmentConfig(object):
 
 
 ENVIRONMENT_CONFIG = {
-    "api.api_server": EnvironmentConfig("TRAINS_API_HOST", "ALG_API_HOST"),
+    "api.api_server": EnvironmentConfig("TRAINS_API_HOST", ),
     "api.credentials.access_key": EnvironmentConfig(
-        "TRAINS_API_ACCESS_KEY", "ALG_API_ACCESS_KEY"
+        "TRAINS_API_ACCESS_KEY",
     ),
     "api.credentials.secret_key": EnvironmentConfig(
-        "TRAINS_API_SECRET_KEY", "ALG_API_SECRET_KEY"
+        "TRAINS_API_SECRET_KEY",
     ),
-    "agent.worker_name": EnvironmentConfig("TRAINS_WORKER_NAME", "ALG_WORKER_NAME"),
-    "agent.worker_id": EnvironmentConfig("TRAINS_WORKER_ID", "ALG_WORKER_ID"),
+    "agent.worker_name": EnvironmentConfig("TRAINS_WORKER_NAME", ),
+    "agent.worker_id": EnvironmentConfig("TRAINS_WORKER_ID", ),
     "agent.cuda_version": EnvironmentConfig(
-        "TRAINS_CUDA_VERSION", "ALG_CUDA_VERSION", "CUDA_VERSION"
+        "TRAINS_CUDA_VERSION", "CUDA_VERSION"
     ),
     "agent.cudnn_version": EnvironmentConfig(
-        "TRAINS_CUDNN_VERSION", "ALG_CUDNN_VERSION", "CUDNN_VERSION"
+        "TRAINS_CUDNN_VERSION", "CUDNN_VERSION"
     ),
     "agent.cpu_only": EnvironmentConfig(
-        "TRAINS_CPU_ONLY", "ALG_CPU_ONLY", "CPU_ONLY", type=bool
+        "TRAINS_CPU_ONLY", "CPU_ONLY", type=bool
     ),
     "sdk.aws.s3.key": EnvironmentConfig("AWS_ACCESS_KEY_ID"),
     "sdk.aws.s3.secret": EnvironmentConfig("AWS_SECRET_ACCESS_KEY"),
@@ -81,14 +81,14 @@ ENVIRONMENT_CONFIG = {
     "sdk.google.storage.credentials_json": EnvironmentConfig("GOOGLE_APPLICATION_CREDENTIALS"),
 }
 
-CONFIG_FILE_ENV = EnvironmentConfig("ALG_CONFIG_FILE")
-
 ENVIRONMENT_SDK_PARAMS = {
-    "task_id": ("TRAINS_TASK_ID", "ALG_TASK_ID"),
-    "config_file": ("TRAINS_CONFIG_FILE", "ALG_CONFIG_FILE", "TRAINS_CONFIG_FILE"),
-    "log_level": ("TRAINS_LOG_LEVEL", "ALG_LOG_LEVEL"),
-    "log_to_backend": ("TRAINS_LOG_TASK_TO_BACKEND", "ALG_LOG_TASK_TO_BACKEND"),
+    "task_id": ("TRAINS_TASK_ID", ),
+    "config_file": ("TRAINS_CONFIG_FILE", ),
+    "log_level": ("TRAINS_LOG_LEVEL", ),
+    "log_to_backend": ("TRAINS_LOG_TASK_TO_BACKEND", ),
 }
+
+ENVIRONMENT_BACKWARD_COMPATIBLE = EnvironmentConfig("TRAINS_AGENT_ALG_ENV", type=bool)
 
 VIRTUAL_ENVIRONMENT_PATH = {
     "python2": normalize_path(CONFIG_DIR, "py2venv"),
