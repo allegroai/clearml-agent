@@ -1081,7 +1081,11 @@ class Worker(ServiceCommandSection):
             if not current_task.id:
                 pass
         except Exception:
-            raise ValueError("Could not find task id={}".format(task_id))
+            raise ValueError(
+                "Could not find task id={} (for host: {})".format(
+                    task_id, self._session.config.get("api.host", "")
+                )
+            )
 
         if clone:
             try:
