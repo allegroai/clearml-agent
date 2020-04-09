@@ -466,6 +466,7 @@ class Worker(ServiceCommandSection):
             full_docker_cmd[-1] = full_docker_cmd[-1] + 'execute --disable-monitoring {} --id {}'.format(
                 '--standalone-mode' if self._standalone_mode else '', task_id)
             cmd = Argv(*full_docker_cmd)
+            print('Running Docker:\n{}\n'.format(str(cmd)))
         else:
             cmd = worker_args.get_argv_for_command("execute") + (
                 "--disable-monitoring",
@@ -1080,10 +1081,10 @@ class Worker(ServiceCommandSection):
             current_task = self._session.api_client.tasks.get_by_id(task_id)
             if not current_task.id:
                 pass
-        except Exception:
+        except Exception as ex:
             raise ValueError(
-                "Could not find task id={} (for host: {})".format(
-                    task_id, self._session.config.get("api.host", "")
+                "Could not find task id={} (for host: {})\nException: {}".format(
+                    task_id, self._session.config.get("api.host", ""), ex
                 )
             )
 
