@@ -776,13 +776,13 @@ class Worker(ServiceCommandSection):
         def _print_file(file_path, prev_line_count):
             with open(file_path, "rb") as f:
                 binary_text = f.read()
-                if not binary_text:
-                    return []
-                # skip the previously printed lines,
-                blines = binary_text.split(b'\n')[prev_line_count:]
-                if not blines:
-                    return blines
-                return decode_binary_lines(blines if blines[-1] else blines[:-1])
+            if not binary_text:
+                return []
+            # skip the previously printed lines,
+            blines = binary_text.split(b'\n')[prev_line_count:]
+            if not blines:
+                return blines
+            return decode_binary_lines(blines if blines[-1] else blines[:-1])
 
         stdout = open(stdout_path, "wt")
         stderr = open(stderr_path, "wt") if stderr_path else stdout
