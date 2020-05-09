@@ -4,7 +4,7 @@ from time import sleep
 from glob import glob
 from tempfile import gettempdir, NamedTemporaryFile
 
-from trains_agent.definitions import ENV_K8S_HOST_MOUNT
+from trains_agent.definitions import ENV_DOCKER_HOST_MOUNT
 from trains_agent.helper.base import warning
 
 
@@ -85,7 +85,7 @@ class Singleton(object):
                 pass
 
             worker = None
-            if api_client and os.environ.get(ENV_K8S_HOST_MOUNT) and uid:
+            if api_client and ENV_DOCKER_HOST_MOUNT.get() and uid:
                 try:
                     worker = [w for w in api_client.workers.get_all() if w.id == uid]
                 except Exception:
@@ -134,8 +134,8 @@ class Singleton(object):
 
     @classmethod
     def _get_temp_folder(cls):
-        if os.environ.get(ENV_K8S_HOST_MOUNT):
-            return os.environ.get(ENV_K8S_HOST_MOUNT).split(':')[-1]
+        if ENV_DOCKER_HOST_MOUNT.get():
+            return ENV_DOCKER_HOST_MOUNT.get().split(':')[-1]
         return gettempdir()
 
     @classmethod

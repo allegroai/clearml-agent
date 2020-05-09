@@ -39,7 +39,7 @@ from trains_agent.definitions import (
     PROGRAM_NAME,
     DEFAULT_VENV_UPDATE_URL,
     ENV_TASK_EXECUTE_AS_USER,
-    ENV_K8S_HOST_MOUNT,
+    ENV_DOCKER_HOST_MOUNT,
     ENV_TASK_EXTRA_PYTHON_PATH,
     ENV_AGENT_GIT_USER,
     ENV_AGENT_GIT_PASS)
@@ -1972,8 +1972,8 @@ class Worker(ServiceCommandSection):
         temp_config.put("agent.cuda_version", "")
         temp_config.put("agent.cudnn_version", "")
         temp_config.put("agent.venvs_dir", mounted_venv_dir)
-        temp_config.put("agent.git_user", (ENV_AGENT_GIT_USER.get() or self.session.config.get("agent.git_user", None)))
-        temp_config.put("agent.git_pass", (ENV_AGENT_GIT_PASS.get() or self.session.config.get("agent.git_pass", None)))
+        temp_config.put("agent.git_user", (ENV_AGENT_GIT_USER.get() or self._session.config.get("agent.git_user", None)))
+        temp_config.put("agent.git_pass", (ENV_AGENT_GIT_PASS.get() or self._session.config.get("agent.git_pass", None)))
 
         host_apt_cache = Path(os.path.expandvars(self._session.config.get(
             "agent.docker_apt_cache", '~/.trains/apt-cache'))).expanduser().as_posix()
@@ -2084,7 +2084,7 @@ class Worker(ServiceCommandSection):
             base_cmd += [str(a) for a in extra_docker_arguments if a]
 
         # check if running inside a kubernetes
-        if os.environ.get('KUBERNETES_SERVICE_HOST') and os.environ.get('KUBERNETES_PORT'):
+        if ENV_DOCKER_HOST_MOUNT.get() or (os.environ.get('KUBERNETES_SERVICE_HOST') and os.environ.get('KUBERNETES_PORT')):
             # map network to sibling docker, unless we have other network argument
             if not any(a.strip().startswith('--network') for a in base_cmd):
                 try:
@@ -2096,9 +2096,9 @@ class Worker(ServiceCommandSection):
             base_cmd += ['-e', 'NVIDIA_VISIBLE_DEVICES={}'.format(dockers_nvidia_visible_devices)]
 
         # check if we need to map host folders
-        if os.environ.get(ENV_K8S_HOST_MOUNT):
+        if ENV_DOCKER_HOST_MOUNT.get():
             # expect TRAINS_AGENT_K8S_HOST_MOUNT = '/mnt/host/data:/root/.trains'
-            k8s_node_mnt, _, k8s_pod_mnt = os.environ.get(ENV_K8S_HOST_MOUNT).partition(':')
+            k8s_node_mnt, _, k8s_pod_mnt = ENV_DOCKER_HOST_MOUNT.get().partition(':')
             # search and replace all the host folders with the k8s
             host_mounts = [host_apt_cache, host_pip_cache, host_pip_dl, host_cache, host_vcs_cache]
             for i, m in enumerate(host_mounts):
@@ -2112,6 +2112,7 @@ class Worker(ServiceCommandSection):
             # copy the configuration file into the mounted folder
             new_conf_file = os.path.join(k8s_pod_mnt, '.trains_agent.{}.cfg'.format(quote(worker_id, safe="")))
             try:
+                rm_tree(new_conf_file)
                 rm_file(new_conf_file)
                 shutil.copy(conf_file, new_conf_file)
                 conf_file = new_conf_file.replace(k8s_pod_mnt, k8s_node_mnt)
