@@ -8,6 +8,8 @@
 [![PyPI version shields.io](https://img.shields.io/pypi/v/trains-agent.svg)](https://img.shields.io/pypi/v/trains-agent.svg)
 [![PyPI status](https://img.shields.io/pypi/status/trains-agent.svg)](https://pypi.python.org/pypi/trains-agent/)
 
+### Help improve Trains by filling our 2-min [user survey](https://allegro.ai/lp/trains-user-survey/)
+
 **TRAINS Agent is an AI experiment cluster solution.**
 
 It is a zero configuration fire-and-forget execution agent, which combined with trains-server provides a full AI cluster solution.
@@ -165,8 +167,9 @@ trains-agent daemon --queue default --foreground
 ```
 
 For actual service mode, all the stdout will be stored automatically into a temporary file (no need to pipe)
+Notice: with `--detached` flag, the *trains-agent* will be running in the background
 ```bash
-trains-agent daemon --queue default
+trains-agent daemon --detached --queue default
 ```
 
 GPU allocation is controlled via the standard OS environment `NVIDIA_VISIBLE_DEVICES` or `--gpus` flag (or disabled with `--cpu-only`).
@@ -175,15 +178,16 @@ If no flag is set, and `NVIDIA_VISIBLE_DEVICES` variable doesn't exist, all GPU'
 If `--cpu-only` flag is set, or `NVIDIA_VISIBLE_DEVICES` is an empty string (""), no gpu will be allocated for the `trains-agent`
 
 Example: spin two agents, one per gpu on the same machine:
+Notice: with `--detached` flag, the *trains-agent* will be running in the background
 ```bash
-trains-agent daemon --gpus 0 --queue default &
-trains-agent daemon --gpus 1 --queue default &
+trains-agent daemon --detached --gpus 0 --queue default
+trains-agent daemon --detached --gpus 1 --queue default
 ```
 
 Example: spin two agents, pulling from dedicated `dual_gpu` queue, two gpu's per agent
 ```bash
-trains-agent daemon --gpus 0,1 --queue dual_gpu &
-trains-agent daemon --gpus 2,3 --queue dual_gpu &
+trains-agent daemon --detached --gpus 0,1 --queue dual_gpu
+trains-agent daemon --detached --gpus 2,3 --queue dual_gpu
 ```
 
 #### Starting the TRAINS Agent in docker mode
@@ -194,20 +198,21 @@ trains-agent daemon --queue default --docker --foreground
 ```
 
 For actual service mode, all the stdout will be stored automatically into a file (no need to pipe)
+Notice: with `--detached` flag, the *trains-agent* will be running in the background
 ```bash
-trains-agent daemon --queue default --docker
+trains-agent daemon --detached --queue default --docker
 ```
 
 Example: spin two agents, one per gpu on the same machine, with default nvidia/cuda docker:
 ```bash
-trains-agent daemon --gpus 0 --queue default --docker nvidia/cuda &
-trains-agent daemon --gpus 1 --queue default --docker nvidia/cuda &
+trains-agent daemon --detached --gpus 0 --queue default --docker nvidia/cuda
+trains-agent daemon --detached --gpus 1 --queue default --docker nvidia/cuda
 ```
 
 Example: spin two agents, pulling from dedicated `dual_gpu` queue, two gpu's per agent, with default nvidia/cuda docker:
 ```bash
-trains-agent daemon --gpus 0,1 --queue dual_gpu --docker nvidia/cuda &
-trains-agent daemon --gpus 2,3 --queue dual_gpu --docker nvidia/cuda &
+trains-agent daemon --detached --gpus 0,1 --queue dual_gpu --docker nvidia/cuda
+trains-agent daemon --detached --gpus 2,3 --queue dual_gpu --docker nvidia/cuda
 ```
 
 #### Starting the TRAINS Agent - Priority Queues
@@ -259,3 +264,7 @@ Experiment Pipeline examples
     - This example will "process data", and once done, will launch a copy of the 'second step' experiment-template
   - [Second step experiment](https://github.com/allegroai/trains/blob/master/examples/automl/toy_base_task.py)
     - In order to create an experiment-template in the system, this code must be executed once manually
+
+# License
+
+Apache License, Version 2.0 (see the [LICENSE](https://www.apache.org/licenses/LICENSE-2.0.html) for more information)
