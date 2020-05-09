@@ -72,6 +72,10 @@ DAEMON_ARGS = dict({
         'help': 'Do not use any network connects, assume everything is pre-installed',
         'action': 'store_true',
     },
+    '--services-mode': {
+        'help': 'Launch multiple long-term docker services. Implies docker & cpu-only flags.',
+        'action': 'store_true',
+    },
     '--detached': {
         'help': 'Detached mode, run agent in the background',
         'action': 'store_true',
