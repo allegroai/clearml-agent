@@ -799,8 +799,12 @@ class Worker(ServiceCommandSection):
     def dump_config(self, config=None):
         def to_json(config):
             return json.dumps(config.as_plain_ordered_dict(), cls=HOCONEncoder, indent=4)
-        Path(self.temp_config_path).write_text(six.text_type(self._session.to_json()
-                                                             if config is None else to_json(config)))
+        try:
+            Path(self.temp_config_path).write_text(
+                six.text_type(self._session.to_json() if config is None else to_json(config)))
+        except Exception:
+            return False
+        return True
 
     def _log_command_output(
         self,
@@ -1934,7 +1938,10 @@ class Worker(ServiceCommandSection):
         print(requirements_manager.replace(contents))
 
     def get_docker_config_cmd(self, docker_args):
-        def docker_cmd_functor(default_kwargs, **kwargs):
+        def docker_cmd_functor(default_kwargs, temp_config, **kwargs):
+            # Make sure we have created the configuration file for the executor
+            if not self.dump_config(temp_config):
+                self.log.warning('Could not update docker configuration file {}'.format(self.temp_config_path))
             args = deepcopy(default_kwargs)
             args.update(kwargs)
             return self._get_docker_cmd(**args)
@@ -1955,7 +1962,7 @@ class Worker(ServiceCommandSection):
             python_version = 'python'+python_version
         print("Running in Docker {} mode (v19.03 and above) - using default docker image: {} running {}\n".format(
             '*standalone*' if self._standalone_mode else '', docker_image, python_version))
-        temp_config = self._session.config.copy()
+        temp_config = deepcopy(self._session.config)
         mounted_cache_dir = '/root/.trains/cache'
         mounted_pip_dl_dir = '/root/.trains/pip-download-cache'
         mounted_vcs_cache = '/root/.trains/vcs-cache'
@@ -2038,7 +2045,7 @@ class Worker(ServiceCommandSection):
                           host_pip_dl=host_pip_dl, mounted_pip_dl=mounted_pip_dl_dir,
                           host_vcs_cache=host_vcs_cache, mounted_vcs_cache=mounted_vcs_cache,
                           standalone_mode=self._standalone_mode, force_current_version=self._force_current_version)
-        return temp_config, partial(docker_cmd_functor, docker_cmd)
+        return temp_config, partial(docker_cmd_functor, docker_cmd, temp_config)
 
     @staticmethod
     def _get_docker_cmd(worker_id, docker_image, docker_arguments,
