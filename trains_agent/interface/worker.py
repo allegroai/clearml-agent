@@ -76,6 +76,10 @@ DAEMON_ARGS = dict({
         'help': 'Launch multiple long-term docker services. Implies docker & cpu-only flags.',
         'action': 'store_true',
     },
+    '--create-queue': {
+        'help': 'Create requested queue if it does not exist already.',
+        'action': 'store_true',
+    },
     '--detached': {
         'help': 'Detached mode, run agent in the background',
         'action': 'store_true',

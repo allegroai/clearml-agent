@@ -665,8 +665,11 @@ class Worker(ServiceCommandSection):
 
         self._session.print_configuration()
 
-    @resolve_names
     def daemon(self, queues, log_level, foreground=False, docker=False, detached=False, **kwargs):
+        # if we do not need to create queues, make sure they are valid
+        # match previous behaviour when we validated queue names before everything else
+        queues = self._resolve_queue_names(queues, create_if_missing=kwargs.get('create_queue', False))
+
         # make sure we only have a single instance,
         # also make sure we set worker_id properly and cache folders
         self._singleton()
@@ -680,13 +683,6 @@ class Worker(ServiceCommandSection):
         self.check(**kwargs)
         self.log.debug("starting resource monitor thread")
         print("Worker \"{}\" - ".format(self.worker_id), end='')
-
-        if queues:
-            queues = return_list(queues)
-            queues = [self._resolve_name(q, "queues") for q in queues]
-        else:
-            default_queue = self._session.send_api(queues_api.GetDefaultRequest())
-            queues = [default_queue.id]
 
         queues_info = [
             self._session.send_api(
@@ -2219,6 +2215,25 @@ class Worker(ServiceCommandSection):
             exit(1)
         # update folders based on free slot
         self._session.create_cache_folders(slot_index=worker_slot)
+
+    def _resolve_queue_names(self, queues, create_if_missing=False):
+        if not queues:
+            default_queue = self._session.send_api(queues_api.GetDefaultRequest())
+            return [default_queue.id]
+
+        queues = return_list(queues)
+        if not create_if_missing:
+            return [self._resolve_name(q.name, "queues") for q in queues]
+
+        queue_ids = []
+        for q in queues:
+            try:
+                q_id = self._resolve_name(q.name, "queues")
+            except:
+                self._session.send_api(queues_api.CreateRequest(name=q.name))
+                q_id = self._resolve_name(q.name, "queues")
+            queue_ids.append(q_id)
+        return queue_ids
 
 
 if __name__ == "__main__":
