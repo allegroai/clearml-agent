@@ -413,10 +413,10 @@ class PytorchRequirement(SimpleSubstitution):
         # else:
         #     self.log.debug('Replacing requirement "%s" with %r', req, result)
         #     return result
+        # self.log.debug(
+        #     "Could not find Pytorch wheel in table, trying manually constructing URL"
+        # )
 
-        self.log.debug(
-            "Could not find Pytorch wheel in table, trying manually constructing URL"
-        )
         result = ok = None
         # try:
         #     result, ok = self.get_url_for_platform(req)
@@ -427,7 +427,7 @@ class PytorchRequirement(SimpleSubstitution):
             if result:
                 self.log.debug("URL not found: {}".format(result))
             exc = PytorchResolutionError(
-                "Could not find pytorch wheel URL for: {}".format(req)
+                "Could not find pytorch wheel URL for: {} with cuda {} support".format(req, self.cuda_version)
             )
             # cancel exception chaining
             six.raise_from(exc, None)
