@@ -12,6 +12,8 @@ from furl import furl
 from pathlib2 import Path
 
 import six
+
+from trains_agent.definitions import ENV_AGENT_GIT_USER, ENV_AGENT_GIT_PASS
 from trains_agent.helper.console import ensure_text, ensure_binary
 from trains_agent.errors import CommandFailedError
 from trains_agent.helper.base import (
@@ -249,8 +251,10 @@ class VCS(object):
             return
 
         ssh_agent_variable = "SSH_AUTH_SOCK"
-        if not getenv(ssh_agent_variable) and (self.session.config.get('agent.git_user', None) and
-                                               self.session.config.get('agent.git_pass', None)):
+        if not getenv(ssh_agent_variable) and (
+                (ENV_AGENT_GIT_USER.get() or self.session.config.get('agent.git_user', None)) and
+                (ENV_AGENT_GIT_PASS.get() or self.session.config.get('agent.git_pass', None))
+        ):
             new_url = self.resolve_ssh_url(self.url)
             if new_url != self.url:
                 print("Using user/pass credentials - replacing ssh url '{}' with https url '{}'".format(
@@ -395,8 +399,8 @@ class VCS(object):
         parsed_url = furl(url)
         if parsed_url.scheme in ["", "ssh"] or parsed_url.scheme.startswith("git"):
             return parsed_url.url
-        config_user = config.get("agent.{}_user".format(cls.executable_name), None)
-        config_pass = config.get("agent.{}_pass".format(cls.executable_name), None)
+        config_user = ENV_AGENT_GIT_USER.get() or config.get("agent.{}_user".format(cls.executable_name), None)
+        config_pass = ENV_AGENT_GIT_PASS.get() or config.get("agent.{}_pass".format(cls.executable_name), None)
         if (
             (not (parsed_url.username and parsed_url.password))
             and config_user
