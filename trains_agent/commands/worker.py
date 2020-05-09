@@ -40,7 +40,9 @@ from trains_agent.definitions import (
     DEFAULT_VENV_UPDATE_URL,
     ENV_TASK_EXECUTE_AS_USER,
     ENV_K8S_HOST_MOUNT,
-    ENV_TASK_EXTRA_PYTHON_PATH)
+    ENV_TASK_EXTRA_PYTHON_PATH,
+    ENV_AGENT_GIT_USER,
+    ENV_AGENT_GIT_PASS)
 from trains_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
 from trains_agent.errors import APIError, CommandFailedError, Sigterm
 from trains_agent.helper.base import (
@@ -1970,6 +1972,8 @@ class Worker(ServiceCommandSection):
         temp_config.put("agent.cuda_version", "")
         temp_config.put("agent.cudnn_version", "")
         temp_config.put("agent.venvs_dir", mounted_venv_dir)
+        temp_config.put("agent.git_user", (ENV_AGENT_GIT_USER.get() or self.session.config.get("agent.git_user", None)))
+        temp_config.put("agent.git_pass", (ENV_AGENT_GIT_PASS.get() or self.session.config.get("agent.git_pass", None)))
 
         host_apt_cache = Path(os.path.expandvars(self._session.config.get(
             "agent.docker_apt_cache", '~/.trains/apt-cache'))).expanduser().as_posix()
