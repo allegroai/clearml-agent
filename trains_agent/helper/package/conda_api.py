@@ -262,6 +262,7 @@ class CondaAPI(PackageManager):
         # this should happen if experiment was executed on non-conda machine or old trains client
         conda_supported_req = requirements['pip'] if requirements.get('conda', None) is None else requirements['conda']
         conda_supported_req_names = []
+        pip_requirements = []
         for r in conda_supported_req:
             try:
                 marker = list(parse(r))
@@ -271,6 +272,10 @@ class CondaAPI(PackageManager):
                 continue
 
             m = MarkerRequirement(marker[0])
+            # conda does not support version control links
+            if m.vcs:
+                pip_requirements.append(m)
+                continue
             conda_supported_req_names.append(m.name.lower())
             if m.req.name.lower() == 'matplotlib':
                 has_matplotlib = True
@@ -287,7 +292,6 @@ class CondaAPI(PackageManager):
 
             reqs.append(m)
 
-        pip_requirements = []
         # if we have a conda list, the rest should be installed with pip,
         if requirements.get('conda', None) is not None:
             for r in requirements['pip']:
