@@ -63,6 +63,7 @@ def tree(*args):
 
 class Session(_Session):
     version = __version__
+    force_debug = False
 
     def __init__(self, *args, **kwargs):
         # make sure we set the environment variable so the parent session opens the correct file
@@ -83,6 +84,11 @@ class Session(_Session):
             self.config = load()
         else:
             super(Session, self).__init__(*args, **kwargs)
+
+        # set force debug mode, if it's on:
+        if Session.force_debug:
+            self.config["agent"]["debug"] = True
+
         self.log = self.get_logger(__name__)
         self.trace = kwargs.get('trace', False)
         self._config_file = kwargs.get('config_file') or \
@@ -154,9 +160,16 @@ class Session(_Session):
         logger.propagate = True
         return TrainsAgentLogger(logger)
 
+    @staticmethod
+    def set_debug_mode(enable):
+        if enable:
+            import logging
+            logging.basicConfig(level=logging.DEBUG)
+        Session.force_debug = enable
+
     @property
     def debug_mode(self):
-        return self.config.get("agent.debug", False)
+        return Session.force_debug or self.config.get("agent.debug", False)
 
     @property
     def config_file(self):

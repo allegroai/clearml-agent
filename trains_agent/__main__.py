@@ -20,6 +20,8 @@ from .interface import get_parser
 def run_command(parser, args, command_name):
 
     debug = args.debug
+    session.Session.set_debug_mode(debug)
+
     if command_name and command_name.lower() in ('config', 'init'):
         command_class = commands.Config
     elif len(command_name.split('.')) < 2:

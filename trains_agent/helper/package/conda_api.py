@@ -420,10 +420,14 @@ class CondaAPI(PackageManager):
         try:
             print('Executing Conda: {}'.format(command.serialize()))
             result = command.get_output(stdin=DEVNULL, **kwargs)
+            if self.session.debug_mode:
+                print(result)
         except Exception as e:
+            result = e.output if hasattr(e, 'output') else ''
+            if self.session.debug_mode:
+                print(result)
             if raw:
                 raise
-            result = e.output if hasattr(e, 'output') else ''
         if raw:
             return result
 
