@@ -533,11 +533,16 @@ def clone_repository_cached(session, execution, destination):
 
     clone_folder_name = Path(str(furl(repo_url).path)).name  # type: str
     clone_folder = Path(destination) / clone_folder_name
-    cached_repo_path = (
-        Path(session.config["agent.vcs_cache.path"]).expanduser()
-        / "{}.{}".format(clone_folder_name, md5(ensure_binary(repo_url)).hexdigest())
-        / clone_folder_name
-    )  # type: Path
+
+    standalone_mode = session.config.get("agent.standalone_mode", False)
+    if standalone_mode:
+        cached_repo_path = clone_folder
+    else:
+        cached_repo_path = (
+            Path(session.config["agent.vcs_cache.path"]).expanduser()
+            / "{}.{}".format(clone_folder_name, md5(ensure_binary(repo_url)).hexdigest())
+            / clone_folder_name
+        )  # type: Path
 
     vcs = VcsFactory.create(
         session, execution_info=execution, location=cached_repo_path
@@ -545,23 +550,25 @@ def clone_repository_cached(session, execution, destination):
     if not find_executable(vcs.executable_name):
         raise CommandFailedError(vcs.executable_not_found_error_help())
 
-    if session.config["agent.vcs_cache.enabled"] and cached_repo_path.exists():
-        print('Using cached repository in "{}"'.format(cached_repo_path))
-    else:
-        print("cloning: {}".format(no_password_url))
-        rm_tree(cached_repo_path)
-        # We clone the entire repository, not a specific branch
-        vcs.clone()  # branch=execution.branch)
+    if not standalone_mode:
+        if session.config["agent.vcs_cache.enabled"] and cached_repo_path.exists():
+            print('Using cached repository in "{}"'.format(cached_repo_path))
 
-    vcs.pull()
-    rm_tree(destination)
-    shutil.copytree(Text(cached_repo_path), Text(clone_folder))
-    if not clone_folder.is_dir():
-        raise CommandFailedError(
-            "copying of repository failed: from {} to {}".format(
-                cached_repo_path, clone_folder
+        else:
+            print("cloning: {}".format(no_password_url))
+            rm_tree(cached_repo_path)
+            # We clone the entire repository, not a specific branch
+            vcs.clone()  # branch=execution.branch)
+
+        vcs.pull()
+        rm_tree(destination)
+        shutil.copytree(Text(cached_repo_path), Text(clone_folder))
+        if not clone_folder.is_dir():
+            raise CommandFailedError(
+                "copying of repository failed: from {} to {}".format(
+                    cached_repo_path, clone_folder
+                )
             )
-        )
 
     # checkout in the newly copy destination
     vcs.location = Text(clone_folder)

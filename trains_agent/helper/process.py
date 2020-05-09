@@ -83,7 +83,15 @@ def shutdown_docker_process(docker_cmd_contains=None, docker_id=None):
         pass
 
 
-def commit_docker(container_name, docker_cmd_contains=None, docker_id=None):
+def commit_docker(container_name, docker_cmd_contains=None, docker_id=None, apply_change=None):
+    """
+    Commit a docker into a new image
+    :param str container_name: Name for the new image
+    :param docker_cmd_contains: partial container id to be committed
+    :param str docker_id: Id of container to be comitted
+    :param str apply_change: apply Dockerfile instructions to the image that is created
+                        (see docker commit documentation for '--change').
+    """
     try:
         if not docker_id:
             docker_id = get_docker_id(docker_cmd_contains=docker_cmd_contains)
@@ -93,7 +101,8 @@ def commit_docker(container_name, docker_cmd_contains=None, docker_id=None):
 
         if docker_id:
             # we found our docker, stop it
-            output = get_bash_output(cmd='docker commit {} {}'.format(docker_id, container_name))
+            apply_change = '--change=\'{}\''.format(apply_change) if apply_change else ''
+            output = get_bash_output(cmd='docker commit {} {} {}'.format(apply_change, docker_id, container_name))
             return output
     except Exception:
         pass

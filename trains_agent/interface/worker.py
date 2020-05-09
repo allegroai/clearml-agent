@@ -146,6 +146,12 @@ COMMANDS = {
                 'help': 'Where to build the task\'s virtual environment and source code. '
                         'When used with --docker, target docker image name to create',
             },
+            '--install-globally': {
+                'help': 'Install required python packages before creating the virtual environment used to execute an '
+                        'experiment, and use the \'agent.package_manager.system_site_packages\' virtual env option. '
+                        'Note: when --docker is used, install-globally is always true',
+                'action': 'store_true',
+            },
             '--docker': {
                 'help': 'Build the experiment inside a docker (v19.03 and above). Optional args <image> <arguments> or '
                 'specify default docker image in agent.default_docker.image / agent.default_docker.arguments'
@@ -156,6 +162,12 @@ COMMANDS = {
             '--python-version': {
                 'help': 'Virtual environment python version to use',
             },
+            '--entry-point': {
+                'help': 'Run the task in the new docker. There are two options:\nEither add "reuse_task" to run the '
+                'given task in the docker, or "clone_task" to first clone the given task and then run it in the docker',
+                'default': False,
+                'choices': ['reuse_task', 'clone_task'],
+            }
         }, **WORKER_ARGS),
     },
     'list': {
