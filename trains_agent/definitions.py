@@ -113,7 +113,7 @@ HTTP_HEADERS = {
 METADATA_EXTENSION = ".json"
 
 DEFAULT_VENV_UPDATE_URL = (
-    "https://raw.githubusercontent.com/Yelp/venv-update/v3.2.2/venv_update.py"
+    "https://raw.githubusercontent.com/Yelp/venv-update/v3.2.4/venv_update.py"
 )
 WORKING_REPOSITORY_DIR = "task_repository"
 DEFAULT_VCS_CACHE = normalize_path(CONFIG_DIR, "vcs-cache")
