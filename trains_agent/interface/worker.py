@@ -30,6 +30,17 @@ WORKER_ARGS = {
         'type': lambda x: x.upper(),
         'default': 'INFO',
     },
+    '--gpus': {
+        'help': 'Specify active GPUs for the daemon to use (docker / virtual environment), '
+                'Equivalent to setting NVIDIA_VISIBLE_DEVICES '
+                'Examples: --gpus 0 or --gpu 0,1,2 or --gpus all',
+        'group': 'Docker support',
+    },
+    '--cpu-only': {
+        'help': 'Disable GPU access for the daemon, only use CPU in either docker or virtual environment',
+        'action': 'store_true',
+        'group': 'Docker support',
+    },
 }
 
 DAEMON_ARGS = dict({
@@ -43,17 +54,6 @@ DAEMON_ARGS = dict({
                 'use --gpus/--cpu-only (or set NVIDIA_VISIBLE_DEVICES) to limit gpu visibility for docker',
         'nargs': '*',
         'default': False,
-        'group': 'Docker support',
-    },
-    '--gpus': {
-        'help': 'Specify active GPUs for the daemon to use (docker / virtual environment), '
-                'Equivalent to setting NVIDIA_VISIBLE_DEVICES '
-                'Examples: --gpus 0 or --gpu 0,1,2 or --gpus all',
-        'group': 'Docker support',
-    },
-    '--cpu-only': {
-        'help': 'Disable GPU access for the daemon, only use CPU in either docker or virtual environment',
-        'action': 'store_true',
         'group': 'Docker support',
     },
     '--force-current-version': {
@@ -152,15 +152,6 @@ COMMANDS = {
                 'use --gpus/--cpu-only (or set NVIDIA_VISIBLE_DEVICES) to limit gpu visibility for docker',
                 'nargs': '*',
                 'default': False,
-            },
-            '--gpus': {
-                'help': 'Specify active GPUs for the docker to use'
-                        'Equivalent to setting NVIDIA_VISIBLE_DEVICES '
-                        'Examples: --gpus 0 or --gpu 0,1,2 or --gpus all',
-            },
-            '--cpu-only': {
-                'help': 'Disable GPU access (cpu only) for the docker',
-                'action': 'store_true',
             },
             '--python-version': {
                 'help': 'Virtual environment python version to use',
