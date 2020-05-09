@@ -94,8 +94,19 @@ class ServiceCommandSection(BaseCommandSection):
 
     def __init__(self, *args, **kwargs):
         super(ServiceCommandSection, self).__init__()
+        kwargs = self._verify_command_states(kwargs)
         self._session = self._get_session(*args, **kwargs)
         self._list_formatter = ListFormatter(self.service)
+
+    @classmethod
+    def _verify_command_states(cls, kwargs):
+        """
+        Conform and enforce command argument
+        This is where you can automatically turn on/off switches based on different states.
+        :param kwargs:
+        :return: kwargs
+        """
+        return kwargs
 
     @staticmethod
     def _get_session(*args, **kwargs):
