@@ -263,7 +263,7 @@ class TaskStopSignal(object):
             )
             return TaskStopReason.stopped
 
-        if status in self.unexpected_statuses and "worker" not in message:
+        if status in self.unexpected_statuses:  ## and "worker" not in message:
             self.command.log("unexpected status change, task will terminate")
             return TaskStopReason.status_changed
 
