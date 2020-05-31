@@ -75,9 +75,15 @@ class ResourceMonitor(object):
         self._exit_event = Event()
         self._gpustat_fail = 0
         self._gpustat = gpustat
-        if not self._gpustat:
+        self._active_gpus = None
+        if os.environ.get('NVIDIA_VISIBLE_DEVICES') == 'none':
+            # NVIDIA_VISIBLE_DEVICES set to none, marks cpu_only flag
+            # active_gpus == False means no GPU reporting
+            self._active_gpus = False
+        elif not self._gpustat:
             log.warning('Trains-Agent Resource Monitor: GPU monitoring is not available')
         else:
+            # None means no filtering, report all gpus
             self._active_gpus = None
             try:
                 active_gpus = os.environ.get('NVIDIA_VISIBLE_DEVICES', '') or \
@@ -244,8 +250,8 @@ class ResourceMonitor(object):
         stats["io_read_mbs"] = BytesSizes.megabytes(io_stats.read_bytes)
         stats["io_write_mbs"] = BytesSizes.megabytes(io_stats.write_bytes)
 
-        # check if we can access the gpu statistics
-        if self._gpustat:
+        # check if we need to monitor gpus and if we can access the gpu statistics
+        if self._active_gpus is not False and self._gpustat:
             try:
                 gpu_stat = self._gpustat.new_query()
                 for i, g in enumerate(gpu_stat.gpus):
