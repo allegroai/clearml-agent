@@ -1294,7 +1294,18 @@ class Worker(ServiceCommandSection):
             extra.append(
                 WorkerParams(optimization=optimization).get_optimization_flag()
             )
-        extra.append(execution.entry_point)
+        # check if this is a module load, then load it.
+        try:
+            if current_task.script.binary and current_task.script.binary.startswith('python') and \
+                    execution.entry_point and execution.entry_point.split()[0].strip() == '-m':
+                # we need to split it
+                import shlex
+                extra.extend(shlex.split(execution.entry_point))
+            else:
+                extra.append(execution.entry_point)
+        except:
+            extra.append(execution.entry_point)
+
         command = self.package_api.get_python_command(extra)
         print("[{}]$ {}".format(execution.working_dir, command.pretty()))
 
