@@ -737,6 +737,8 @@ class Worker(ServiceCommandSection):
                 # in detached mode
                 # fully detach stdin.stdout/stderr and leave main process, running in the background
                 daemonize_process(out_file.fileno())
+                # make sure we update the singleton lock file to the new pid
+                Singleton.update_pid_file()
                 # reprint headers to std file (we are now inside the daemon process)
                 print("Worker \"{}\" :".format(self.worker_id))
                 self._session.print_configuration()
@@ -2277,8 +2279,9 @@ class Worker(ServiceCommandSection):
             else:
                 worker_name = '{}:cpu'.format(worker_name)
 
-        self.worker_id, worker_slot = Singleton.register_instance(unique_worker_id=worker_id, worker_name=worker_name,
-                                                                  api_client=self._session.api_client)
+        self.worker_id, worker_slot = Singleton.register_instance(
+            unique_worker_id=worker_id, worker_name=worker_name, api_client=self._session.api_client)
+
         if self.worker_id is None:
             error('Instance with the same WORKER_ID [{}] is already running'.format(worker_id))
             exit(1)

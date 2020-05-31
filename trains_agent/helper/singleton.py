@@ -18,6 +18,24 @@ class Singleton(object):
     _pid_file = None
     _lock_file_name = sep+prefix+sep+'global.lock'
     _lock_timeout = 10
+    _pid = None
+
+    @classmethod
+    def update_pid_file(cls):
+        new_pid = str(os.getpid())
+        if not cls._pid_file or cls._pid == new_pid:
+            return
+        old_name = cls._pid_file.name
+        parts = cls._pid_file.name.split(os.path.sep)
+        parts[-1] = parts[-1].replace(cls.sep + cls._pid + cls.sep, cls.sep + new_pid + cls.sep)
+        new_pid_file = os.path.sep.join(parts)
+        cls._pid = new_pid
+        cls._pid_file.name = new_pid_file
+        # we need to rename to match new pid
+        try:
+            os.rename(old_name, new_pid_file)
+        except:
+            pass
 
     @classmethod
     def register_instance(cls, unique_worker_id=None, worker_name=None, api_client=None):
@@ -124,8 +142,9 @@ class Singleton(object):
             unique_worker_id = worker_name + cls.worker_name_sep + str(cls.instance_slot)
 
         # create lock
-        cls._pid_file = NamedTemporaryFile(dir=cls._get_temp_folder(),
-                                           prefix=cls.prefix + cls.sep + str(os.getpid()) + cls.sep, suffix=cls.ext)
+        cls._pid = str(os.getpid())
+        cls._pid_file = NamedTemporaryFile(
+            dir=cls._get_temp_folder(), prefix=cls.prefix + cls.sep + cls._pid + cls.sep, suffix=cls.ext)
         cls._pid_file.write(('{}\n{}'.format(unique_worker_id, cls.instance_slot)).encode())
         cls._pid_file.flush()
         cls.worker_id = unique_worker_id
