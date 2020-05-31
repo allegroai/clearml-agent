@@ -22,7 +22,7 @@ class RequirementsTranslator(object):
         self.enabled = config["agent.pip_download_cache.enabled"]
         Path(self.cache_dir).mkdir(parents=True, exist_ok=True)
         self.config = Config()
-        self.pip = SystemPip(interpreter=interpreter)
+        self.pip = SystemPip(interpreter=interpreter, session=self._session)
 
     def download(self, url):
         self.pip.download_package(url, cache_dir=self.cache_dir)

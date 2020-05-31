@@ -15,19 +15,17 @@ class VirtualenvPip(SystemPip, PackageManager):
         Program interface to virtualenv pip.
         Must be given either path to virtualenv or source command.
         Either way, ``self.source`` is exposed.
+        :param session: a Session object for communication
         :param python: interpreter path
         :param path: path of virtual environment to create/manipulate
         :param python: python version
         :param interpreter: path of python interpreter
         """
         super(VirtualenvPip, self).__init__(
-            interpreter
-            or Path(
-                path,
-                select_for_platform(linux="bin/python", windows="scripts/python.exe"),
-            )
+            session=session,
+            interpreter=interpreter or Path(
+                path, select_for_platform(linux="bin/python", windows="scripts/python.exe"))
         )
-        self.session = session
         self.path = path
         self.requirements_manager = requirements_manager
         self.python = python

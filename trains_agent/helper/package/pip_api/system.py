@@ -1,22 +1,24 @@
 import sys
 from itertools import chain
-from typing import Text
+from typing import Text, Optional
 
 from trains_agent.definitions import PIP_EXTRA_INDICES, PROGRAM_NAME
 from trains_agent.helper.package.base import PackageManager
 from trains_agent.helper.process import Argv, DEVNULL
+from trains_agent.session import Session
 
 
 class SystemPip(PackageManager):
 
     indices_args = None
 
-    def __init__(self, interpreter=None):
-        # type: (Text) -> ()
+    def __init__(self, interpreter=None, session=None):
+        # type: (Optional[Text], Optional[Session]) -> ()
         """
         Program interface to the system pip.
         """
         self._bin = interpreter or sys.executable
+        self.session = session
 
     @property
     def bin(self):

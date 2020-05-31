@@ -1887,6 +1887,7 @@ class Worker(ServiceCommandSection):
 
         global_package_manager_params = dict(
             interpreter=executable_name,
+            session=self._session,
         )
 
         if not self.is_conda and standalone_mode:
