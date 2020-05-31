@@ -1070,7 +1070,7 @@ class Worker(ServiceCommandSection):
             print("No freeze information available")
 
         print("Virtual environment: {}".format(venv_folder / 'bin'))
-        print("Source code: {}".format(repo_info.root))
+        print("Source code: {}".format(repo_info.root if repo_info else execution.entry_point))
         print("Entry point: {}".format(Path(script_dir) / execution.entry_point))
 
         return 0
