@@ -365,7 +365,7 @@ class AddTaskRequest(Request):
 
     _service = "queues"
     _action = "add_task"
-    _version = "2.4"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -417,7 +417,7 @@ class AddTaskResponse(Response):
     """
     _service = "queues"
     _action = "add_task"
-    _version = "2.4"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -466,7 +466,7 @@ class CreateRequest(Request):
 
     _service = "queues"
     _action = "create"
-    _version = "2.4"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -548,7 +548,7 @@ class CreateResponse(Response):
     """
     _service = "queues"
     _action = "create"
-    _version = "2.4"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -588,7 +588,7 @@ class DeleteRequest(Request):
 
     _service = "queues"
     _action = "delete"
-    _version = "2.4"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -644,7 +644,7 @@ class DeleteResponse(Response):
     """
     _service = "queues"
     _action = "delete"
-    _version = "2.4"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -714,7 +714,7 @@ class GetAllRequest(Request):
 
     _service = "queues"
     _action = "get_all"
-    _version = "2.4"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -918,7 +918,7 @@ class GetAllResponse(Response):
     """
     _service = "queues"
     _action = "get_all"
-    _version = "2.4"
+    _version = "2.5"
 
     _schema = {
         'definitions': {
@@ -1017,7 +1017,7 @@ class GetByIdRequest(Request):
 
     _service = "queues"
     _action = "get_by_id"
-    _version = "2.4"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {'queue': {'description': 'Queue ID', 'type': 'string'}},
@@ -1052,7 +1052,7 @@ class GetByIdResponse(Response):
     """
     _service = "queues"
     _action = "get_by_id"
-    _version = "2.4"
+    _version = "2.5"
 
     _schema = {
         'definitions': {
@@ -1144,7 +1144,7 @@ class GetDefaultRequest(Request):
 
     _service = "queues"
     _action = "get_default"
-    _version = "2.4"
+    _version = "2.5"
     _schema = {
         'additionalProperties': False,
         'definitions': {},
@@ -1164,7 +1164,7 @@ class GetDefaultResponse(Response):
     """
     _service = "queues"
     _action = "get_default"
-    _version = "2.4"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -1217,7 +1217,7 @@ class GetNextTaskRequest(Request):
 
     _service = "queues"
     _action = "get_next_task"
-    _version = "2.4"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {'queue': {'description': 'Queue id', 'type': 'string'}},
@@ -1252,7 +1252,7 @@ class GetNextTaskResponse(Response):
     """
     _service = "queues"
     _action = "get_next_task"
-    _version = "2.4"
+    _version = "2.5"
 
     _schema = {
         'definitions': {
@@ -1319,7 +1319,7 @@ class GetQueueMetricsRequest(Request):
 
     _service = "queues"
     _action = "get_queue_metrics"
-    _version = "2.4"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -1420,7 +1420,7 @@ class GetQueueMetricsResponse(Response):
     """
     _service = "queues"
     _action = "get_queue_metrics"
-    _version = "2.4"
+    _version = "2.5"
 
     _schema = {
         'definitions': {
@@ -1494,7 +1494,7 @@ class MoveTaskBackwardRequest(Request):
 
     _service = "queues"
     _action = "move_task_backward"
-    _version = "2.4"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -1567,7 +1567,7 @@ class MoveTaskBackwardResponse(Response):
     """
     _service = "queues"
     _action = "move_task_backward"
-    _version = "2.4"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -1615,7 +1615,7 @@ class MoveTaskForwardRequest(Request):
 
     _service = "queues"
     _action = "move_task_forward"
-    _version = "2.4"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -1688,7 +1688,7 @@ class MoveTaskForwardResponse(Response):
     """
     _service = "queues"
     _action = "move_task_forward"
-    _version = "2.4"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -1731,7 +1731,7 @@ class MoveTaskToBackRequest(Request):
 
     _service = "queues"
     _action = "move_task_to_back"
-    _version = "2.4"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -1784,7 +1784,7 @@ class MoveTaskToBackResponse(Response):
     """
     _service = "queues"
     _action = "move_task_to_back"
-    _version = "2.4"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -1827,7 +1827,7 @@ class MoveTaskToFrontRequest(Request):
 
     _service = "queues"
     _action = "move_task_to_front"
-    _version = "2.4"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -1880,7 +1880,7 @@ class MoveTaskToFrontResponse(Response):
     """
     _service = "queues"
     _action = "move_task_to_front"
-    _version = "2.4"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -1925,7 +1925,7 @@ class RemoveTaskRequest(Request):
 
     _service = "queues"
     _action = "remove_task"
-    _version = "2.4"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -1977,7 +1977,7 @@ class RemoveTaskResponse(Response):
     """
     _service = "queues"
     _action = "remove_task"
-    _version = "2.4"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -2028,7 +2028,7 @@ class UpdateRequest(Request):
 
     _service = "queues"
     _action = "update"
-    _version = "2.4"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -2127,7 +2127,7 @@ class UpdateResponse(Response):
     """
     _service = "queues"
     _action = "update"
-    _version = "2.4"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},

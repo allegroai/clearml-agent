@@ -734,7 +734,7 @@ class AddRequest(CompoundRequest):
 
     _service = "events"
     _action = "add"
-    _version = "2.1"
+    _version = "2.5"
     _item_prop_name = "event"
     _schema = {
         'anyOf': [
@@ -926,7 +926,7 @@ class AddResponse(Response):
     """
     _service = "events"
     _action = "add"
-    _version = "2.1"
+    _version = "2.5"
 
     _schema = {'additionalProperties': True, 'definitions': {}, 'type': 'object'}
 
@@ -939,7 +939,7 @@ class AddBatchRequest(BatchRequest):
 
     _service = "events"
     _action = "add_batch"
-    _version = "2.1"
+    _version = "2.5"
     _batched_request_cls = AddRequest
 
 
@@ -954,7 +954,7 @@ class AddBatchResponse(Response):
     """
     _service = "events"
     _action = "add_batch"
-    _version = "2.1"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -1015,7 +1015,7 @@ class DebugImagesRequest(Request):
 
     _service = "events"
     _action = "debug_images"
-    _version = "2.1"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -1098,7 +1098,7 @@ class DebugImagesResponse(Response):
     """
     _service = "events"
     _action = "debug_images"
-    _version = "2.1"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -1215,7 +1215,7 @@ class DeleteForTaskRequest(Request):
 
     _service = "events"
     _action = "delete_for_task"
-    _version = "2.1"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -1271,7 +1271,7 @@ class DeleteForTaskResponse(Response):
     """
     _service = "events"
     _action = "delete_for_task"
-    _version = "2.1"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -1316,7 +1316,7 @@ class DownloadTaskLogRequest(Request):
 
     _service = "events"
     _action = "download_task_log"
-    _version = "2.1"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -1389,7 +1389,7 @@ class DownloadTaskLogResponse(Response):
     """
     _service = "events"
     _action = "download_task_log"
-    _version = "2.1"
+    _version = "2.5"
 
     _schema = {'definitions': {}, 'type': 'string'}
 
@@ -1408,7 +1408,7 @@ class GetMultiTaskPlotsRequest(Request):
 
     _service = "events"
     _action = "get_multi_task_plots"
-    _version = "2.1"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -1495,7 +1495,7 @@ class GetMultiTaskPlotsResponse(Response):
     """
     _service = "events"
     _action = "get_multi_task_plots"
-    _version = "2.1"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -1594,7 +1594,7 @@ class GetScalarMetricDataRequest(Request):
 
     _service = "events"
     _action = "get_scalar_metric_data"
-    _version = "2.1"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -1651,7 +1651,7 @@ class GetScalarMetricDataResponse(Response):
     """
     _service = "events"
     _action = "get_scalar_metric_data"
-    _version = "2.1"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -1753,7 +1753,7 @@ class GetScalarMetricsAndVariantsRequest(Request):
 
     _service = "events"
     _action = "get_scalar_metrics_and_variants"
-    _version = "2.1"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {'task': {'description': 'task ID', 'type': 'string'}},
@@ -1788,7 +1788,7 @@ class GetScalarMetricsAndVariantsResponse(Response):
     """
     _service = "events"
     _action = "get_scalar_metrics_and_variants"
-    _version = "2.1"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -1834,7 +1834,7 @@ class GetTaskEventsRequest(Request):
 
     _service = "events"
     _action = "get_task_events"
-    _version = "2.1"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -1951,7 +1951,7 @@ class GetTaskEventsResponse(Response):
     """
     _service = "events"
     _action = "get_task_events"
-    _version = "2.1"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -2051,7 +2051,7 @@ class GetTaskLatestScalarValuesRequest(Request):
 
     _service = "events"
     _action = "get_task_latest_scalar_values"
-    _version = "2.1"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {'task': {'description': 'Task ID', 'type': 'string'}},
@@ -2086,7 +2086,7 @@ class GetTaskLatestScalarValuesResponse(Response):
     """
     _service = "events"
     _action = "get_task_latest_scalar_values"
-    _version = "2.1"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -2164,7 +2164,7 @@ class GetTaskLogRequest(Request):
 
     _service = "events"
     _action = "get_task_log"
-    _version = "1.7"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -2277,7 +2277,7 @@ class GetTaskLogResponse(Response):
     """
     _service = "events"
     _action = "get_task_log"
-    _version = "1.7"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -2381,7 +2381,7 @@ class GetTaskPlotsRequest(Request):
 
     _service = "events"
     _action = "get_task_plots"
-    _version = "2.1"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -2462,7 +2462,7 @@ class GetTaskPlotsResponse(Response):
     """
     _service = "events"
     _action = "get_task_plots"
-    _version = "2.1"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -2560,7 +2560,7 @@ class GetVectorMetricsAndVariantsRequest(Request):
 
     _service = "events"
     _action = "get_vector_metrics_and_variants"
-    _version = "2.1"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {'task': {'description': 'Task ID', 'type': 'string'}},
@@ -2595,7 +2595,7 @@ class GetVectorMetricsAndVariantsResponse(Response):
     """
     _service = "events"
     _action = "get_vector_metrics_and_variants"
-    _version = "2.1"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -2646,7 +2646,7 @@ class MultiTaskScalarMetricsIterHistogramRequest(Request):
 
     _service = "events"
     _action = "multi_task_scalar_metrics_iter_histogram"
-    _version = "2.1"
+    _version = "2.5"
     _schema = {
         'definitions': {
             'scalar_key_enum': {'enum': ['iter', 'timestamp', 'iso_time'], 'type': 'string'},
@@ -2735,7 +2735,7 @@ class MultiTaskScalarMetricsIterHistogramResponse(Response):
     """
     _service = "events"
     _action = "multi_task_scalar_metrics_iter_histogram"
-    _version = "2.1"
+    _version = "2.5"
 
     _schema = {'additionalProperties': True, 'definitions': {}, 'type': 'object'}
 
@@ -2757,7 +2757,7 @@ class ScalarMetricsIterHistogramRequest(Request):
 
     _service = "events"
     _action = "scalar_metrics_iter_histogram"
-    _version = "2.1"
+    _version = "2.5"
     _schema = {
         'definitions': {
             'scalar_key_enum': {'enum': ['iter', 'timestamp', 'iso_time'], 'type': 'string'},
@@ -2839,7 +2839,7 @@ class ScalarMetricsIterHistogramResponse(Response):
     """
     _service = "events"
     _action = "scalar_metrics_iter_histogram"
-    _version = "2.1"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -2883,7 +2883,7 @@ class VectorMetricsIterHistogramRequest(Request):
 
     _service = "events"
     _action = "vector_metrics_iter_histogram"
-    _version = "2.1"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -2950,7 +2950,7 @@ class VectorMetricsIterHistogramResponse(Response):
     """
     _service = "events"
     _action = "vector_metrics_iter_histogram"
-    _version = "2.1"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},

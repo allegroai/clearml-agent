@@ -151,7 +151,7 @@ class CreateCredentialsRequest(Request):
 
     _service = "auth"
     _action = "create_credentials"
-    _version = "2.1"
+    _version = "2.4"
     _schema = {
         'additionalProperties': False,
         'definitions': {},
@@ -169,7 +169,7 @@ class CreateCredentialsResponse(Response):
     """
     _service = "auth"
     _action = "create_credentials"
-    _version = "2.1"
+    _version = "2.4"
 
     _schema = {
         'definitions': {
@@ -230,7 +230,7 @@ class EditUserRequest(Request):
 
     _service = "auth"
     _action = "edit_user"
-    _version = "2.1"
+    _version = "2.4"
     _schema = {
         'definitions': {},
         'properties': {
@@ -287,7 +287,7 @@ class EditUserResponse(Response):
     """
     _service = "auth"
     _action = "edit_user"
-    _version = "2.1"
+    _version = "2.4"
 
     _schema = {
         'definitions': {},
@@ -347,7 +347,7 @@ class GetCredentialsRequest(Request):
 
     _service = "auth"
     _action = "get_credentials"
-    _version = "2.1"
+    _version = "2.4"
     _schema = {
         'additionalProperties': False,
         'definitions': {},
@@ -365,7 +365,7 @@ class GetCredentialsResponse(Response):
     """
     _service = "auth"
     _action = "get_credentials"
-    _version = "2.1"
+    _version = "2.4"
 
     _schema = {
         'definitions': {
@@ -433,7 +433,7 @@ class LoginRequest(Request):
 
     _service = "auth"
     _action = "login"
-    _version = "2.1"
+    _version = "2.4"
     _schema = {
         'definitions': {},
         'properties': {
@@ -474,7 +474,7 @@ class LoginResponse(Response):
     """
     _service = "auth"
     _action = "login"
-    _version = "2.1"
+    _version = "2.4"
 
     _schema = {
         'definitions': {},
@@ -510,7 +510,7 @@ class LogoutRequest(Request):
 
     _service = "auth"
     _action = "logout"
-    _version = "2.2"
+    _version = "2.4"
     _schema = {'additionalProperties': False, 'definitions': {}, 'type': 'object'}
 
 
@@ -521,7 +521,7 @@ class LogoutResponse(Response):
     """
     _service = "auth"
     _action = "logout"
-    _version = "2.2"
+    _version = "2.4"
 
     _schema = {'additionalProperties': False, 'definitions': {}, 'type': 'object'}
 
@@ -537,7 +537,7 @@ class RevokeCredentialsRequest(Request):
 
     _service = "auth"
     _action = "revoke_credentials"
-    _version = "2.1"
+    _version = "2.4"
     _schema = {
         'definitions': {},
         'properties': {
@@ -577,7 +577,7 @@ class RevokeCredentialsResponse(Response):
     """
     _service = "auth"
     _action = "revoke_credentials"
-    _version = "2.1"
+    _version = "2.4"
 
     _schema = {
         'definitions': {},

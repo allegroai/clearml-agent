@@ -1518,7 +1518,7 @@ class CloseRequest(Request):
 
     _service = "tasks"
     _action = "close"
-    _version = "2.1"
+    _version = "2.4"
     _schema = {
         'definitions': {},
         'properties': {
@@ -1612,7 +1612,7 @@ class CloseResponse(Response):
     """
     _service = "tasks"
     _action = "close"
-    _version = "2.1"
+    _version = "2.4"
 
     _schema = {
         'definitions': {},
@@ -1682,7 +1682,7 @@ class CompletedRequest(Request):
 
     _service = "tasks"
     _action = "completed"
-    _version = "2.2"
+    _version = "2.4"
     _schema = {
         'definitions': {},
         'properties': {
@@ -1776,7 +1776,7 @@ class CompletedResponse(Response):
     """
     _service = "tasks"
     _action = "completed"
-    _version = "2.2"
+    _version = "2.4"
 
     _schema = {
         'definitions': {},
@@ -1862,7 +1862,7 @@ class CreateRequest(Request):
 
     _service = "tasks"
     _action = "create"
-    _version = "2.1"
+    _version = "2.4"
     _schema = {
         'definitions': {
             'artifact': {
@@ -2229,7 +2229,7 @@ class CreateResponse(Response):
     """
     _service = "tasks"
     _action = "create"
-    _version = "2.1"
+    _version = "2.4"
 
     _schema = {
         'definitions': {},
@@ -2280,7 +2280,7 @@ class DeleteRequest(Request):
 
     _service = "tasks"
     _action = "delete"
-    _version = "2.1"
+    _version = "2.4"
     _schema = {
         'definitions': {},
         'properties': {
@@ -2403,7 +2403,7 @@ class DeleteResponse(Response):
     """
     _service = "tasks"
     _action = "delete"
-    _version = "1.5"
+    _version = "2.4"
 
     _schema = {
         'definitions': {},
@@ -2547,7 +2547,7 @@ class DequeueRequest(Request):
 
     _service = "tasks"
     _action = "dequeue"
-    _version = "1.5"
+    _version = "2.4"
     _schema = {
         'definitions': {},
         'properties': {
@@ -2624,7 +2624,7 @@ class DequeueResponse(Response):
     """
     _service = "tasks"
     _action = "dequeue"
-    _version = "1.5"
+    _version = "2.4"
 
     _schema = {
         'definitions': {},
@@ -2733,7 +2733,7 @@ class EditRequest(Request):
 
     _service = "tasks"
     _action = "edit"
-    _version = "2.1"
+    _version = "2.4"
     _schema = {
         'definitions': {
             'artifact': {
@@ -3123,7 +3123,7 @@ class EditResponse(Response):
     """
     _service = "tasks"
     _action = "edit"
-    _version = "2.1"
+    _version = "2.4"
 
     _schema = {
         'definitions': {},
@@ -3201,7 +3201,7 @@ class EnqueueRequest(Request):
 
     _service = "tasks"
     _action = "enqueue"
-    _version = "1.5"
+    _version = "2.4"
     _schema = {
         'definitions': {},
         'properties': {
@@ -3296,7 +3296,7 @@ class EnqueueResponse(Response):
     """
     _service = "tasks"
     _action = "enqueue"
-    _version = "1.5"
+    _version = "2.4"
 
     _schema = {
         'definitions': {},
@@ -3386,7 +3386,7 @@ class FailedRequest(Request):
 
     _service = "tasks"
     _action = "failed"
-    _version = "2.1"
+    _version = "2.4"
     _schema = {
         'definitions': {},
         'properties': {
@@ -3480,7 +3480,7 @@ class FailedResponse(Response):
     """
     _service = "tasks"
     _action = "failed"
-    _version = "2.1"
+    _version = "2.4"
 
     _schema = {
         'definitions': {},
@@ -3587,7 +3587,7 @@ class GetAllRequest(Request):
 
     _service = "tasks"
     _action = "get_all"
-    _version = "2.1"
+    _version = "2.4"
     _schema = {
         'definitions': {
             'multi_field_pattern_data': {
@@ -3986,7 +3986,7 @@ class GetAllResponse(Response):
     """
     _service = "tasks"
     _action = "get_all"
-    _version = "2.1"
+    _version = "2.4"
 
     _schema = {
         'definitions': {
@@ -4373,7 +4373,7 @@ class GetByIdRequest(Request):
 
     _service = "tasks"
     _action = "get_by_id"
-    _version = "2.1"
+    _version = "2.4"
     _schema = {
         'definitions': {},
         'properties': {'task': {'description': 'Task ID', 'type': 'string'}},
@@ -4408,7 +4408,7 @@ class GetByIdResponse(Response):
     """
     _service = "tasks"
     _action = "get_by_id"
-    _version = "2.1"
+    _version = "2.4"
 
     _schema = {
         'definitions': {
@@ -4792,7 +4792,7 @@ class PingRequest(Request):
 
     _service = "tasks"
     _action = "ping"
-    _version = "2.1"
+    _version = "2.4"
     _schema = {
         'definitions': {},
         'properties': {'task': {'description': 'Task ID', 'type': 'string'}},
@@ -4825,7 +4825,7 @@ class PingResponse(Response):
     """
     _service = "tasks"
     _action = "ping"
-    _version = "2.1"
+    _version = "2.4"
 
     _schema = {'additionalProperties': False, 'definitions': {}, 'type': 'object'}
 
@@ -4853,7 +4853,7 @@ class PublishRequest(Request):
 
     _service = "tasks"
     _action = "publish"
-    _version = "2.1"
+    _version = "2.4"
     _schema = {
         'definitions': {},
         'properties': {
@@ -4967,7 +4967,7 @@ class PublishResponse(Response):
     """
     _service = "tasks"
     _action = "publish"
-    _version = "2.1"
+    _version = "2.4"
 
     _schema = {
         'definitions': {},
@@ -5057,7 +5057,7 @@ class ResetRequest(Request):
 
     _service = "tasks"
     _action = "reset"
-    _version = "2.1"
+    _version = "2.4"
     _schema = {
         'definitions': {},
         'properties': {
@@ -5160,7 +5160,7 @@ class ResetResponse(Response):
     """
     _service = "tasks"
     _action = "reset"
-    _version = "2.1"
+    _version = "2.4"
 
     _schema = {
         'definitions': {},
@@ -5305,7 +5305,7 @@ class SetRequirementsRequest(Request):
 
     _service = "tasks"
     _action = "set_requirements"
-    _version = "2.1"
+    _version = "2.4"
     _schema = {
         'definitions': {},
         'properties': {
@@ -5362,7 +5362,7 @@ class SetRequirementsResponse(Response):
     """
     _service = "tasks"
     _action = "set_requirements"
-    _version = "2.1"
+    _version = "2.4"
 
     _schema = {
         'definitions': {},
@@ -5431,7 +5431,7 @@ class StartedRequest(Request):
 
     _service = "tasks"
     _action = "started"
-    _version = "2.1"
+    _version = "2.4"
     _schema = {
         'definitions': {},
         'properties': {
@@ -5527,7 +5527,7 @@ class StartedResponse(Response):
     """
     _service = "tasks"
     _action = "started"
-    _version = "2.1"
+    _version = "2.4"
 
     _schema = {
         'definitions': {},
@@ -5617,7 +5617,7 @@ class StopRequest(Request):
 
     _service = "tasks"
     _action = "stop"
-    _version = "2.1"
+    _version = "2.4"
     _schema = {
         'definitions': {},
         'properties': {
@@ -5711,7 +5711,7 @@ class StopResponse(Response):
     """
     _service = "tasks"
     _action = "stop"
-    _version = "2.1"
+    _version = "2.4"
 
     _schema = {
         'definitions': {},
@@ -5780,7 +5780,7 @@ class StoppedRequest(Request):
 
     _service = "tasks"
     _action = "stopped"
-    _version = "2.1"
+    _version = "2.4"
     _schema = {
         'definitions': {},
         'properties': {
@@ -5874,7 +5874,7 @@ class StoppedResponse(Response):
     """
     _service = "tasks"
     _action = "stopped"
-    _version = "2.1"
+    _version = "2.4"
 
     _schema = {
         'definitions': {},
@@ -5952,7 +5952,7 @@ class UpdateRequest(Request):
 
     _service = "tasks"
     _action = "update"
-    _version = "2.1"
+    _version = "2.4"
     _schema = {
         'definitions': {},
         'properties': {
@@ -6120,7 +6120,7 @@ class UpdateResponse(Response):
     """
     _service = "tasks"
     _action = "update"
-    _version = "2.1"
+    _version = "2.4"
 
     _schema = {
         'definitions': {},
@@ -6183,7 +6183,7 @@ class UpdateBatchRequest(BatchRequest):
 
     _service = "tasks"
     _action = "update_batch"
-    _version = "2.1"
+    _version = "2.4"
     _batched_request_cls = UpdateRequest
 
 
@@ -6196,7 +6196,7 @@ class UpdateBatchResponse(Response):
     """
     _service = "tasks"
     _action = "update_batch"
-    _version = "2.1"
+    _version = "2.4"
 
     _schema = {
         'definitions': {},
@@ -6261,7 +6261,7 @@ class ValidateRequest(Request):
 
     _service = "tasks"
     _action = "validate"
-    _version = "2.1"
+    _version = "2.4"
     _schema = {
         'definitions': {
             'artifact': {
@@ -6614,7 +6614,7 @@ class ValidateResponse(Response):
     """
     _service = "tasks"
     _action = "validate"
-    _version = "2.1"
+    _version = "2.4"
 
     _schema = {'additionalProperties': False, 'definitions': {}, 'type': 'object'}
 

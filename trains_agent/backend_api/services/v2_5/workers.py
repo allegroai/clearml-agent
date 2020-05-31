@@ -1237,7 +1237,7 @@ class GetActivityReportRequest(Request):
 
     _service = "workers"
     _action = "get_activity_report"
-    _version = "2.4"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -1319,7 +1319,7 @@ class GetActivityReportResponse(Response):
     """
     _service = "workers"
     _action = "get_activity_report"
-    _version = "2.4"
+    _version = "2.5"
 
     _schema = {
         'definitions': {
@@ -1405,7 +1405,7 @@ class GetAllRequest(Request):
 
     _service = "workers"
     _action = "get_all"
-    _version = "2.4"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -1447,7 +1447,7 @@ class GetAllResponse(Response):
     """
     _service = "workers"
     _action = "get_all"
-    _version = "2.4"
+    _version = "2.5"
 
     _schema = {
         'definitions': {
@@ -1601,7 +1601,7 @@ class GetMetricKeysRequest(Request):
 
     _service = "workers"
     _action = "get_metric_keys"
-    _version = "2.4"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -1644,7 +1644,7 @@ class GetMetricKeysResponse(Response):
     """
     _service = "workers"
     _action = "get_metric_keys"
-    _version = "2.4"
+    _version = "2.5"
 
     _schema = {
         'definitions': {
@@ -1718,7 +1718,7 @@ class GetStatsRequest(Request):
 
     _service = "workers"
     _action = "get_stats"
-    _version = "2.4"
+    _version = "2.5"
     _schema = {
         'definitions': {
             'aggregation_type': {
@@ -1880,7 +1880,7 @@ class GetStatsResponse(Response):
     """
     _service = "workers"
     _action = "get_stats"
-    _version = "2.4"
+    _version = "2.5"
 
     _schema = {
         'definitions': {
@@ -1991,7 +1991,7 @@ class RegisterRequest(Request):
 
     _service = "workers"
     _action = "register"
-    _version = "2.4"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -2071,7 +2071,7 @@ class RegisterResponse(Response):
     """
     _service = "workers"
     _action = "register"
-    _version = "2.4"
+    _version = "2.5"
 
     _schema = {'definitions': {}, 'properties': {}, 'type': 'object'}
 
@@ -2099,7 +2099,7 @@ class StatusReportRequest(Request):
 
     _service = "workers"
     _action = "status_report"
-    _version = "2.4"
+    _version = "2.5"
     _schema = {
         'definitions': {
             'machine_stats': {
@@ -2299,7 +2299,7 @@ class StatusReportResponse(Response):
     """
     _service = "workers"
     _action = "status_report"
-    _version = "2.4"
+    _version = "2.5"
 
     _schema = {'definitions': {}, 'properties': {}, 'type': 'object'}
 
@@ -2314,7 +2314,7 @@ class UnregisterRequest(Request):
 
     _service = "workers"
     _action = "unregister"
-    _version = "2.4"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -2352,7 +2352,7 @@ class UnregisterResponse(Response):
     """
     _service = "workers"
     _action = "unregister"
-    _version = "2.4"
+    _version = "2.5"
 
     _schema = {'definitions': {}, 'properties': {}, 'type': 'object'}
 

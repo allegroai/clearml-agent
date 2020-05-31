@@ -19,7 +19,7 @@ class ApiexRequest(Request):
 
     _service = "debug"
     _action = "apiex"
-    _version = "1.5"
+    _version = "2.4"
     _schema = {'definitions': {}, 'properties': {}, 'required': [], 'type': 'object'}
 
 
@@ -30,7 +30,7 @@ class ApiexResponse(Response):
     """
     _service = "debug"
     _action = "apiex"
-    _version = "1.5"
+    _version = "2.4"
 
     _schema = {'definitions': {}, 'properties': {}, 'type': 'object'}
 
@@ -43,7 +43,7 @@ class EchoRequest(Request):
 
     _service = "debug"
     _action = "echo"
-    _version = "1.5"
+    _version = "2.4"
     _schema = {'definitions': {}, 'properties': {}, 'type': 'object'}
 
 
@@ -54,7 +54,7 @@ class EchoResponse(Response):
     """
     _service = "debug"
     _action = "echo"
-    _version = "1.5"
+    _version = "2.4"
 
     _schema = {'definitions': {}, 'properties': {}, 'type': 'object'}
 
@@ -65,7 +65,7 @@ class ExRequest(Request):
 
     _service = "debug"
     _action = "ex"
-    _version = "1.5"
+    _version = "2.4"
     _schema = {'definitions': {}, 'properties': {}, 'required': [], 'type': 'object'}
 
 
@@ -76,7 +76,7 @@ class ExResponse(Response):
     """
     _service = "debug"
     _action = "ex"
-    _version = "1.5"
+    _version = "2.4"
 
     _schema = {'definitions': {}, 'properties': {}, 'type': 'object'}
 
@@ -89,7 +89,7 @@ class PingRequest(Request):
 
     _service = "debug"
     _action = "ping"
-    _version = "1.5"
+    _version = "2.4"
     _schema = {'definitions': {}, 'properties': {}, 'type': 'object'}
 
 
@@ -102,7 +102,7 @@ class PingResponse(Response):
     """
     _service = "debug"
     _action = "ping"
-    _version = "1.5"
+    _version = "2.4"
 
     _schema = {
         'definitions': {},
@@ -141,7 +141,7 @@ class PingAuthRequest(Request):
 
     _service = "debug"
     _action = "ping_auth"
-    _version = "1.5"
+    _version = "2.4"
     _schema = {'definitions': {}, 'properties': {}, 'type': 'object'}
 
 
@@ -154,7 +154,7 @@ class PingAuthResponse(Response):
     """
     _service = "debug"
     _action = "ping_auth"
-    _version = "1.5"
+    _version = "2.4"
 
     _schema = {
         'definitions': {},

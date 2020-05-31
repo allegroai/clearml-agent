@@ -464,7 +464,7 @@ class CreateRequest(Request):
 
     _service = "models"
     _action = "create"
-    _version = "2.1"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -720,7 +720,7 @@ class CreateResponse(Response):
     """
     _service = "models"
     _action = "create"
-    _version = "2.1"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -779,7 +779,7 @@ class DeleteRequest(Request):
 
     _service = "models"
     _action = "delete"
-    _version = "2.1"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -834,7 +834,7 @@ class DeleteResponse(Response):
     """
     _service = "models"
     _action = "delete"
-    _version = "2.1"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -904,7 +904,7 @@ class EditRequest(Request):
 
     _service = "models"
     _action = "edit"
-    _version = "2.1"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -1175,7 +1175,7 @@ class EditResponse(Response):
     """
     _service = "models"
     _action = "edit"
-    _version = "2.1"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -1279,7 +1279,7 @@ class GetAllRequest(Request):
 
     _service = "models"
     _action = "get_all"
-    _version = "2.1"
+    _version = "2.5"
     _schema = {
         'definitions': {
             'multi_field_pattern_data': {
@@ -1647,7 +1647,7 @@ class GetAllResponse(Response):
     """
     _service = "models"
     _action = "get_all"
-    _version = "2.1"
+    _version = "2.5"
 
     _schema = {
         'definitions': {
@@ -1770,7 +1770,7 @@ class GetByIdRequest(Request):
 
     _service = "models"
     _action = "get_by_id"
-    _version = "2.1"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {'model': {'description': 'Model id', 'type': 'string'}},
@@ -1805,7 +1805,7 @@ class GetByIdResponse(Response):
     """
     _service = "models"
     _action = "get_by_id"
-    _version = "2.1"
+    _version = "2.5"
 
     _schema = {
         'definitions': {
@@ -1925,7 +1925,7 @@ class GetByTaskIdRequest(Request):
 
     _service = "models"
     _action = "get_by_task_id"
-    _version = "2.1"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -1961,7 +1961,7 @@ class GetByTaskIdResponse(Response):
     """
     _service = "models"
     _action = "get_by_task_id"
-    _version = "2.1"
+    _version = "2.5"
 
     _schema = {
         'definitions': {
@@ -2087,7 +2087,7 @@ class SetReadyRequest(Request):
 
     _service = "models"
     _action = "set_ready"
-    _version = "2.1"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -2164,7 +2164,7 @@ class SetReadyResponse(Response):
     """
     _service = "models"
     _action = "set_ready"
-    _version = "2.1"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -2276,7 +2276,7 @@ class UpdateRequest(Request):
 
     _service = "models"
     _action = "update"
-    _version = "2.1"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -2502,7 +2502,7 @@ class UpdateResponse(Response):
     """
     _service = "models"
     _action = "update"
-    _version = "2.1"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
@@ -2581,7 +2581,7 @@ class UpdateForTaskRequest(Request):
 
     _service = "models"
     _action = "update_for_task"
-    _version = "2.1"
+    _version = "2.5"
     _schema = {
         'definitions': {},
         'properties': {
@@ -2752,7 +2752,7 @@ class UpdateForTaskResponse(Response):
     """
     _service = "models"
     _action = "update_for_task"
-    _version = "2.1"
+    _version = "2.5"
 
     _schema = {
         'definitions': {},
