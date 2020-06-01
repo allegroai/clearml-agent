@@ -51,7 +51,7 @@ If you are considering K8S for your research, also consider that you will soon b
 In our experience, handling and building the environments, having to package every experiment in a docker, managing those hundreds (or more) containers and building pipelines on top of it all, is very complicated (also, it’s usually out of scope for the research team, and overwhelming even for the DevOps team).
 
 We feel there has to be a better way, that can be just as powerful for R&D and at the same time allow integration with K8S **when the need arises**.  
-(If you already have a K8S cluster for AI, detailed instructions on how to integrate TRAINS into your K8S cluster are *coming soon*.)
+(If you already have a K8S cluster for AI, detailed instructions on how to integrate TRAINS into your K8S cluster are [here](https://github.com/allegroai/trains-server-k8s/tree/master/trains-server-chart) with included [helm chart](https://github.com/allegroai/trains-server-helm))
 
 
 ## Using the TRAINS Agent
@@ -227,7 +227,7 @@ The **TRAINS agent** will first try to pull jobs from the `important_jobs` queue
 
 Adding queues, managing job order within a queue and moving jobs between queues, is available using the Web UI, see example on our [open server](https://demoapp.trains.allegro.ai/workers-and-queues/queues)
 
-# How do I create an experiment on the TRAINS server? <a name="from-scratch"></a>
+## How do I create an experiment on the TRAINS server? <a name="from-scratch"></a>
 * Integrate [TRAINS](https://github.com/allegroai/trains) with your code
 * Execute the code on your machine (Manually / PyCharm / Jupyter Notebook)
 * As your code is running, **TRAINS** creates an experiment logging all the necessary execution information:
@@ -248,7 +248,29 @@ Adding queues, managing job order within a queue and moving jobs between queues,
   - Or simply change nothing to run the same experiment again...
 * Schedule the newly created experiment for execution: Right-click the experiment and select 'enqueue'
 
-# AutoML and Orchestration Pipelines <a name="automl-pipes"></a>
+## Trains-Agent Services Mode <a name="services"></a> 
+
+Trains-Agent Services is a special mode of Trains-Agent that provides the ability to launch long-lasting jobs 
+that previously had to be executed on local / dedicated machines. It allows a single agent to 
+launch multiple dockers (Tasks) for different use cases. To name a few use cases, auto-scaler service (spinning instances 
+when the need arises and the budget allows), Controllers (Implementing pipelines and more sophisticated DevOps logic),
+Optimizer (such as Hyper-parameter Optimization or sweeping), and Application (such as interactive Bokeh apps for 
+increased data transparency)
+
+Trains-Agent Services mode will spin **any** task enqueued into the specified queue. 
+Every task launched by Trains-Agent Services  will be registered as a new node in the system, 
+providing tracking and transparency capabilities. 
+Currently trains-agent in services-mode supports cpu only configuration. Trains-agent services mode can be launched alongside GPU agents.
+
+```bash
+trains-agent daemon --services-mode --detached --queue services --create-queue --docker ubuntu:18.04 --cpu-only
+```
+
+**Note**: It is the user's responsibility to make sure the proper tasks are pushed into the specified queue. 
+Do not enqueue training / inference tasks into the specified queue, as it will put unnecessary load on the server.
+
+
+## AutoML and Orchestration Pipelines <a name="automl-pipes"></a>
 The TRAINS Agent can also be used to implement AutoML orchestration and Experiment Pipelines in conjunction with the TRAINS package.
 
 Sample AutoML & Orchestration examples can be found in the TRAINS [example/automl](https://github.com/allegroai/trains/tree/master/examples/automl) folder.
@@ -265,6 +287,6 @@ Experiment Pipeline examples
   - [Second step experiment](https://github.com/allegroai/trains/blob/master/examples/automl/toy_base_task.py)
     - In order to create an experiment-template in the system, this code must be executed once manually
 
-# License
+## License
 
 Apache License, Version 2.0 (see the [LICENSE](https://www.apache.org/licenses/LICENSE-2.0.html) for more information)
