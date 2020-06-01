@@ -258,7 +258,7 @@ Optimizer (such as Hyper-parameter Optimization or sweeping), and Application (s
 increased data transparency)
 
 Trains-Agent Services mode will spin **any** task enqueued into the specified queue. 
-Every task launched by Trains-Agent Services  will be registered as a new node in the system, 
+Every task launched by Trains-Agent Services will be registered as a new node in the system, 
 providing tracking and transparency capabilities. 
 Currently trains-agent in services-mode supports cpu only configuration. Trains-agent services mode can be launched alongside GPU agents.
 
@@ -267,7 +267,6 @@ trains-agent daemon --services-mode --detached --queue services --create-queue -
 ```
 
 **Note**: It is the user's responsibility to make sure the proper tasks are pushed into the specified queue. 
-Do not enqueue training / inference tasks into the specified queue, as it will put unnecessary load on the server.
 
 
 ## AutoML and Orchestration Pipelines <a name="automl-pipes"></a>
