@@ -676,15 +676,15 @@ class Worker(ServiceCommandSection):
         # match previous behaviour when we validated queue names before everything else
         queues = self._resolve_queue_names(queues, create_if_missing=kwargs.get('create_queue', False))
 
+        self._standalone_mode = kwargs.get('standalone_mode', False)
+        self._services_mode = kwargs.get('services_mode', False)
+
         # make sure we only have a single instance,
         # also make sure we set worker_id properly and cache folders
         self._singleton()
 
         # check if we have the latest version
         start_check_update_daemon()
-
-        self._standalone_mode = kwargs.get('standalone_mode', False)
-        self._services_mode = kwargs.get('services_mode', False)
 
         self.check(**kwargs)
         self.log.debug("starting resource monitor thread")
@@ -2281,8 +2281,11 @@ class Worker(ServiceCommandSection):
             else:
                 worker_name = '{}:cpu'.format(worker_name)
 
+        # if we are running in services mode, we allow double register since
+        # docker-compose will kill instances before they cleanup
         self.worker_id, worker_slot = Singleton.register_instance(
-            unique_worker_id=worker_id, worker_name=worker_name, api_client=self._session.api_client)
+            unique_worker_id=worker_id, worker_name=worker_name, api_client=self._session.api_client,
+            allow_double=bool(self._services_mode) and bool(ENV_DOCKER_HOST_MOUNT.get()))
 
         if self.worker_id is None:
             error('Instance with the same WORKER_ID [{}] is already running'.format(worker_id))

@@ -38,7 +38,7 @@ class Singleton(object):
             pass
 
     @classmethod
-    def register_instance(cls, unique_worker_id=None, worker_name=None, api_client=None):
+    def register_instance(cls, unique_worker_id=None, worker_name=None, api_client=None, allow_double=False):
         """
         # Exit the process if another instance of us is using the same worker_id
 
@@ -65,8 +65,9 @@ class Singleton(object):
             f.write(bytes(os.getpid()))
             f.flush()
             try:
-                ret = cls._register_instance(unique_worker_id=unique_worker_id, worker_name=worker_name,
-                                             api_client=api_client)
+                ret = cls._register_instance(
+                    unique_worker_id=unique_worker_id, worker_name=worker_name,
+                    api_client=api_client, allow_double=allow_double)
             except:
                 ret = None, None
 
@@ -78,7 +79,7 @@ class Singleton(object):
         return ret
 
     @classmethod
-    def _register_instance(cls, unique_worker_id=None, worker_name=None, api_client=None):
+    def _register_instance(cls, unique_worker_id=None, worker_name=None, api_client=None, allow_double=False):
         if cls.worker_id:
             return cls.worker_id, cls.instance_slot
         # make sure we have a unique name
@@ -123,7 +124,11 @@ class Singleton(object):
                 continue
 
             if uid == unique_worker_id:
-                return None, None
+                if allow_double:
+                    warning('Instance with the same WORKER_ID [{}] was found on this machine. '
+                            'We are ignoring it, make sure this not a mistake.'.format(unique_worker_id))
+                else:
+                    return None, None
 
             slots[slot] = uid
 
