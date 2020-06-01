@@ -1150,7 +1150,7 @@ class Worker(ServiceCommandSection):
                         clone=("--clone" if entry_point == "clone_task" else ""),
                      )
         else:
-            change = None
+            change = 'ENTRYPOINT bash'
 
         print('Committing docker container to: {}'.format(target))
         print(commit_docker(container_name=target, docker_id=docker_id, apply_change=change))
