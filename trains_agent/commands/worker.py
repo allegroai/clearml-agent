@@ -561,7 +561,7 @@ class Worker(ServiceCommandSection):
             self.handle_user_abort(task_id)
             status = ExitStatus.interrupted
         finally:
-            if self._services_mode:
+            if self._services_mode and stop_signal_status is None:
                 print('Service started, docker running in the background')
             else:
                 self.handle_task_termination(task_id, status, stop_signal_status)
@@ -835,9 +835,10 @@ class Worker(ServiceCommandSection):
         stderr = open(stderr_path, "wt") if stderr_path else stdout
         stdout_line_count, stdout_last_lines = 0, []
         stderr_line_count, stderr_last_lines = 0, []
+        service_mode_internal_agent_started = None
+        stopping = False
+        status = None
         try:
-            status = None
-            stopping = False
             _last_machine_update_ts = time()
             stop_reason = None
 
@@ -849,7 +850,6 @@ class Worker(ServiceCommandSection):
                 **kwargs
             )
 
-            service_mode_internal_agent_started = None
             while status is None and not stopping:
 
                 stop_reason = stop_signal.test() if stop_signal else TaskStopSignal.default
@@ -874,7 +874,7 @@ class Worker(ServiceCommandSection):
 
                 # get diff from previous poll
                 printed_lines = _print_file(stdout_path, stdout_line_count)
-                if self._services_mode:
+                if self._services_mode and not stopping and not status:
                     # if the internal agent started, we stop logging, it will take over logging.
                     # if the internal agent started running the task itself, it will return status==0,
                     # then we can quit the monitoring loop of this process
@@ -907,8 +907,9 @@ class Worker(ServiceCommandSection):
             status = -1
 
         # if running in services mode, keep the file open
-        if self._services_mode:
-            return status, stop_reason
+        # in case the docker was so quick it started and finished, check the stop reason
+        if self._services_mode and service_mode_internal_agent_started and stop_reason == 'Service started':
+            return None, None
 
         stdout.close()
         if stderr_path:
