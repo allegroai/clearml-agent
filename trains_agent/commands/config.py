@@ -233,7 +233,8 @@ def verify_credentials(api_host, credentials):
     try:
         print('Verifying credentials ...')
         if api_host:
-            Session(api_key=credentials['access_key'], secret_key=credentials['secret_key'], host=api_host)
+            Session(api_key=credentials['access_key'], secret_key=credentials['secret_key'], host=api_host,
+                    http_retries_config={"total": 2})
             print('Credentials verified!')
             return True
         else:
@@ -275,7 +276,7 @@ def read_manual_credentials():
 
 def input_url(host_type, host=None):
     while True:
-        print('{} configured to: [{}] '.format(host_type, host), end='')
+        print('{} configured to: {}'.format(host_type, '[{}] '.format(host) if host else ''), end='')
         parse_input = input()
         if host and (not parse_input or parse_input.lower() == 'yes' or parse_input.lower() == 'y'):
             break
@@ -289,11 +290,12 @@ def input_url(host_type, host=None):
 def input_host_port(host_type, parsed_host):
     print('Enter port for {} host '.format(host_type), end='')
     replace_port = input().lower()
-    return parsed_host.scheme + "://" + parsed_host.netloc + (':{}'.format(replace_port) if replace_port else '') + \
-           parsed_host.path
+    return parsed_host.scheme + "://" + parsed_host.netloc + (
+        ':{}'.format(replace_port) if replace_port else '') + parsed_host.path
 
 
 def verify_url(parse_input):
+    # noinspection PyBroadException
     try:
         if not parse_input.startswith('http://') and not parse_input.startswith('https://'):
             # if we have a specific port, use http prefix, otherwise assume https
