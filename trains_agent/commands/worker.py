@@ -396,7 +396,7 @@ class Worker(ServiceCommandSection):
         """
         if kwargs.get('services_mode'):
             kwargs['cpu_only'] = True
-            kwargs['docker'] = kwargs.get('docker', [])
+            kwargs['docker'] = kwargs.get('docker') or []
             kwargs['gpus'] = None
 
         return kwargs
@@ -678,6 +678,10 @@ class Worker(ServiceCommandSection):
 
         self._standalone_mode = kwargs.get('standalone_mode', False)
         self._services_mode = kwargs.get('services_mode', False)
+        # must have docker in services_mode
+        if self._services_mode:
+            kwargs = self._verify_command_states(kwargs)
+            docker = docker or kwargs.get('docker')
 
         # make sure we only have a single instance,
         # also make sure we set worker_id properly and cache folders
@@ -714,6 +718,22 @@ class Worker(ServiceCommandSection):
             self.set_docker_variables(docker)
         else:
             self.dump_config()
+            # only in none docker we have to make sure we have CUDA setup
+
+            # make sure we have CUDA set if we have --gpus
+            if kwargs.get('gpus') and self._session.config.get('agent.cuda_version', None) in (None, 0, '0'):
+                message = 'Running with GPUs but no CUDA version was detected!\n' \
+                          '\tSet OS environemnt CUDA_VERSION & CUDNN_VERSION to the correct version\n' \
+                          '\tExample: export CUDA_VERSION=10.1 or (Windows: set CUDA_VERSION=10.1)'
+                if is_conda(self._session.config):
+                    self._unregister(queues)
+                    safe_remove_file(self.temp_config_path)
+                    raise ValueError(message)
+                else:
+                    warning(message+'\n')
+
+        if self._services_mode:
+            print('Trains-Agent running in services mode')
 
         self._daemon_foreground = foreground
         if not foreground:
@@ -1713,7 +1733,7 @@ class Worker(ServiceCommandSection):
                 if self._session.debug_mode and temp_file:
                     rm_file(temp_file.name)
             # call post installation callback
-            requirements_manager.post_install()
+            requirements_manager.post_install(self._session)
             # mark as successful installation
             repo_requirements_installed = True
 
@@ -2208,8 +2228,11 @@ class Worker(ServiceCommandSection):
 
             def set_uid(self, user_uid, user_gid):
                 from pwd import getpwnam
-                self.uid = getpwnam(user_uid).pw_uid
-                self.gid = getpwnam(user_gid).pw_gid
+                try:
+                    self.uid = getpwnam(user_uid).pw_uid
+                    self.gid = getpwnam(user_gid).pw_gid
+                except Exception:
+                    raise ValueError("Could not find requested user uid={} gid={}".format(user_uid, user_gid))
 
             def _change_uid(self):
                 os.setgid(self.gid)
