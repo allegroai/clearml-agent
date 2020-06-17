@@ -378,7 +378,7 @@ class CondaAPI(PackageManager):
                 print(e)
                 raise e
 
-        self.requirements_manager.post_install()
+        self.requirements_manager.post_install(self.session)
         return True
 
     def _parse_conda_result_bad_packges(self, result_dict):

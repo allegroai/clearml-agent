@@ -97,7 +97,7 @@ class VCS(object):
         :param session: program session
         :param url: repository url
         :param location: (desired) clone location
-        :param: desired clone revision
+        :param revision: desired clone revision
         """
         self.session = session
         self.log = self.session.get_logger(
@@ -208,7 +208,7 @@ class VCS(object):
     )
 
     @classmethod
-    def resolve_ssh_url(cls, url):
+    def replace_ssh_url(cls, url):
         # type: (Text) -> Text
         """
         Replace SSH URL with HTTPS URL when applicable
@@ -242,11 +242,37 @@ class VCS(object):
             ).url
         return url
 
+    @classmethod
+    def replace_http_url(cls, url):
+        # type: (Text) -> Text
+        """
+        Replace HTTPS URL with SSH URL when applicable
+        """
+        parsed_url = furl(url)
+        if parsed_url.scheme == "https":
+            parsed_url.scheme = "ssh"
+            parsed_url.username = "git"
+            parsed_url.password = None
+            # make sure there is no port in the final url (safe_furl support)
+            parsed_url.port = None
+            url = parsed_url.url
+        return url
+
     def _set_ssh_url(self):
         """
         Replace instance URL with SSH substitution result and report to log.
         According to ``man ssh-add``, ``SSH_AUTH_SOCK`` must be set in order for ``ssh-add`` to work.
         """
+        if self.session.config.get('agent.force_git_ssh_protocol', None) and self.url:
+            parsed_url = furl(self.url)
+            if parsed_url.scheme == "https":
+                new_url = self.replace_http_url(self.url)
+                if new_url != self.url:
+                    print("Using SSH credentials - replacing https url '{}' with ssh url '{}'".format(
+                        self.url, new_url))
+                    self.url = new_url
+                return
+
         if not self.session.config.agent.translate_ssh:
             return
 
@@ -255,7 +281,7 @@ class VCS(object):
                 (ENV_AGENT_GIT_USER.get() or self.session.config.get('agent.git_user', None)) and
                 (ENV_AGENT_GIT_PASS.get() or self.session.config.get('agent.git_pass', None))
         ):
-            new_url = self.resolve_ssh_url(self.url)
+            new_url = self.replace_ssh_url(self.url)
             if new_url != self.url:
                 print("Using user/pass credentials - replacing ssh url '{}' with https url '{}'".format(
                     self.url, new_url))
@@ -396,7 +422,10 @@ class VCS(object):
         Add username and password to URL if missing from URL and present in config.
         Does not modify ssh URLs.
         """
-        parsed_url = furl(url)
+        try:
+            parsed_url = furl(url)
+        except ValueError:
+            return url
         if parsed_url.scheme in ["", "ssh"] or parsed_url.scheme.startswith("git"):
             return parsed_url.url
         config_user = ENV_AGENT_GIT_USER.get() or config.get("agent.{}_user".format(cls.executable_name), None)

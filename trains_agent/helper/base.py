@@ -555,3 +555,17 @@ class ExecutionInfo(NonStrictAttrs):
             execution.working_dir = working_dir or ""
 
         return execution
+
+
+class safe_furl(furl.furl):
+
+    @property
+    def port(self):
+        return self._port
+
+    @port.setter
+    def port(self, port):
+        """
+        Any port value is valid
+        """
+        self._port = port

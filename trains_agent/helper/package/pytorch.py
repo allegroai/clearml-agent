@@ -270,7 +270,7 @@ class PytorchRequirement(SimpleSubstitution):
     def get_url_for_platform(self, req):
         # check if package is already installed with system packages
         try:
-            if self.config.get("agent.package_manager.system_site_packages"):
+            if self.config.get("agent.package_manager.system_site_packages", None):
                 from pip._internal.commands.show import search_packages_info
                 installed_torch = list(search_packages_info([req.name]))
                 # notice the comparision order, the first part will make sure we have a valid installed package
@@ -295,7 +295,7 @@ class PytorchRequirement(SimpleSubstitution):
 
         torch_url, torch_url_key = SimplePytorchRequirement.get_torch_page(self.cuda_version)
         url = self._get_link_from_torch_page(req, torch_url)
-        if not url and self.config.get("agent.package_manager.torch_nightly"):
+        if not url and self.config.get("agent.package_manager.torch_nightly", None):
             torch_url, torch_url_key = SimplePytorchRequirement.get_torch_page(self.cuda_version, nightly=True)
             url = self._get_link_from_torch_page(req, torch_url)
         # try one more time, with a lower cuda version (never fallback to CPU):

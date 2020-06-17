@@ -16,7 +16,7 @@ class HorovodRequirement(SimpleSubstitution):
         # match both horovod
         return req.name and self.name == req.name.lower()
 
-    def post_install(self):
+    def post_install(self, session):
         if self.post_install_req:
             PackageManager.out_of_scope_install_package(self.post_install_req.tostr(markers=False))
             self.post_install_req = None

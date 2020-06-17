@@ -111,10 +111,12 @@ class PackageManager(object):
     def out_of_scope_install_package(cls, package_name, *args):
         if PackageManager._selected_manager is not None:
             try:
-                return PackageManager._selected_manager._install(package_name, *args)
+                result = PackageManager._selected_manager._install(package_name, *args)
+                if result not in (0, None, True):
+                    return False
             except Exception:
-                pass
-        return
+                return False
+        return True
 
     @classmethod
     def out_of_scope_freeze(cls):

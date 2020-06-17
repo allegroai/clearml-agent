@@ -54,7 +54,17 @@ class MarkerRequirement(object):
 
             if self.specifier:
                 parts.append(self.format_specs())
-
+        elif self.vcs:
+            # leave the line as is, let pip handle it
+            if self.line:
+                parts = [self.line]
+            else:
+                # let's build the line manually
+                parts = [
+                    self.uri,
+                    '@{}'.format(self.revision) if self.revision else '',
+                    '#subdirectory={}'.format(self.subdirectory) if self.subdirectory else ''
+                ]
         else:
             parts = [self.uri]
 
@@ -316,7 +326,7 @@ class RequirementSubstitution(object):
         """
         pass
 
-    def post_install(self):
+    def post_install(self, session):
         pass
 
     @classmethod
@@ -472,12 +482,13 @@ class RequirementsManager(object):
             result = map(self.translator.translate, result)
         return join_lines(result)
 
-    def post_install(self):
+    def post_install(self, session):
         for h in self.handlers:
             try:
-                h.post_install()
+                h.post_install(session)
             except Exception as ex:
                 print('RequirementsManager handler {} raised exception: {}'.format(h, ex))
+                raise
 
     def replace_back(self, requirements):
         for h in self.handlers:
