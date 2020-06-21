@@ -2183,6 +2183,15 @@ class Worker(ServiceCommandSection):
         except:
             pass
 
+        if os.environ.get('FORCE_LOCAL_TRAINS_AGENT_WHEEL'):
+            local_wheel = os.path.expanduser(os.environ.get('FORCE_LOCAL_TRAINS_AGENT_WHEEL'))
+            docker_wheel = str(Path('/tmp') / Path(local_wheel).name)
+            base_cmd += ['-v', local_wheel + ':' + docker_wheel]
+            trains_agent_wheel = '\"{}\"'.format(docker_wheel)
+        else:
+            # trains-agent{specify_version}
+            trains_agent_wheel = 'trains-agent{specify_version}'.format(specify_version=specify_version)
+
         if not standalone_mode:
             update_scheme += \
                 "echo 'Binary::apt::APT::Keep-Downloaded-Packages \"true\";' > /etc/apt/apt.conf.d/docker-clean ; " \
@@ -2190,10 +2199,10 @@ class Worker(ServiceCommandSection):
                 "apt-get update ; " \
                 "apt-get install -y git libsm6 libxext6 libxrender-dev libglib2.0-0 {python_single_digit}-pip ; " \
                 "{python} -m pip install -U \"pip{pip_version}\" ; " \
-                "{python} -m pip install -U trains-agent{specify_version} ; ".format(
+                "{python} -m pip install -U {trains_agent_wheel} ; ".format(
                     python_single_digit=python_version.split('.')[0],
                     python=python_version, pip_version=PackageManager.get_pip_version(),
-                    specify_version=specify_version)
+                    trains_agent_wheel=trains_agent_wheel)
 
         base_cmd += (
             ['-v', conf_file+':'+DOCKER_ROOT_CONF_FILE] +
