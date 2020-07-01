@@ -2043,12 +2043,10 @@ class Worker(ServiceCommandSection):
             pass
 
         # check if the .git credentials exist:
-        host_git_credentials = Path('~/.git-credentials').expanduser()
         try:
-            if host_git_credentials.is_file():
-                host_git_credentials = host_git_credentials.as_posix()
-            else:
-                host_git_credentials = None
+            host_git_credentials = [
+                f.as_posix() for f in [Path('~/.git-credentials').expanduser(), Path('~/.gitconfig').expanduser()]
+                if f.is_file()]
         except Exception:
             host_git_credentials = None
 
@@ -2062,6 +2060,8 @@ class Worker(ServiceCommandSection):
             if not isinstance(cmds, (list, tuple)):
                 cmds = [cmds]
             extra_shell_script_str = " ; ".join(map(str, cmds)) + " ; "
+
+        bash_script = self._session.config.get("agent.docker_init_bash_script", None)
 
         self.temp_config_path = self.temp_config_path or safe_mkstemp(
             suffix=".cfg", prefix=".trains_agent.", text=True, name_only=True
@@ -2079,7 +2079,10 @@ class Worker(ServiceCommandSection):
                           host_cache=host_cache, mounted_cache=mounted_cache_dir,
                           host_pip_dl=host_pip_dl, mounted_pip_dl=mounted_pip_dl_dir,
                           host_vcs_cache=host_vcs_cache, mounted_vcs_cache=mounted_vcs_cache,
-                          standalone_mode=self._standalone_mode, force_current_version=self._force_current_version)
+                          standalone_mode=self._standalone_mode,
+                          force_current_version=self._force_current_version,
+                          bash_script=bash_script,
+                          )
         return temp_config, partial(docker_cmd_functor, docker_cmd, temp_config)
 
     @staticmethod
@@ -2092,7 +2095,7 @@ class Worker(ServiceCommandSection):
                         host_pip_dl, mounted_pip_dl,
                         host_vcs_cache, mounted_vcs_cache,
                         standalone_mode=False, extra_docker_arguments=None, extra_shell_script=None,
-                        force_current_version=None, host_git_credentials=None):
+                        force_current_version=None, host_git_credentials=None, bash_script=None):
         docker = 'docker'
 
         base_cmd = [docker, 'run', '-t']
@@ -2193,20 +2196,30 @@ class Worker(ServiceCommandSection):
             trains_agent_wheel = 'trains-agent{specify_version}'.format(specify_version=specify_version)
 
         if not standalone_mode:
-            update_scheme += \
-                "echo 'Binary::apt::APT::Keep-Downloaded-Packages \"true\";' > /etc/apt/apt.conf.d/docker-clean ; " \
-                "chown -R root /root/.cache/pip ; " \
-                "apt-get update ; " \
-                "apt-get install -y git libsm6 libxext6 libxrender-dev libglib2.0-0 {python_single_digit}-pip ; " \
-                "{python} -m pip install -U \"pip{pip_version}\" ; " \
-                "{python} -m pip install -U {trains_agent_wheel} ; ".format(
-                    python_single_digit=python_version.split('.')[0],
-                    python=python_version, pip_version=PackageManager.get_pip_version(),
-                    trains_agent_wheel=trains_agent_wheel)
+            if not bash_script:
+                bash_script = [
+                    "echo 'Binary::apt::APT::Keep-Downloaded-Packages \"true\";' > /etc/apt/apt.conf.d/docker-clean",
+                    "chown -R root /root/.cache/pip",
+                    "apt-get update",
+                    "apt-get install -y git libsm6 libxext6 libxrender-dev libglib2.0-0 {python_single_digit}-pip",
+                ]
+
+            docker_bash_script = " ; ".join(bash_script) if not isinstance(bash_script, str) else bash_script
+
+            update_scheme += (
+                    docker_bash_script + " ; " +
+                    "{python} -m pip install -U \"pip{pip_version}\" ; " +
+                    "{python} -m pip install -U {trains_agent_wheel} ; ").format(
+                python_single_digit=python_version.split('.')[0],
+                python=python_version, pip_version=PackageManager.get_pip_version(),
+                trains_agent_wheel=trains_agent_wheel)
+
+        if host_git_credentials:
+            for git_credentials in host_git_credentials:
+                base_cmd += ['-v', '{}:/root/{}'.format(git_credentials, Path(git_credentials).name)]
 
         base_cmd += (
             ['-v', conf_file+':'+DOCKER_ROOT_CONF_FILE] +
-            (['-v', host_git_credentials+':/root/.git-credentials'] if host_git_credentials else []) +
             (['-v', host_ssh_cache+':/root/.ssh'] if host_ssh_cache else []) +
             (['-v', host_apt_cache+':/var/cache/apt/archives'] if host_apt_cache else []) +
             (['-v', host_pip_cache+':/root/.cache/pip'] if host_pip_cache else []) +
