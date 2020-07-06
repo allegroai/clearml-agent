@@ -317,6 +317,9 @@ class Worker(ServiceCommandSection):
     # last message before passing control to the actual task
     _task_logging_pass_control_message = "Running task id [{}]:"
 
+    _run_as_user_home = '/trains_agent_home'
+    _docker_fixed_user_cache = '/trains_agent_cache'
+
     @property
     def service(self):
         """ Worker command service endpoint """
@@ -1171,7 +1174,7 @@ class Worker(ServiceCommandSection):
                         clone=("--clone" if entry_point == "clone_task" else ""),
                      )
         else:
-            change = 'ENTRYPOINT bash'
+            change = 'ENTRYPOINT []'
 
         print('Committing docker container to: {}'.format(target))
         print(commit_docker(container_name=target, docker_id=docker_id, apply_change=change))
@@ -1998,7 +2001,7 @@ class Worker(ServiceCommandSection):
         print("Running in Docker {} mode (v19.03 and above) - using default docker image: {} running {}\n".format(
             '*standalone*' if self._standalone_mode else '', docker_image, python_version))
         temp_config = deepcopy(self._session.config)
-        mounted_cache_dir = '/root/.trains/cache'
+        mounted_cache_dir = self._docker_fixed_user_cache  # '/root/.trains/cache'
         mounted_pip_dl_dir = '/root/.trains/pip-download-cache'
         mounted_vcs_cache = '/root/.trains/vcs-cache'
         mounted_venv_dir = '/root/.trains/venvs-builds'
@@ -2201,7 +2204,9 @@ class Worker(ServiceCommandSection):
                     "echo 'Binary::apt::APT::Keep-Downloaded-Packages \"true\";' > /etc/apt/apt.conf.d/docker-clean",
                     "chown -R root /root/.cache/pip",
                     "apt-get update",
-                    "apt-get install -y git libsm6 libxext6 libxrender-dev libglib2.0-0 {python_single_digit}-pip",
+                    "apt-get install -y git libsm6 libxext6 libxrender-dev libglib2.0-0",
+                    "(which {python_single_digit} && {python_single_digit} -m pip --version) || " +
+                    "apt-get install -y {python_single_digit}-pip",
                 ]
 
             docker_bash_script = " ; ".join(bash_script) if not isinstance(bash_script, str) else bash_script
@@ -2261,13 +2266,13 @@ class Worker(ServiceCommandSection):
                 os.setuid(self.uid)
 
         # create a home folder for our user
-        trains_agent_home = 'trains_agent_home{}'.format('.'+str(Singleton.get_slot()) if Singleton.get_slot() else '')
+        trains_agent_home = self._run_as_user_home + '{}'.format('.'+str(Singleton.get_slot()) if Singleton.get_slot() else '')
         try:
-            home_folder = '/trains_agent_home'
+            home_folder = self._run_as_user_home
             rm_tree(home_folder)
             Path(home_folder).mkdir(parents=True, exist_ok=True)
         except:
-            home_folder = '/home/trains_agent_home'
+            home_folder = os.path.join('/home', self._run_as_user_home)
             rm_tree(home_folder)
             Path(home_folder).mkdir(parents=True, exist_ok=True)
 
@@ -2286,6 +2291,10 @@ class Worker(ServiceCommandSection):
         # make sure we will be able to access the cache folder (we assume we have the ability change mod)
         if sdk_cache_folder:
             sdk_cache_folder = Path(os.path.expandvars(sdk_cache_folder)).expanduser().absolute()
+            try:
+                sdk_cache_folder.chmod(0o0777)
+            except:
+                pass
             for f in sdk_cache_folder.rglob('*'):
                 try:
                     f.chmod(0o0777)
@@ -2330,7 +2339,8 @@ class Worker(ServiceCommandSection):
         # docker-compose will kill instances before they cleanup
         self.worker_id, worker_slot = Singleton.register_instance(
             unique_worker_id=worker_id, worker_name=worker_name, api_client=self._session.api_client,
-            allow_double=bool(self._services_mode) and bool(ENV_DOCKER_HOST_MOUNT.get()))
+            allow_double=bool(ENV_DOCKER_HOST_MOUNT.get())  # and bool(self._services_mode),
+        )
 
         if self.worker_id is None:
             error('Instance with the same WORKER_ID [{}] is already running'.format(worker_id))
