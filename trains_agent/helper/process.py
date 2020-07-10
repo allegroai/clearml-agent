@@ -65,6 +65,7 @@ def terminate_process(pid, timeout=10.):
     except Exception:
         return True
 
+
 def kill_all_child_processes(pid=None):
     # get current process if pid not provided
     include_parent = True

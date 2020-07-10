@@ -707,9 +707,10 @@ class Worker(ServiceCommandSection):
             kwargs = self._verify_command_states(kwargs)
             docker = docker or kwargs.get('docker')
 
+        # We are not running a daemon we are killing one.
+        # find the pid send termination signal and leave
         if kwargs.get('stop', False):
-            self._kill_daemon()
-            return
+            return 1 if not self._kill_daemon() else 0
 
         # make sure we only have a single instance,
         # also make sure we set worker_id properly and cache folders
@@ -2355,7 +2356,7 @@ class Worker(ServiceCommandSection):
     def _kill_daemon(self):
         worker_id, worker_name = self._generate_worker_id_name()
         # Iterate over all running process
-        for pid, uid, slot, file in Singleton.get_running_pids():
+        for pid, uid, slot, file in sorted(Singleton.get_running_pids(), key=lambda x: x[1] or ''):
             # wither we have a match for the worker_id or we just pick the first one
             if pid >= 0 and (
                     (worker_id and uid == worker_id) or
