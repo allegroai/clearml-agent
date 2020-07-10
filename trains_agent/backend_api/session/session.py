@@ -134,7 +134,6 @@ class Session(TokenManager):
             "api.http.retries", ConfigTree()
         ).as_plain_ordered_dict()
         http_retries_config["status_forcelist"] = self._retry_codes
-        self.__http_session = get_http_session_with_retry(**http_retries_config)
 
         self.__worker = worker or gethostname()
 
@@ -144,7 +143,14 @@ class Session(TokenManager):
 
         self.client = client or "api-{}".format(__version__)
 
+        # limit the reconnect retries, so we get an error if we are starting the session
+        http_no_retries_config = dict(**http_retries_config)
+        http_no_retries_config['connect'] = 3
+        self.__http_session = get_http_session_with_retry(**http_no_retries_config)
+        # try to connect with the server
         self.refresh_token()
+        # create the default session with many retries
+        self.__http_session = get_http_session_with_retry(**http_retries_config)
 
         # update api version from server response
         try:
@@ -546,6 +552,9 @@ class Session(TokenManager):
             else:
                 raise LoginError("Response data mismatch: No 'token' in 'data' value from res, receive : {}, "
                                  "exception: {}".format(res, ex))
+        except requests.ConnectionError as ex:
+            raise ValueError('Connection Error: it seems *api_server* is misconfigured. '
+                             'Is this the TRAINS API server {} ?'.format('/'.join(ex.request.url.split('/')[:3])))
         except Exception as ex:
             raise LoginError('Unrecognized Authentication Error: {} {}'.format(type(ex), ex))
 
