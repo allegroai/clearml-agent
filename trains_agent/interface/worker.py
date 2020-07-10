@@ -68,6 +68,10 @@ DAEMON_ARGS = dict({
         'dest': 'queues',
         'type': foreign_object_id('queues'),
     },
+    '--order-fairness': {
+        'help': 'Pull from each queue in a round-robin order, instead of priority order.',
+        'action': 'store_true',
+    },
     '--standalone-mode': {
         'help': 'Do not use any network connects, assume everything is pre-installed',
         'action': 'store_true',
@@ -84,6 +88,10 @@ DAEMON_ARGS = dict({
         'help': 'Detached mode, run agent in the background',
         'action': 'store_true',
         'aliases': ['-d'],
+    },
+    '--stop': {
+        'help': 'Stop the running agent (based on the same set of arguments)',
+        'action': 'store_true',
     },
 
 }, **WORKER_ARGS)

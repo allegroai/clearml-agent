@@ -38,6 +38,10 @@ class Singleton(object):
             pass
 
     @classmethod
+    def get_lock_filename(cls):
+        return os.path.join(cls._get_temp_folder(), cls._lock_file_name)
+
+    @classmethod
     def register_instance(cls, unique_worker_id=None, worker_name=None, api_client=None, allow_double=False):
         """
         # Exit the process if another instance of us is using the same worker_id
@@ -47,7 +51,7 @@ class Singleton(object):
         :return: (str worker_id, int slot_number) Return None value on instance already running
         """
         # try to lock file
-        lock_file = os.path.join(cls._get_temp_folder(), cls._lock_file_name)
+        lock_file = cls.get_lock_filename()
         timeout = 0
         while os.path.exists(lock_file):
             if timeout > cls._lock_timeout:
@@ -79,30 +83,41 @@ class Singleton(object):
         return ret
 
     @classmethod
-    def _register_instance(cls, unique_worker_id=None, worker_name=None, api_client=None, allow_double=False):
-        if cls.worker_id:
-            return cls.worker_id, cls.instance_slot
-        # make sure we have a unique name
-        instance_num = 0
+    def get_running_pids(cls):
         temp_folder = cls._get_temp_folder()
         files = glob(os.path.join(temp_folder, cls.prefix + cls.sep + '*' + cls.ext))
-        slots = {}
+        pids = []
         for file in files:
             parts = file.split(cls.sep)
+            # noinspection PyBroadException
             try:
                 pid = int(parts[1])
+                if not psutil.pid_exists(pid):
+                    pid = -1
             except Exception:
                 # something is wrong, use non existing pid and delete the file
                 pid = -1
 
             uid, slot = None, None
+            # noinspection PyBroadException
             try:
                 with open(file, 'r') as f:
                     uid, slot = str(f.read()).split('\n')
                     slot = int(slot)
             except Exception:
                 pass
+            pids.append((pid, uid, slot, file))
 
+        return pids
+
+    @classmethod
+    def _register_instance(cls, unique_worker_id=None, worker_name=None, api_client=None, allow_double=False):
+        if cls.worker_id:
+            return cls.worker_id, cls.instance_slot
+        # make sure we have a unique name
+        instance_num = 0
+        slots = {}
+        for pid, uid, slot, file in cls.get_running_pids():
             worker = None
             if api_client and ENV_DOCKER_HOST_MOUNT.get() and uid:
                 try:
@@ -111,7 +126,7 @@ class Singleton(object):
                     worker = None
 
             # count active instances and delete dead files
-            if not worker and not psutil.pid_exists(pid):
+            if not worker and pid < 0:
                 # delete the file
                 try:
                     os.remove(os.path.join(file))
@@ -165,3 +180,9 @@ class Singleton(object):
     @classmethod
     def get_slot(cls):
         return cls.instance_slot or 0
+
+    @classmethod
+    def get_pid_file(cls):
+        if not cls._pid_file:
+            return None
+        return cls._pid_file.name
