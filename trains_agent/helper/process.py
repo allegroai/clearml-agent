@@ -11,6 +11,7 @@ from copy import deepcopy
 from distutils.spawn import find_executable
 from itertools import chain, repeat, islice
 from os.path import devnull
+from time import sleep
 from typing import Union, Text, Sequence, Any, TypeVar, Callable
 
 import psutil
@@ -40,6 +41,29 @@ def get_bash_output(cmd, strip=False, stderr=subprocess.STDOUT, stdin=False):
         output = None
     return output if not strip or not output else output.strip()
 
+
+def terminate_process(pid, timeout=10.):
+    # noinspection PyBroadException
+    try:
+        proc = psutil.Process(pid)
+        proc.terminate()
+        cnt = 0
+        while proc.is_running() and cnt < timeout:
+            sleep(1.)
+            cnt += 1
+        proc.terminate()
+        cnt = 0
+        while proc.is_running() and cnt < timeout:
+            sleep(1.)
+            cnt += 1
+        proc.kill()
+    except Exception:
+        pass
+    # noinspection PyBroadException
+    try:
+        return not psutil.Process(pid).is_running()
+    except Exception:
+        return True
 
 def kill_all_child_processes(pid=None):
     # get current process if pid not provided

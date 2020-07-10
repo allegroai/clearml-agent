@@ -173,11 +173,28 @@ def normalize_path(*paths):
 
 
 def safe_remove_file(filename, error_message=None):
+    # noinspection PyBroadException
     try:
-        os.remove(filename)
+        if filename:
+            os.remove(filename)
     except Exception:
         if error_message:
             print(error_message)
+
+
+def safe_remove_tree(filename):
+    if not filename:
+        return
+    # noinspection PyBroadException
+    try:
+        shutil.rmtree(filename, ignore_errors=True)
+    except Exception:
+        pass
+    # noinspection PyBroadException
+    try:
+        os.remove(filename)
+    except Exception:
+        pass
 
 
 def get_python_path(script_dir, entry_point, package_api):
