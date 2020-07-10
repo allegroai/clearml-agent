@@ -40,6 +40,7 @@ class Session(TokenManager):
     _session_requests = 0
     _session_initial_timeout = (3.0, 10.)
     _session_timeout = (10.0, 30.)
+    _session_initial_connect_retry = 4
     _write_session_data_size = 15000
     _write_session_timeout = (30.0, 30.)
 
@@ -96,7 +97,7 @@ class Session(TokenManager):
         else:
             self.config = load()
             if initialize_logging:
-                self.config.initialize_logging()
+                self.config.initialize_logging(debug=kwargs.get('debug', False))
 
         token_expiration_threshold_sec = self.config.get(
             "auth.token_expiration_threshold_sec", 60
@@ -145,7 +146,7 @@ class Session(TokenManager):
 
         # limit the reconnect retries, so we get an error if we are starting the session
         http_no_retries_config = dict(**http_retries_config)
-        http_no_retries_config['connect'] = 3
+        http_no_retries_config['connect'] = self._session_initial_connect_retry
         self.__http_session = get_http_session_with_retry(**http_no_retries_config)
         # try to connect with the server
         self.refresh_token()

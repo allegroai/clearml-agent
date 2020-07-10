@@ -73,9 +73,11 @@ class Session(_Session):
             os.environ[LOCAL_CONFIG_FILE_OVERRIDE_VAR] = config_file
             if not Path(config_file).is_file():
                 raise ValueError("Could not open configuration file: {}".format(config_file))
+
         cpu_only = kwargs.get('cpu_only')
         if cpu_only:
             os.environ['CUDA_VISIBLE_DEVICES'] = os.environ['NVIDIA_VISIBLE_DEVICES'] = 'none'
+
         if kwargs.get('gpus') and not os.environ.get('KUBERNETES_SERVICE_HOST') \
                 and not os.environ.get('KUBERNETES_PORT'):
             # CUDA_VISIBLE_DEVICES does not support 'all'
@@ -84,6 +86,7 @@ class Session(_Session):
                 os.environ['NVIDIA_VISIBLE_DEVICES'] = kwargs.get('gpus')
             else:
                 os.environ['CUDA_VISIBLE_DEVICES'] = os.environ['NVIDIA_VISIBLE_DEVICES'] = kwargs.get('gpus')
+
         if kwargs.get('only_load_config'):
             from trains_agent.backend_api.config import load
             self.config = load()

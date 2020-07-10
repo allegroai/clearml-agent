@@ -190,7 +190,7 @@ class Config(object):
     def reload(self):
         self.replace(self._reload())
 
-    def initialize_logging(self):
+    def initialize_logging(self, debug=False):
         logging_config = self._config.get("logging", None)
         if not logging_config:
             return False
@@ -217,6 +217,8 @@ class Config(object):
         )
         for logger in loggers:
             handlers = logger.get("handlers", None)
+            if debug:
+                logger['level'] = 'DEBUG'
             if not handlers:
                 continue
             logger["handlers"] = [h for h in handlers if h not in deleted]
