@@ -104,6 +104,7 @@ log = logging.getLogger(__name__)
 DOCKER_ROOT_CONF_FILE = "/root/trains.conf"
 DOCKER_DEFAULT_CONF_FILE = "/root/default_trains.conf"
 
+
 @attr.s
 class LiteralScriptManager(object):
     """
@@ -212,6 +213,7 @@ class TaskStopSignal(object):
         statuses.stopped,
         statuses.failed,
         statuses.published,
+        statuses.queued,
     ]
     default = TaskStopReason.no_stop
     stopping_message = "stopping"
@@ -437,7 +439,7 @@ class Worker(ServiceCommandSection):
             pass
 
     def run_one_task(self, queue, task_id, worker_args, docker=None):
-        # type: (Text, Text, WorkerParams) -> ()
+        # type: (Text, Text, WorkerParams, Optional[Text]) -> ()
         """
         Run one task pulled from queue.
         :param queue: ID of queue that task was pulled from
