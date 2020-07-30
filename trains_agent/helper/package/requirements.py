@@ -12,15 +12,15 @@ from typing import Text, List, Type, Optional, Tuple, Dict
 
 from pathlib2 import Path
 from pyhocon import ConfigTree
-from requirements import parse
-# noinspection PyPackageRequirements
-from requirements.requirement import Requirement
 
 import six
 from trains_agent.definitions import PIP_EXTRA_INDICES
 from trains_agent.helper.base import warning, is_conda, which, join_lines, is_windows_platform
 from trains_agent.helper.process import Argv, PathLike
 from trains_agent.session import Session, normalize_cuda_version
+from trains_agent.external.requirements_parser import parse
+from trains_agent.external.requirements_parser.requirement import Requirement
+
 from .translator import RequirementsTranslator
 
 
@@ -57,7 +57,7 @@ class MarkerRequirement(object):
         elif self.vcs:
             # leave the line as is, let pip handle it
             if self.line:
-                parts = [self.line]
+                return self.line
             else:
                 # let's build the line manually
                 parts = [

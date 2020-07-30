@@ -13,7 +13,6 @@ pyjwt>=1.6.4
 PyYAML>=3.12
 requests-file>=1.4.2
 requests>=2.20.0
-requirements_parser>=0.2.0
 six>=1.11.0
 tqdm>=4.19.5
 typing>=3.6.4

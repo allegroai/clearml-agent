@@ -14,8 +14,8 @@ import yaml
 from time import time
 from attr import attrs, attrib, Factory
 from pathlib2 import Path
-from requirements import parse
-from requirements.requirement import Requirement
+from trains_agent.external.requirements_parser import parse
+from trains_agent.external.requirements_parser.requirement import Requirement
 
 from trains_agent.errors import CommandFailedError
 from trains_agent.helper.base import rm_tree, NonStrictAttrs, select_for_platform, is_windows_platform
