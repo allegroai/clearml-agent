@@ -1,3 +1,4 @@
+import re
 from collections import OrderedDict
 from typing import Text
 
@@ -33,6 +34,9 @@ class ExternalRequirements(SimpleSubstitution):
                 freeze_base = ''
 
             req_line = req.tostr(markers=False)
+            if req_line.strip().startswith('-e ') or req_line.strip().startswith('--editable'):
+                req_line = re.sub(r'^(-e|--editable=?)\s*', '', req_line, count=1)
+
             if req.req.vcs and req_line.startswith('git+'):
                 try:
                     url_no_frag = furl(req_line)
@@ -47,9 +51,10 @@ class ExternalRequirements(SimpleSubstitution):
                     vcs._set_ssh_url()
                     new_req_line = 'git+{}{}'.format(vcs.url_with_auth, fragment)
                     if new_req_line != req_line:
-                        url_pass = furl(new_req_line).password
+                        furl_line = furl(new_req_line)
                         print('Replacing original pip vcs \'{}\' with \'{}\''.format(
-                            req_line, new_req_line.replace(url_pass, '****', 1) if url_pass else new_req_line))
+                            req_line,
+                            furl_line.set(password='xxxxxx').tostr() if furl_line.password else new_req_line))
                         req_line = new_req_line
                 except Exception:
                     print('WARNING: Failed parsing pip git install, using original line {}'.format(req_line))
