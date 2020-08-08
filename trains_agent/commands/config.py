@@ -142,6 +142,7 @@ def main():
         with open(str(conf_file), 'wt') as f:
             header = '# TRAINS-AGENT configuration file\n' \
                      'api {\n' \
+                     '    # Notice: \'host\' is the api server (default port 8008), not the web server.\n' \
                      '    api_server: %s\n' \
                      '    web_server: %s\n' \
                      '    files_server: %s\n' \
