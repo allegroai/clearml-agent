@@ -200,24 +200,29 @@ class GPUStatCollection(object):
                     GPUStatCollection.global_processes[nv_process.pid] = \
                         psutil.Process(pid=nv_process.pid)
                 ps_process = GPUStatCollection.global_processes[nv_process.pid]
-                process['username'] = ps_process.username()
-                # cmdline returns full path;
-                # as in `ps -o comm`, get short cmdnames.
-                _cmdline = ps_process.cmdline()
-                if not _cmdline:
-                    # sometimes, zombie or unknown (e.g. [kworker/8:2H])
-                    process['command'] = '?'
-                    process['full_command'] = ['?']
-                else:
-                    process['command'] = os.path.basename(_cmdline[0])
-                    process['full_command'] = _cmdline
-                # Bytes to MBytes
-                process['gpu_memory_usage'] = nv_process.usedGpuMemory // MB
-                process['cpu_percent'] = ps_process.cpu_percent()
-                process['cpu_memory_usage'] = \
-                    round((ps_process.memory_percent() / 100.0) *
-                          psutil.virtual_memory().total)
                 process['pid'] = nv_process.pid
+                # noinspection PyBroadException
+                try:
+                    process['username'] = ps_process.username()
+                    # cmdline returns full path;
+                    # as in `ps -o comm`, get short cmdnames.
+                    _cmdline = ps_process.cmdline()
+                    if not _cmdline:
+                        # sometimes, zombie or unknown (e.g. [kworker/8:2H])
+                        process['command'] = '?'
+                        process['full_command'] = ['?']
+                    else:
+                        process['command'] = os.path.basename(_cmdline[0])
+                        process['full_command'] = _cmdline
+                    # Bytes to MBytes
+                    process['gpu_memory_usage'] = nv_process.usedGpuMemory // MB
+                    process['cpu_percent'] = ps_process.cpu_percent()
+                    process['cpu_memory_usage'] = \
+                        round((ps_process.memory_percent() / 100.0) *
+                              psutil.virtual_memory().total)
+                except Exception:
+                    # insufficient permissions
+                    pass
                 return process
 
             if not GPUStatCollection._gpu_device_info.get(index):
