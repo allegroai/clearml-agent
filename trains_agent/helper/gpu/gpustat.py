@@ -203,23 +203,24 @@ class GPUStatCollection(object):
                 process['pid'] = nv_process.pid
                 # noinspection PyBroadException
                 try:
-                    process['username'] = ps_process.username()
-                    # cmdline returns full path;
-                    # as in `ps -o comm`, get short cmdnames.
-                    _cmdline = ps_process.cmdline()
-                    if not _cmdline:
-                        # sometimes, zombie or unknown (e.g. [kworker/8:2H])
-                        process['command'] = '?'
-                        process['full_command'] = ['?']
-                    else:
-                        process['command'] = os.path.basename(_cmdline[0])
-                        process['full_command'] = _cmdline
+                    # we do not actually use these, so no point in collecting them
+                    # process['username'] = ps_process.username()
+                    # # cmdline returns full path;
+                    # # as in `ps -o comm`, get short cmdnames.
+                    # _cmdline = ps_process.cmdline()
+                    # if not _cmdline:
+                    #     # sometimes, zombie or unknown (e.g. [kworker/8:2H])
+                    #     process['command'] = '?'
+                    #     process['full_command'] = ['?']
+                    # else:
+                    #     process['command'] = os.path.basename(_cmdline[0])
+                    #     process['full_command'] = _cmdline
+                    # process['cpu_percent'] = ps_process.cpu_percent()
+                    # process['cpu_memory_usage'] = \
+                    #     round((ps_process.memory_percent() / 100.0) *
+                    #           psutil.virtual_memory().total)
                     # Bytes to MBytes
                     process['gpu_memory_usage'] = nv_process.usedGpuMemory // MB
-                    process['cpu_percent'] = ps_process.cpu_percent()
-                    process['cpu_memory_usage'] = \
-                        round((ps_process.memory_percent() / 100.0) *
-                              psutil.virtual_memory().total)
                 except Exception:
                     # insufficient permissions
                     pass
@@ -290,12 +291,13 @@ class GPUStatCollection(object):
                         # e.g. nvidia-smi reset  or  reboot the system
                         pass
 
-                # TODO: Do not block if full process info is not requested
-                time.sleep(0.1)
-                for process in processes:
-                    pid = process['pid']
-                    cache_process = GPUStatCollection.global_processes[pid]
-                    process['cpu_percent'] = cache_process.cpu_percent()
+                # we do not actually use these, so no point in collecting them
+                # # TODO: Do not block if full process info is not requested
+                # time.sleep(0.1)
+                # for process in processes:
+                #     pid = process['pid']
+                #     cache_process = GPUStatCollection.global_processes[pid]
+                #     process['cpu_percent'] = cache_process.cpu_percent()
 
             index = N.nvmlDeviceGetIndex(handle)
             gpu_info = {
