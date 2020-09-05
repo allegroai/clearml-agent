@@ -1693,7 +1693,7 @@ class Worker(ServiceCommandSection):
     def install_requirements_for_package_api(
         self, execution, repo_info, requirements_manager, cached_requirements=None, cwd=None, package_api=None,
     ):
-        # type: (ExecutionInfo, RepoInfo, RequirementsManager, Optional[dict]) -> None
+        # type: (ExecutionInfo, RepoInfo, RequirementsManager, Optional[dict], Optional[str], Optional[Any]) -> None
         """
         :summary: Install requirements for task script using pip.
         :description: A file named "requirements.txt" is looked for in each containing folder between the
@@ -1703,6 +1703,7 @@ class Worker(ServiceCommandSection):
         :param repo_info: repository information
         :param requirements_manager: requirements manager for task
         :param cached_requirements: cached requirements from previous run
+        :param cwd: current folder
         :param package_api: package_api to be used when installing requirements
          """
         if package_api:

@@ -254,6 +254,8 @@ class VCS(object):
             parsed_url.username = "git"
             parsed_url.password = None
             # make sure there is no port in the final url (safe_furl support)
+            # the original port was an https port, and we do not know if there is a different ssh port,
+            # so we have to clear the original port specified (https) and use the default ssh schema port.
             parsed_url.port = None
             url = parsed_url.url
         return url
