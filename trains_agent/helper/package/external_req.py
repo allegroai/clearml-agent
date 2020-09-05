@@ -67,7 +67,9 @@ class ExternalRequirements(SimpleSubstitution):
                     self.post_install_req_lookup[package_name[0]] = req.req.line
             except:
                 pass
-            if not PackageManager.out_of_scope_install_package(req_line, "--ignore-installed"):
+            # no need to force reinstall, pip will always rebuilt if the package comes from git
+            # and make sure the required packages are installed (if they are not it will install them)
+            if not PackageManager.out_of_scope_install_package(req_line):
                 raise ValueError("Failed installing GIT/HTTPs package \'{}\'".format(req_line))
 
     def replace(self, req):
