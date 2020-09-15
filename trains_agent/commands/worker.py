@@ -71,7 +71,7 @@ from trains_agent.helper.console import ensure_text, print_text, decode_binary_l
 from trains_agent.helper.os.daemonize import daemonize_process
 from trains_agent.helper.package.base import PackageManager
 from trains_agent.helper.package.conda_api import CondaAPI
-from trains_agent.helper.package.horovod_req import HorovodRequirement
+from trains_agent.helper.package.post_req import PostRequirement
 from trains_agent.helper.package.external_req import ExternalRequirements
 from trains_agent.helper.package.pip_api.system import SystemPip
 from trains_agent.helper.package.pip_api.venv import VirtualenvPip
@@ -91,7 +91,7 @@ from trains_agent.helper.process import (
     get_docker_id,
     commit_docker, terminate_process,
 )
-from trains_agent.helper.package.cython_req import CythonRequirement
+from trains_agent.helper.package.priority_req import PriorityPackageRequirement
 from trains_agent.helper.repo import clone_repository_cached, RepoInfo, VCS
 from trains_agent.helper.resource_monitor import ResourceMonitor
 from trains_agent.session import Session
@@ -303,8 +303,8 @@ class Worker(ServiceCommandSection):
 
     _requirement_substitutions = (
         PytorchRequirement,
-        CythonRequirement,
-        HorovodRequirement,
+        PriorityPackageRequirement,
+        PostRequirement,
         ExternalRequirements,
     )
 
@@ -1717,7 +1717,7 @@ class Worker(ServiceCommandSection):
         package_api.set_selected_package_manager()
         # always install cython,
         # if we have a specific version in the requirements,
-        # the CythonRequirement(SimpleSubstitution) will reinstall cython with the specific version
+        # the PriorityPackageRequirement(SimpleSubstitution) will reinstall cython with the specific version
         if not self.is_conda:
             package_api.out_of_scope_install_package('Cython')
 

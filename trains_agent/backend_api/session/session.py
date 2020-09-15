@@ -434,16 +434,15 @@ class Session(TokenManager):
     @classmethod
     def get_api_server_host(cls, config=None):
         if not config:
-            from ...config import config_obj
-            config = config_obj
+            return None
+
         return ENV_HOST.get(default=(config.get("api.api_server", None) or
                                      config.get("api.host", None) or cls.default_host))
 
     @classmethod
     def get_app_server_host(cls, config=None):
         if not config:
-            from ...config import config_obj
-            config = config_obj
+            return None
 
         # get from config/environment
         web_host = ENV_WEB_HOST.get(default=config.get("api.web_server", None))
@@ -470,8 +469,8 @@ class Session(TokenManager):
     @classmethod
     def get_files_server_host(cls, config=None):
         if not config:
-            from ...config import config_obj
-            config = config_obj
+            return None
+
         # get from config/environment
         files_host = ENV_FILES_HOST.get(default=(config.get("api.files_server", None)))
         if files_host:
