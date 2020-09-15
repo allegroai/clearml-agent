@@ -459,9 +459,9 @@ def chain_map(*args):
     return reduce(lambda x, y: x.update(y) or x, args, {})
 
 
-def check_directory_path(path):
+def check_directory_path(path, check_whitespace_in_path=True):
     message = 'Could not create directory "{}": {}'
-    if not is_windows_platform():
+    if not is_windows_platform() and check_whitespace_in_path:
         match = re.search(r'\s', path)
         if match:
             raise CommandFailedError(

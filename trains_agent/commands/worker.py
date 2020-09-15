@@ -672,7 +672,7 @@ class Worker(ServiceCommandSection):
 
     def check(self, **_):
         try:
-            check_directory_path(str(Path(".").resolve()))
+            check_directory_path(str(Path(".").resolve()), check_whitespace_in_path=False)
         except OSError as e:
             if e.errno == errno.ENOENT:
                 raise CommandFailedError("current working directory does not exist")
