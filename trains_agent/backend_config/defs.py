@@ -46,6 +46,15 @@ class Environment(object):
     local = 'local'
 
 
+class UptimeConf(object):
+    min_api_version = "2.10"
+    queue_tag_on = "force_workers:on"
+    queue_tag_off = "force_workers:off"
+    worker_key = "force"
+    worker_value_off = ["off"]
+    worker_value_on = ["on"]
+
+
 CONFIG_FILE_EXTENSION = '.conf'
 
 

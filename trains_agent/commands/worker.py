@@ -30,6 +30,8 @@ from pathlib2 import Path
 from pyhocon import ConfigTree, ConfigFactory
 from six.moves.urllib.parse import quote
 
+from trains_agent.backend_api.services import queues
+from trains_agent.backend_config.defs import UptimeConf
 from trains_agent.helper.check_update import start_check_update_daemon
 from trains_agent.commands.base import resolve_names, ServiceCommandSection
 from trains_agent.definitions import (
@@ -94,12 +96,11 @@ from trains_agent.helper.process import (
 from trains_agent.helper.package.priority_req import PriorityPackageRequirement
 from trains_agent.helper.repo import clone_repository_cached, RepoInfo, VCS
 from trains_agent.helper.resource_monitor import ResourceMonitor
+from trains_agent.helper.runtime_verification import check_runtime, print_uptime_properties
 from trains_agent.session import Session
 from trains_agent.helper.singleton import Singleton
 
 from .events import Events
-
-log = logging.getLogger(__name__)
 
 DOCKER_ROOT_CONF_FILE = "/root/trains.conf"
 DOCKER_DEFAULT_CONF_FILE = "/root/default_trains.conf"
@@ -152,6 +153,7 @@ class LiteralScriptManager(object):
         Create notebook file in appropriate location
         :return: directory and script path
         """
+        log = logging.getLogger(__name__)
         if repo_info and repo_info.root:
             location = Path(repo_info.root, execution.working_dir)
         else:
@@ -394,6 +396,13 @@ class Worker(ServiceCommandSection):
         self._services_mode = None
         self._force_current_version = None
         self._redirected_stdout_file_no = None
+        self._uptime_config = self._session.config.get("agent.uptime", None)
+        self._downtime_config = self._session.config.get("agent.downtime", None)
+
+        # True - supported
+        # None - not initialized
+        # str - not supported, version string indicates last server version
+        self._runtime_props_support = None
 
     @classmethod
     def _verify_command_states(cls, kwargs):
@@ -599,10 +608,19 @@ class Worker(ServiceCommandSection):
             print('Starting infinite task polling loop...')
 
         _last_machine_update_ts = 0
-        while True:
 
+        while True:
+            queue_tags = None
+            runtime_props = None
             # iterate over queues (priority style, queues[0] is highest)
             for queue in queues:
+
+                if queue_tags is None or runtime_props is None:
+                    queue_tags, runtime_props = self.get_worker_properties(queues)
+
+                if not self.should_be_currently_active(queue_tags[queue], runtime_props):
+                    continue
+
                 # get next task in queue
                 try:
                     response = self._session.send_api(
@@ -642,6 +660,9 @@ class Worker(ServiceCommandSection):
                     self.run_one_task(queue, task_id, worker_params)
                     self.report_monitor(ResourceMonitor.StatusReport(queues=self.queues))
 
+                    queue_tags = None
+                    runtime_props = None
+
                     # if we are using priority start pulling from the first always,
                     # if we are doing round robin, pull from the next one
                     if priority_order:
@@ -654,6 +675,77 @@ class Worker(ServiceCommandSection):
 
             if self._session.config["agent.reload_config"]:
                 self.reload_config()
+
+    def get_worker_properties(self, queue_ids):
+        queue_tags = {
+            q.id: {'name': q.name, 'tags': q.tags}
+            for q in self._session.send_api(
+                queues_api.GetAllRequest(id=queue_ids, only_fields=["id", "tags"])
+            ).queues
+        }
+        runtime_props = self.get_runtime_properties()
+        return queue_tags, runtime_props
+
+    def get_runtime_properties(self):
+        if self._runtime_props_support is not True:
+            # either not supported or never tested
+            if self._runtime_props_support == self._session.api_version:
+                # tested against latest api_version, not supported
+                return []
+            if not self._session.check_min_api_version(UptimeConf.min_api_version):
+                # not supported due to insufficient api_version
+                self._runtime_props_support = self._session.api_version
+                return []
+        try:
+            res = self.get("get_runtime_properties", worker=self.worker_id)["runtime_properties"]
+            # definitely supported
+            self._runtime_props_support = True
+            return res
+        except APIError:
+            self._runtime_props_support = self._session.api_version
+        return []
+
+    def should_be_currently_active(self, current_queue, runtime_properties):
+        """
+        Checks if a worker is active according to queue tags, worker's runtime properties and uptime schedule.
+        """
+        if UptimeConf.queue_tag_off in current_queue['tags']:
+            self.log.debug("Queue {} is tagged '{}', worker will not pull tasks".format(
+                current_queue['name'], UptimeConf.queue_tag_off)
+            )
+            return False
+        if UptimeConf.queue_tag_on in current_queue['tags']:
+            self.log.debug("Queue {} is tagged '{}', worker will pull tasks".format(
+                current_queue['name'], UptimeConf.queue_tag_on)
+            )
+            return True
+        force_flag = next(
+            (prop for prop in runtime_properties if prop["key"] == UptimeConf.worker_key), None
+        )
+        if force_flag:
+            if force_flag["value"].lower() in UptimeConf.worker_value_off:
+                self.log.debug("worker has the following runtime property: '{}'. worker will not pull tasks".format(
+                    force_flag)
+                )
+                return False
+            elif force_flag["value"].lower() in UptimeConf.worker_value_on:
+                self.log.debug("worker has the following runtime property: '{}'. worker will pull tasks".format(
+                    force_flag)
+                )
+                return True
+            else:
+                print(
+                    "Warning: invalid runtime_property '{}: {}' supported values are: '{}/{}', ignoring".format(
+                        force_flag["key"], force_flag["value"], UptimeConf.worker_value_on, UptimeConf.worker_value_off
+                    )
+                )
+        if self._uptime_config:
+            self.log.debug("following uptime configurations")
+            return check_runtime(self._uptime_config)
+        if self._downtime_config:
+            self.log.debug("following downtime configurations")
+            return check_runtime(self._downtime_config, is_uptime=False)
+        return True
 
     def reload_config(self):
         try:
@@ -708,11 +800,34 @@ class Worker(ServiceCommandSection):
         if self._services_mode:
             kwargs = self._verify_command_states(kwargs)
             docker = docker or kwargs.get('docker')
+        self._uptime_config = kwargs.get('uptime', None) or self._uptime_config
+        self._downtime_config = kwargs.get('downtime', None) or self._downtime_config
+        if self._uptime_config and self._downtime_config:
+            self.log.error(
+                "Both uptime and downtime were specified when only one of them could be used. Both will be ignored."
+            )
+            self._uptime_config = None
+            self._downtime_config = None
 
         # We are not running a daemon we are killing one.
         # find the pid send termination signal and leave
         if kwargs.get('stop', False):
             return 1 if not self._kill_daemon() else 0
+
+        queues_info = [
+            q.to_dict()
+            for q in self._session.send_api(
+                queues_api.GetAllRequest(id=queues)
+            ).queues
+        ]
+
+        if kwargs.get('status', False):
+            runtime_properties = self.get_runtime_properties()
+            if self._downtime_config:
+                print_uptime_properties(self._downtime_config, queues_info, runtime_properties, is_uptime=False)
+            else:
+                print_uptime_properties(self._uptime_config, queues_info, runtime_properties)
+            return 1
 
         # make sure we only have a single instance,
         # also make sure we set worker_id properly and cache folders
@@ -725,12 +840,6 @@ class Worker(ServiceCommandSection):
         self.log.debug("starting resource monitor thread")
         print("Worker \"{}\" - ".format(self.worker_id), end='')
 
-        queues_info = [
-            self._session.send_api(
-                queues_api.GetByIdRequest(queue)
-            ).queue.to_dict()
-            for queue in queues
-        ]
         columns = ("id", "name", "tags")
         print("Listening to queues:")
         print_table(queues_info, columns=columns, titles=columns)
@@ -2076,7 +2185,7 @@ class Worker(ServiceCommandSection):
             shutil.copytree(Path('~/.ssh').expanduser().as_posix(), host_ssh_cache)
         except Exception:
             host_ssh_cache = None
-            log.warning('Failed creating temporary copy of ~/.ssh for git credential')
+            self.log.warning('Failed creating temporary copy of ~/.ssh for git credential')
             pass
 
         # check if the .git credentials exist:

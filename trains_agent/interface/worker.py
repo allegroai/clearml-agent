@@ -93,7 +93,24 @@ DAEMON_ARGS = dict({
         'help': 'Stop the running agent (based on the same set of arguments)',
         'action': 'store_true',
     },
-
+    '--uptime': {
+        'help': 'Specify uptime for trains-agent in "<hours> <days>" format. for example, use "17-20 TUE" to set '
+                'Tuesday\'s uptime to 17-20'
+                'Note: Make sure to have only one of uptime/downtime configuration and not both.',
+        'nargs': '*',
+        'default': None,
+    },
+    '--downtime': {
+        'help': 'Specify uptime for trains-agent in "<hours> <days>" format. for example, use "09-13 TUE" to set '
+                'Tuesday\'s downtime to 09-13'
+                'Note: Make sure to have only on of uptime/downtime configuration and not both.',
+        'nargs': '*',
+        'default': None,
+    },
+    '--status': {
+        'help': 'Print the worker\'s schedule (uptime properties, server\'s runtime properties and listening queues)',
+        'action': 'store_true',
+    },
 }, **WORKER_ARGS)
 
 COMMANDS = {
