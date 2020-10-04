@@ -23,6 +23,7 @@ class RequirementsTranslator(object):
         Path(self.cache_dir).mkdir(parents=True, exist_ok=True)
         self.config = Config()
         self.pip = SystemPip(interpreter=interpreter, session=self._session)
+        self._translate_back = {}
 
     def download(self, url):
         self.pip.download_package(url, cache_dir=self.cache_dir)
@@ -60,4 +61,23 @@ class RequirementsTranslator(object):
         except Exception:
             command.error('Could not download wheel name of "{}"'.format(line))
             return line
+
+        self._translate_back[str(downloaded)] = line
+
         return downloaded
+
+    def replace_back(self, requirements):
+        if 'pip' in requirements:
+            original_requirements = requirements['pip']
+            new_requirements = []
+            for line in original_requirements:
+                local_file = [d for d in self._translate_back.keys() if d in line]
+                if local_file:
+                    local_file = local_file[0]
+                    new_requirements.append(line.replace(local_file, self._translate_back[local_file]))
+                else:
+                    new_requirements.append(line)
+
+            requirements['pip'] = new_requirements
+
+        return requirements
