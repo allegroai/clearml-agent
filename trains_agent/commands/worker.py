@@ -157,7 +157,7 @@ class LiteralScriptManager(object):
         if repo_info and repo_info.root:
             location = Path(repo_info.root, execution.working_dir)
         else:
-            if execution.working_dir:
+            if execution.working_dir and execution.working_dir.strip() != '.':
                 log.warning(
                     "found task with `script.working_dir` (`%s`) but without `script.repository`, ignoring",
                     execution.working_dir,
