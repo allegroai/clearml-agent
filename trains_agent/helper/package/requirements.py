@@ -138,7 +138,8 @@ class MarkerRequirement(object):
         version = self.specs[0][1]
         op = (op or self.specs[0][0]).strip()
 
-        return SimpleVersion.compare_versions(requested_version, op, version)
+        return SimpleVersion.compare_versions(
+            version_a=requested_version, op=op, version_b=version, num_parts=num_parts)
 
 
 class SimpleVersion:
@@ -177,7 +178,7 @@ class SimpleVersion:
     _regex = re.compile(r"^\s*" + VERSION_PATTERN + r"\s*$", re.VERBOSE | re.IGNORECASE)
 
     @classmethod
-    def compare_versions(cls, version_a, op, version_b, ignore_sub_versions=True):
+    def compare_versions(cls, version_a, op, version_b, ignore_sub_versions=True, num_parts=3):
         """
         Compare two versions based on the op operator
         returns bool(version_a op version_b)
@@ -188,12 +189,12 @@ class SimpleVersion:
         :param str version_b:
         :param bool ignore_sub_versions: if true compare only major.minor.patch
             (ignore a/b/rc/post/dev in the comparison)
+        :param int num_parts: number of parts to compare, split by . (dot)
         :return bool: version_a op version_b
         """
 
         if not version_b:
             return True
-        num_parts = 3
 
         if op == '~=':
             num_parts = max(num_parts, 2)
