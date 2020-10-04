@@ -5,7 +5,7 @@ import subprocess
 from distutils.spawn import find_executable
 from hashlib import md5
 from os import environ, getenv
-from typing import Text, Sequence, Mapping, Iterable, TypeVar, Callable, Tuple
+from typing import Text, Sequence, Mapping, Iterable, TypeVar, Callable, Tuple, Optional
 
 import attr
 from furl import furl
@@ -254,8 +254,8 @@ class VCS(object):
         return url
 
     @classmethod
-    def replace_http_url(cls, url):
-        # type: (Text) -> Text
+    def replace_http_url(cls, url, port=None):
+        # type: (Text, Optional[int]) -> Text
         """
         Replace HTTPS URL with SSH URL when applicable
         """
@@ -267,7 +267,7 @@ class VCS(object):
             # make sure there is no port in the final url (safe_furl support)
             # the original port was an https port, and we do not know if there is a different ssh port,
             # so we have to clear the original port specified (https) and use the default ssh schema port.
-            parsed_url.port = None
+            parsed_url.port = port or None
             url = parsed_url.url
         return url
 
@@ -279,7 +279,8 @@ class VCS(object):
         if self.session.config.get('agent.force_git_ssh_protocol', None) and self.url:
             parsed_url = furl(self.url)
             if parsed_url.scheme == "https":
-                new_url = self.replace_http_url(self.url)
+                new_url = self.replace_http_url(
+                    self.url, port=self.session.config.get('agent.force_git_ssh_port', None))
                 if new_url != self.url:
                     print("Using SSH credentials - replacing https url '{}' with ssh url '{}'".format(
                         self.url, new_url))
