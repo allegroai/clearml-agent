@@ -216,19 +216,24 @@ class Requirement(object):
             # or a VCS project URI
             return cls.parse_editable(
                 re.sub(r'^(-e|--editable=?)\s*', '', line))
-        elif '@' in line:
+        elif '@' in line and ('#' not in line or line.index('#') > line.index('@')):
             # Allegro bug fix: support 'name @ git+' entries
-            name, vcs = line.split('@', 1)
+            name, uri = line.split('@', 1)
             name = name.strip()
-            vcs = vcs.strip()
+            uri = uri.strip()
             # noinspection PyBroadException
             try:
                 # check if the name is valid & parsed
                 Req.parse(name)
                 # if we are here, name is a valid package name, check if the vcs part is valid
-                if VCS_REGEX.match(vcs):
-                    req = cls.parse_line(vcs)
+                if VCS_REGEX.match(uri):
+                    req = cls.parse_line(uri)
                     req.name = name
+                    return req
+                elif URI_REGEX.match(uri):
+                    req = cls.parse_line(uri)
+                    req.name = name
+                    req.line = line
                     return req
             except Exception:
                 pass
