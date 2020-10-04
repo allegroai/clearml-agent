@@ -90,10 +90,17 @@ class ExternalRequirements(SimpleSubstitution):
         return Text('')
 
     def replace_back(self, list_of_requirements):
-        if 'pip' in list_of_requirements:
-            original_requirements = list_of_requirements['pip']
-            list_of_requirements['pip'] = [r for r in original_requirements
-                                           if r not in self.post_install_req_lookup]
-            list_of_requirements['pip'] += [self.post_install_req_lookup.get(r, '')
-                                            for r in self.post_install_req_lookup.keys() if r in original_requirements]
+        if not list_of_requirements:
+            return list_of_requirements
+
+        for k in list_of_requirements:
+            # k is either pip/conda
+            if k not in ('pip', 'conda'):
+                continue
+                
+            original_requirements = list_of_requirements[k]
+            list_of_requirements[k] = [r for r in original_requirements
+                                       if r not in self.post_install_req_lookup]
+            list_of_requirements[k] += [self.post_install_req_lookup.get(r, '')
+                                        for r in self.post_install_req_lookup.keys() if r in original_requirements]
         return list_of_requirements

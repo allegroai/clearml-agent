@@ -67,8 +67,15 @@ class RequirementsTranslator(object):
         return downloaded
 
     def replace_back(self, requirements):
-        if 'pip' in requirements:
-            original_requirements = requirements['pip']
+        if not requirements:
+            return requirements
+
+        for k in requirements:
+            # k is either pip/conda
+            if k not in ('pip', 'conda'):
+                continue
+
+            original_requirements = requirements[k]
             new_requirements = []
             for line in original_requirements:
                 local_file = [d for d in self._translate_back.keys() if d in line]
@@ -78,6 +85,6 @@ class RequirementsTranslator(object):
                 else:
                     new_requirements.append(line)
 
-            requirements['pip'] = new_requirements
+            requirements[k] = new_requirements
 
         return requirements
