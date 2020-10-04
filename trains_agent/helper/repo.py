@@ -150,12 +150,23 @@ class VCS(object):
         """
         Apply patch repository at `location`
         """
-        self.log.info("applying diff to %s", location)
+        self.log.info("applying diff to %s" % location)
 
-        for match in filter(
-            None, map(self.PATCH_ADDED_FILE_RE.match, patch_content.splitlines())
-        ):
-            create_file_if_not_exists(normalize_path(location, match.group("path")))
+        # noinspection PyBroadException
+        try:
+            for match in filter(
+                None, map(self.PATCH_ADDED_FILE_RE.match, patch_content.splitlines())
+            ):
+                file_path = None
+                # noinspection PyBroadException
+                try:
+                    file_path = normalize_path(location, match.group("path"))
+                    create_file_if_not_exists(file_path)
+                except Exception:
+                    if file_path:
+                        self.log.warning("failed creating file for git diff (%s)" % file_path)
+        except Exception:
+            pass
 
         return_code, errors = self.call_with_stdin(
             patch_content, *self.patch_base, cwd=location
