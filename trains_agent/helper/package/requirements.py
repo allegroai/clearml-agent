@@ -69,8 +69,8 @@ class MarkerRequirement(object):
                     '@{}'.format(self.revision) if self.revision else '',
                     '#subdirectory={}'.format(self.subdirectory) if self.subdirectory else ''
                 ]
-        elif self.pip_new_version and self.uri and self.name and self.line:
-            # package @ https://example.com/somewheel.whl
+        elif self.pip_new_version and self.uri and self.name and self.line and self.local_file:
+            # package @ file:///example.com/somewheel.whl
             # leave the line as is, let pip handle it
             return self.line
         else:
