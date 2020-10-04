@@ -66,7 +66,19 @@ class PackageManager(object):
         pass
 
     def upgrade_pip(self):
-        return self._install("pip"+self.get_pip_version(), "--upgrade")
+        result = self._install("pip"+self.get_pip_version(), "--upgrade")
+        packages = self.run_with_env(('list',), output=True).splitlines()
+        # p.split is ('pip', 'x.y.z')
+        pip = [p.split() for p in packages if len(p.split()) == 2 and p.split()[0] == 'pip']
+        if pip:
+            # noinspection PyBroadException
+            try:
+                from .requirements import MarkerRequirement
+                pip = pip[0][1].split('.')
+                MarkerRequirement.pip_new_version = bool(int(pip[0]) >= 20)
+            except Exception:
+                pass
+        return result
 
     def get_python_command(self, extra=()):
         # type: (...) -> Executable

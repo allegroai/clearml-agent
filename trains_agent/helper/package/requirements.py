@@ -35,6 +35,10 @@ class FatalSpecsResolutionError(Exception):
 @six.python_2_unicode_compatible
 class MarkerRequirement(object):
 
+    # if True pip version above 20.x and with support for "package @ scheme://link"
+    # default is True
+    pip_new_version = True
+
     def __init__(self, req):  # type: (Requirement) -> None
         self.req = req
 
@@ -65,6 +69,10 @@ class MarkerRequirement(object):
                     '@{}'.format(self.revision) if self.revision else '',
                     '#subdirectory={}'.format(self.subdirectory) if self.subdirectory else ''
                 ]
+        elif self.pip_new_version and self.uri and self.name and self.line:
+            # package @ https://example.com/somewheel.whl
+            # leave the line as is, let pip handle it
+            return self.line
         else:
             parts = [self.uri]
 
@@ -492,6 +500,9 @@ class RequirementsManager(object):
                 raise
 
     def replace_back(self, requirements):
+        if self.translator:
+            requirements = self.translator.replace_back(requirements)
+
         for h in self.handlers:
             try:
                 requirements = h.replace_back(requirements)
