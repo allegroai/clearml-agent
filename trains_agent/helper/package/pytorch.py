@@ -461,7 +461,9 @@ class PytorchRequirement(SimpleSubstitution):
                         if req.req.name == parts[0]:
                             # support for pip >= 20.1
                             if '@' in line:
-                                lines[i] = '{} # {}'.format(str(req), str(new_req))
+                                # skip if we have nothing to add
+                                if str(req).strip() != str(new_req).strip():
+                                    lines[i] = '{} # {}'.format(str(req), str(new_req))
                             else:
                                 lines[i] = '{} # {}'.format(line, str(new_req))
                             break
