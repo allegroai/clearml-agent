@@ -13,7 +13,7 @@ from pathlib2 import Path
 
 import six
 
-from trains_agent.definitions import ENV_AGENT_GIT_USER, ENV_AGENT_GIT_PASS, ENV_AGENT_GIT_DOMAIN
+from trains_agent.definitions import ENV_AGENT_GIT_USER, ENV_AGENT_GIT_PASS, ENV_AGENT_GIT_HOST
 from trains_agent.helper.console import ensure_text, ensure_binary
 from trains_agent.errors import CommandFailedError
 from trains_agent.helper.base import (
@@ -444,7 +444,7 @@ class VCS(object):
             return parsed_url.url
         config_user = ENV_AGENT_GIT_USER.get() or config.get("agent.{}_user".format(cls.executable_name), None)
         config_pass = ENV_AGENT_GIT_PASS.get() or config.get("agent.{}_pass".format(cls.executable_name), None)
-        config_domain = ENV_AGENT_GIT_DOMAIN.get() or config.get("agent.{}_domain".format(cls.executable_name), None)
+        config_domain = ENV_AGENT_GIT_HOST.get() or config.get("agent.{}_host".format(cls.executable_name), None)
         if (
             (not (parsed_url.username and parsed_url.password))
             and config_user
