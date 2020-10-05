@@ -278,6 +278,11 @@ class VCS(object):
         """
         if self.session.config.get('agent.force_git_ssh_protocol', None) and self.url:
             parsed_url = furl(self.url)
+            # only apply to a specific domain (if requested)
+            config_domain = \
+                ENV_AGENT_GIT_HOST.get() or self.session.config.get("agent.git_host", None)
+            if config_domain and config_domain != parsed_url.host:
+                return
             if parsed_url.scheme == "https":
                 new_url = self.replace_http_url(
                     self.url, port=self.session.config.get('agent.force_git_ssh_port', None))
@@ -295,6 +300,12 @@ class VCS(object):
                 (ENV_AGENT_GIT_USER.get() or self.session.config.get('agent.git_user', None)) and
                 (ENV_AGENT_GIT_PASS.get() or self.session.config.get('agent.git_pass', None))
         ):
+            # only apply to a specific domain (if requested)
+            config_domain = \
+                ENV_AGENT_GIT_HOST.get() or self.session.config.get("git_host", None)
+            if config_domain and config_domain != furl(self.url).host:
+                return
+
             new_url = self.replace_ssh_url(self.url)
             if new_url != self.url:
                 print("Using user/pass credentials - replacing ssh url '{}' with https url '{}'".format(
