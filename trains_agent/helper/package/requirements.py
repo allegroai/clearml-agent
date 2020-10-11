@@ -4,7 +4,7 @@ import operator
 import os
 import re
 from abc import ABCMeta, abstractmethod
-from copy import deepcopy
+from copy import deepcopy, copy
 from itertools import chain, starmap
 from operator import itemgetter
 from os import path
@@ -80,6 +80,9 @@ class MarkerRequirement(object):
             parts.append('; {0}'.format(self.marker))
 
         return ''.join(parts)
+
+    def clone(self):
+        return MarkerRequirement(copy(self.req))
 
     __str__ = tostr
 
