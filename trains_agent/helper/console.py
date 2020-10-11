@@ -9,7 +9,7 @@ from attr import attrs, attrib
 
 import six
 from six import binary_type, text_type
-from trains_agent.helper.base import nonstrict_in_place_sort, create_tree
+from trains_agent.helper.base import nonstrict_in_place_sort
 
 
 def print_text(text, newline=True):
@@ -22,15 +22,21 @@ def print_text(text, newline=True):
         sys.stdout.write(data)
 
 
-def decode_binary_lines(binary_lines, encoding='utf-8'):
+def decode_binary_lines(binary_lines, encoding='utf-8', replace_cr=False, overwrite_cr=False):
     # decode per line, if we failed decoding skip the line
     lines = []
     for b in binary_lines:
+        # noinspection PyBroadException
         try:
-            l = b.decode(encoding=encoding, errors='replace').replace('\r', '\n')
-        except:
-            l = ''
-        lines.append(l + '\n' if l and l[-1] != '\n' else l)
+            line = b.decode(encoding=encoding, errors='replace')
+            if replace_cr:
+                line = line.replace('\r', '\n')
+            elif overwrite_cr:
+                cr_lines = line.split('\r')
+                line = cr_lines[-1] if cr_lines[-1] or len(cr_lines) < 2 else cr_lines[-2]
+        except Exception:
+            line = ''
+        lines.append(line + '\n' if not line or line[-1] != '\n' else line)
     return lines
 
 
