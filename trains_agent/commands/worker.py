@@ -1452,7 +1452,10 @@ class Worker(ServiceCommandSection):
 
         # do not update the task packages if we are using conda,
         # it will most likely make the task environment unreproducible
-        freeze = self.freeze_task_environment(current_task.id if not self.is_conda else None,
+        skip_freeze_update = self.is_conda and not self._session.config.get(
+            "agent.package_manager.conda_full_env_update", False)
+
+        freeze = self.freeze_task_environment(current_task.id if not skip_freeze_update else None,
                                               requirements_manager=requirements_manager)
         script_dir = (directory if isinstance(directory, Path) else Path(directory)).absolute().as_posix()
 
