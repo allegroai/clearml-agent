@@ -281,9 +281,9 @@ AutoML examples
     - This example will create multiple copies of the Keras experiment-template, with different hyper-parameter combinations
 
 Experiment Pipeline examples
-  - [First step experiment](https://github.com/allegroai/trains/blob/master/examples/automl/task_piping_example.py)
+  - [First step experiment](https://github.com/allegroai/trains/blob/master/examples/automation/task_piping_example.py)
     - This example will "process data", and once done, will launch a copy of the 'second step' experiment-template
-  - [Second step experiment](https://github.com/allegroai/trains/blob/master/examples/automl/toy_base_task.py)
+  - [Second step experiment](https://github.com/allegroai/trains/blob/master/examples/automation/toy_base_task.py)
     - In order to create an experiment-template in the system, this code must be executed once manually
 
 ## License
