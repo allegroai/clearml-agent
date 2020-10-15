@@ -2305,7 +2305,7 @@ class Worker(ServiceCommandSection):
                     print('Warning: K8S mount missing, ignoring cached folder {}'.format(m))
                     host_mounts[i] = None
                 else:
-                    host_mounts[i] = m.replace(k8s_pod_mnt, k8s_node_mnt)
+                    host_mounts[i] = m.replace(k8s_pod_mnt, k8s_node_mnt, 1)
             host_apt_cache, host_pip_cache, host_pip_dl, host_cache, host_vcs_cache = host_mounts
 
             # copy the configuration file into the mounted folder
