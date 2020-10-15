@@ -74,6 +74,7 @@ class CondaAPI(PackageManager):
         self.source = None
         self.requirements_manager = requirements_manager
         self.path = path
+        self.env_read_only = False
         self.extra_channels = self.session.config.get('agent.package_manager.conda_channels', [])
         self.conda_env_as_base_docker = \
             self.session.config.get('agent.package_manager.conda_env_as_base_docker', None) or \
@@ -124,13 +125,58 @@ class CondaAPI(PackageManager):
     def bin(self):
         return self.pip.bin
 
+    # noinspection SpellCheckingInspection
     def upgrade_pip(self):
+        # do not change pip version if pre built environement is used
+        if self.env_read_only:
+            print('Conda environment in read-only mode, skipping pip upgrade.')
+            return ''
         return self._install("pip" + self.pip.get_pip_version())
 
     def create(self):
         """
         Create a new environment
         """
+        if self.conda_env_as_base_docker and self.conda_pre_build_env_path:
+            if Path(self.conda_pre_build_env_path).is_dir():
+                print("Using pre-existing Conda environment from {}".format(self.conda_pre_build_env_path))
+                self.path = Path(self.conda_pre_build_env_path)
+                self.source = ("conda", "activate", self.path.as_posix())
+                self.pip = CondaPip(
+                    session=self.session,
+                    source=self.source,
+                    python=self.python,
+                    requirements_manager=self.requirements_manager,
+                    path=self.path,
+                )
+                conda_env = Path(self.conda).parent.parent / 'etc' / 'profile.d' / 'conda.sh'
+                self.source = self.pip.source = CommandSequence(('source', conda_env.as_posix()), self.source)
+                self.env_read_only = True
+                return self
+            elif Path(self.conda_pre_build_env_path).is_file():
+                print("Restoring Conda environment from {}".format(self.conda_pre_build_env_path))
+                tar_path = find_executable("tar")
+                self.path.mkdir(parents=True, exist_ok=True)
+                output = Argv(
+                    tar_path,
+                    "-xzf",
+                    self.conda_pre_build_env_path,
+                    "-C",
+                    self.path,
+                ).get_output()
+
+                self.source = self.pip.source = ("conda", "activate", self.path.as_posix())
+                conda_env = Path(self.conda).parent.parent / 'etc' / 'profile.d' / 'conda.sh'
+                self.source = self.pip.source = CommandSequence(('source', conda_env.as_posix()), self.source)
+                # unpack cleanup
+                print("Fixing prefix in Conda environment {}".format(self.path))
+                CommandSequence(('source', conda_env.as_posix()),
+                                ((self.path / 'bin' / 'conda-unpack').as_posix(), )).get_output()
+                return self
+            else:
+                raise ValueError("Could not restore Conda environment, cannot find {}".format(
+                    self.conda_pre_build_env_path))
+
         output = Argv(
             self.conda,
             "create",
@@ -146,20 +192,8 @@ class CondaAPI(PackageManager):
         self.source = self.pip.source = (
             tuple(match.group(1).split()) + (match.group(2),)
             if match
-            else ("activate", self.path)
+            else ("conda", "activate", self.path.as_posix())
         )
-
-        if self.conda_env_as_base_docker and self.conda_pre_build_env_path:
-            print("Restoring Conda environment from {}".format(self.conda_pre_build_env_path))
-            tar_path = find_executable("tar")
-            self.path.mkdir(parents=True, exist_ok=True)
-            output = Argv(
-                tar_path,
-                "-xzf",
-                self.conda_pre_build_env_path,
-                "-C",
-                self.path,
-            ).get_output()
 
         conda_env = Path(self.conda).parent.parent / 'etc' / 'profile.d' / 'conda.sh'
         if conda_env.is_file() and not is_windows_platform():
@@ -208,6 +242,10 @@ class CondaAPI(PackageManager):
 
     def _install(self, *args):
         # type: (*PathLike) -> ()
+        # if we are in read only mode, do not install anything
+        if self.env_read_only:
+            print('Conda environment in read-only mode, skipping package installing: {}'.format(args))
+            return
         channels_args = tuple(
             chain.from_iterable(("-c", channel) for channel in self.extra_channels)
         )
@@ -235,6 +273,10 @@ class CondaAPI(PackageManager):
         return self._install(*packages)
 
     def uninstall_packages(self, *packages):
+        # if we are in read only mode, do not uninstall anything
+        if self.env_read_only:
+            print('Conda environment in read-only mode, skipping package uninstalling: {}'.format(packages))
+            return ''
         return self._run_command(("uninstall", "-p", self.path))
 
     def install_from_file(self, path):
@@ -389,6 +431,11 @@ class CondaAPI(PackageManager):
         self.requirements_manager.post_install(self.session)
 
     def load_requirements(self, requirements):
+        # if we are in read only mode, do not uninstall anything
+        if self.env_read_only:
+            print('Conda environment in read-only mode, skipping requirements installation.')
+            return None
+
         # if we have a full conda environment, use it and pass the pip to pip
         if requirements.get('conda_env_json'):
             # noinspection PyBroadException
