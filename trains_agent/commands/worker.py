@@ -1207,8 +1207,8 @@ class Worker(ServiceCommandSection):
             except:
                 python_version = None
 
-        venv_folder, requirements_manager = self.install_virtualenv(venv_dir=target,
-                                                                    requested_python_version=python_version)
+        venv_folder, requirements_manager = self.install_virtualenv(
+            venv_dir=target, requested_python_version=python_version, execution_info=execution)
 
         if self._default_pip:
             if install_globally and self.global_package_api:
@@ -1426,8 +1426,8 @@ class Worker(ServiceCommandSection):
         except:
             python_ver = None
 
-        venv_folder, requirements_manager = self.install_virtualenv(standalone_mode=standalone_mode,
-                                                                    requested_python_version=python_ver)
+        venv_folder, requirements_manager = self.install_virtualenv(
+            standalone_mode=standalone_mode, requested_python_version=python_ver, execution_info=execution)
 
         if not standalone_mode:
             if self._default_pip:
@@ -2007,8 +2007,9 @@ class Worker(ServiceCommandSection):
             )
         )
 
-    def install_virtualenv(self, venv_dir=None, requested_python_version=None, standalone_mode=False):
-        # type: (str, str, bool) -> Tuple[Path, RequirementsManager]
+    def install_virtualenv(
+            self, venv_dir=None, requested_python_version=None, standalone_mode=False, execution_info=None):
+        # type: (str, str, bool, ExecutionInfo) -> Tuple[Path, RequirementsManager]
         """
         Install a new python virtual environment, removing the old one if exists
         :return: virtualenv directory and requirements manager to use with task
@@ -2055,6 +2056,7 @@ class Worker(ServiceCommandSection):
             python=executable_version_suffix if self.is_conda else executable_name,
             path=venv_dir,
             requirements_manager=requirements_manager,
+            execution_info=execution_info,
         )
 
         global_package_manager_params = dict(

@@ -554,6 +554,7 @@ class ExecutionInfo(NonStrictAttrs):
     branch = nullable_string
     version_num = nullable_string
     tag = nullable_string
+    docker_cmd = nullable_string
 
     @classmethod
     def from_task(cls, task_info):
@@ -570,6 +571,12 @@ class ExecutionInfo(NonStrictAttrs):
             entry_point, _, working_dir = execution.entry_point.partition(":")
             execution.entry_point = entry_point
             execution.working_dir = working_dir or ""
+
+        # noinspection PyBroadException
+        try:
+            execution.docker_cmd = task_info.execution.docker_cmd
+        except Exception:
+            pass
 
         return execution
 

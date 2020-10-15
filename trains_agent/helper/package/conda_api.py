@@ -19,13 +19,14 @@ from trains_agent.external.requirements_parser import parse
 from trains_agent.external.requirements_parser.requirement import Requirement
 
 from trains_agent.errors import CommandFailedError
-from trains_agent.helper.base import rm_tree, NonStrictAttrs, select_for_platform, is_windows_platform
+from trains_agent.helper.base import rm_tree, NonStrictAttrs, select_for_platform, is_windows_platform, ExecutionInfo
 from trains_agent.helper.process import Argv, Executable, DEVNULL, CommandSequence, PathLike
 from trains_agent.helper.package.requirements import SimpleVersion
 from trains_agent.session import Session
 from .base import PackageManager
 from .pip_api.venv import VirtualenvPip
 from .requirements import RequirementsManager, MarkerRequirement
+from ...backend_api.session.defs import ENV_CONDA_ENV_PACKAGE
 
 package_normalize = partial(re.compile(r"""\[version=['"](.*)['"]\]""").sub, r"\1")
 
@@ -41,8 +42,8 @@ def _package_diff(path, packages):
 
 class CondaPip(VirtualenvPip):
     def __init__(self, source=None, *args, **kwargs):
-        super(CondaPip, self).__init__(*args, interpreter=Path(kwargs.get('path'), "python.exe") \
-            if is_windows_platform() and kwargs.get('path') else None, **kwargs)
+        super(CondaPip, self).__init__(*args, interpreter=Path(kwargs.get('path'), "python.exe")
+                                       if is_windows_platform() and kwargs.get('path') else None, **kwargs)
         self.source = source
 
     def run_with_env(self, command, output=False, **kwargs):
@@ -62,8 +63,8 @@ class CondaAPI(PackageManager):
 
     MINIMUM_VERSION = "4.3.30"
 
-    def __init__(self, session, path, python, requirements_manager):
-        # type: (Session, PathLike, float, RequirementsManager) -> None
+    def __init__(self, session, path, python, requirements_manager, execution_info=None, **kwargs):
+        # type: (Session, PathLike, float, RequirementsManager, ExecutionInfo, Any) -> None
         """
         :param python: base python version to use (e.g python3.6)
         :param path: path of env
@@ -74,6 +75,13 @@ class CondaAPI(PackageManager):
         self.requirements_manager = requirements_manager
         self.path = path
         self.extra_channels = self.session.config.get('agent.package_manager.conda_channels', [])
+        self.conda_env_as_base_docker = \
+            self.session.config.get('agent.package_manager.conda_env_as_base_docker', None) or \
+            bool(ENV_CONDA_ENV_PACKAGE.get())
+        if ENV_CONDA_ENV_PACKAGE.get():
+            self.conda_pre_build_env_path = ENV_CONDA_ENV_PACKAGE.get()
+        else:
+            self.conda_pre_build_env_path = execution_info.docker_cmd if execution_info else None
         self.pip = CondaPip(
             session=self.session,
             source=self.source,
@@ -81,10 +89,14 @@ class CondaAPI(PackageManager):
             requirements_manager=self.requirements_manager,
             path=self.path,
         )
-        self.conda = (
-            find_executable("conda")
-            or Argv(select_for_platform(windows="where", linux="which"), "conda").get_output(shell=True).strip()
-        )
+        try:
+            self.conda = (
+                find_executable("conda")
+                or Argv(select_for_platform(windows="where", linux="which"), "conda").get_output(shell=True).strip()
+            )
+        except Exception:
+            raise ValueError("ERROR: package manager \"conda\" selected, "
+                             "but \'conda\' executable could not be located")
         try:
             output = Argv(self.conda, "--version").get_output(stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as ex:
@@ -136,11 +148,25 @@ class CondaAPI(PackageManager):
             if match
             else ("activate", self.path)
         )
+
+        if self.conda_env_as_base_docker and self.conda_pre_build_env_path:
+            print("Restoring Conda environment from {}".format(self.conda_pre_build_env_path))
+            tar_path = find_executable("tar")
+            self.path.mkdir(parents=True, exist_ok=True)
+            output = Argv(
+                tar_path,
+                "-xzf",
+                self.conda_pre_build_env_path,
+                "-C",
+                self.path,
+            ).get_output()
+
         conda_env = Path(self.conda).parent.parent / 'etc' / 'profile.d' / 'conda.sh'
         if conda_env.is_file() and not is_windows_platform():
             self.source = self.pip.source = CommandSequence(('source', conda_env.as_posix()), self.source)
 
         # install cuda toolkit
+        # noinspection PyBroadException
         try:
             cuda_version = float(int(self.session.config['agent.cuda_version'])) / 10.0
             if cuda_version > 0:
