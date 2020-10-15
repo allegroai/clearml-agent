@@ -2178,6 +2178,7 @@ class Worker(ServiceCommandSection):
         temp_config.put("agent.pip_download_cache.path", mounted_pip_dl_dir)
         temp_config.put("agent.vcs_cache.path", mounted_vcs_cache)
         temp_config.put("agent.package_manager.system_site_packages", True)
+        temp_config.put("agent.package_manager.conda_env_as_base_docker", False)
         temp_config.put("agent.default_python", "")
         temp_config.put("agent.python_binary", "")
         temp_config.put("agent.cuda_version", "")
@@ -2232,6 +2233,7 @@ class Worker(ServiceCommandSection):
             extra_shell_script_str = " ; ".join(map(str, cmds)) + " ; "
 
         bash_script = self._session.config.get("agent.docker_init_bash_script", None)
+        preprocess_bash_script = self._session.config.get("agent.docker_preprocess_bash_script", None)
 
         self.temp_config_path = self.temp_config_path or safe_mkstemp(
             suffix=".cfg", prefix=".trains_agent.", text=True, name_only=True
@@ -2252,6 +2254,7 @@ class Worker(ServiceCommandSection):
                           standalone_mode=self._standalone_mode,
                           force_current_version=self._force_current_version,
                           bash_script=bash_script,
+                          preprocess_bash_script=preprocess_bash_script,
                           )
         return temp_config, partial(docker_cmd_functor, docker_cmd, temp_config)
 
@@ -2265,7 +2268,8 @@ class Worker(ServiceCommandSection):
                         host_pip_dl, mounted_pip_dl,
                         host_vcs_cache, mounted_vcs_cache,
                         standalone_mode=False, extra_docker_arguments=None, extra_shell_script=None,
-                        force_current_version=None, host_git_credentials=None, bash_script=None):
+                        force_current_version=None, host_git_credentials=None,
+                        bash_script=None, preprocess_bash_script=None):
         docker = 'docker'
 
         base_cmd = [docker, 'run', '-t']
@@ -2367,21 +2371,32 @@ class Worker(ServiceCommandSection):
 
         if not standalone_mode:
             if not bash_script:
+                # Find the highest python version installed, or install from apt-get
+                # python+pip is the requirement to match
                 bash_script = [
                     "echo 'Binary::apt::APT::Keep-Downloaded-Packages \"true\";' > /etc/apt/apt.conf.d/docker-clean",
                     "chown -R root /root/.cache/pip",
                     "apt-get update",
                     "apt-get install -y git libsm6 libxext6 libxrender-dev libglib2.0-0",
-                    "(which {python_single_digit} && {python_single_digit} -m pip --version) || " +
-                    "apt-get install -y {python_single_digit}-pip",
+                    "declare LOCAL_PYTHON",
+                    "for i in {{10..5}}; do which {python_single_digit}.$i && " +
+                    "{python_single_digit}.$i -m pip --version && " +
+                    "export LOCAL_PYTHON=$(which {python_single_digit}.$i) && break ; done",
+                    "[ ! -z $LOCAL_PYTHON ] || apt-get install -y {python_single_digit}-pip",
                 ]
+
+            if preprocess_bash_script:
+                bash_script = preprocess_bash_script + bash_script
 
             docker_bash_script = " ; ".join(bash_script) if not isinstance(bash_script, str) else bash_script
 
+            # make sure that if we do not have $LOCAL_PYTHON defined
+            # we set it to python3
             update_scheme += (
                     docker_bash_script + " ; " +
-                    "{python} -m pip install -U \"pip{pip_version}\" ; " +
-                    "{python} -m pip install -U {trains_agent_wheel} ; ").format(
+                    "[ ! -z $LOCAL_PYTHON ] || export LOCAL_PYTHON={python} ; " +
+                    "$LOCAL_PYTHON -m pip install -U \"pip{pip_version}\" ; " +
+                    "$LOCAL_PYTHON -m pip install -U {trains_agent_wheel} ; ").format(
                 python_single_digit=python_version.split('.')[0],
                 python=python_version, pip_version=PackageManager.get_pip_version(),
                 trains_agent_wheel=trains_agent_wheel)
@@ -2402,7 +2417,7 @@ class Worker(ServiceCommandSection):
                 update_scheme +
                 extra_shell_script +
                 "cp {} {} ; ".format(DOCKER_ROOT_CONF_FILE, DOCKER_DEFAULT_CONF_FILE) +
-                "NVIDIA_VISIBLE_DEVICES={nv_visible} {python} -u -m trains_agent ".format(
+                "NVIDIA_VISIBLE_DEVICES={nv_visible} $LOCAL_PYTHON -u -m trains_agent ".format(
                     nv_visible=dockers_nvidia_visible_devices, python=python_version)
              ])
 
