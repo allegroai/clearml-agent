@@ -124,7 +124,24 @@ class LiteralScriptManager(object):
         if not script:
             return False
         diff = script.diff
-        return diff and not diff.strip().lower().startswith("diff ")
+        if not diff:
+            return False
+
+        # test git diff prefix
+        if diff.lstrip().lower().startswith("diff "):
+            return False
+
+        # test git submodule prefix
+        # noinspection PyBroadException
+        try:
+            if diff.lstrip().lower().startswith("submodule ") and \
+                    diff.splitlines()[1].lstrip().lower().startswith("diff "):
+                return False
+        except Exception:
+            pass
+
+        # none of the above
+        return True
 
     @staticmethod
     def write(task, directory, entry_point=None):
@@ -1509,8 +1526,7 @@ class Worker(ServiceCommandSection):
             self._update_commit_id(current_task.id, execution, repo_info)
 
         # Add the script CWD to the python path
-        python_path = get_python_path(script_dir, execution.entry_point, self.package_api) \
-            if not self.is_conda else None
+        python_path = get_python_path(script_dir, execution.entry_point, self.package_api, is_conda_env=self.is_conda)
         if os.environ.get(ENV_TASK_EXTRA_PYTHON_PATH):
             python_path = add_python_path(python_path, os.environ.get(ENV_TASK_EXTRA_PYTHON_PATH))
         if python_path:
