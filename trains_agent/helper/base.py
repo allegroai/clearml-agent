@@ -197,7 +197,8 @@ def safe_remove_tree(filename):
         pass
 
 
-def get_python_path(script_dir, entry_point, package_api):
+def get_python_path(script_dir, entry_point, package_api, is_conda_env=False):
+    # noinspection PyBroadException
     try:
         python_path_sep = ';' if is_windows_platform() else ':'
         python_path_cmd = package_api.get_python_command(
@@ -211,7 +212,7 @@ def get_python_path(script_dir, entry_point, package_api):
         if is_windows_platform():
             return python_path.replace('/', '\\') + org_python_path
 
-        return python_path + org_python_path
+        return python_path if is_conda_env else (python_path + org_python_path)
     except Exception:
         return None
 
