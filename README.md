@@ -272,12 +272,12 @@ trains-agent daemon --services-mode --detached --queue services --create-queue -
 ## AutoML and Orchestration Pipelines <a name="automl-pipes"></a>
 The Trains Agent can also be used to implement AutoML orchestration and Experiment Pipelines in conjunction with the Trains package.
 
-Sample AutoML & Orchestration examples can be found in the Trains [example/automl](https://github.com/allegroai/trains/tree/master/examples/automl) folder.
+Sample AutoML & Orchestration examples can be found in the Trains [example/automation](https://github.com/allegroai/trains/tree/master/examples/automation) folder.
 
 AutoML examples
-  - [Toy Keras training experiment](https://github.com/allegroai/trains/blob/master/examples/automl/automl_base_template_keras_simple.py)
+  - [Toy Keras training experiment](https://github.com/allegroai/trains/blob/master/examples/optimization/hyper-parameter-optimization/base_template_keras_simple.py)
     - In order to create an experiment-template in the system, this code must be executed once manually
-  - [Random Search over the above Keras experiment-template](https://github.com/allegroai/trains/blob/master/examples/automl/automl_random_search_example.py)
+  - [Random Search over the above Keras experiment-template](https://github.com/allegroai/trains/blob/master/examples/automation/manual_random_param_search_example.py)
     - This example will create multiple copies of the Keras experiment-template, with different hyper-parameter combinations
 
 Experiment Pipeline examples
