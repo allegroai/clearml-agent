@@ -26,9 +26,14 @@ class K8sIntegration(Worker):
                          "--selector=TRAINS=agent " \
                          "--field-selector=status.phase!=Pending,status.phase!=Running"
 
-    CONTAINER_BASH_SCRIPT = "apt-get install -y git python-pip && " \
-                            "pip install trains-agent && " \
-                            "python -u -m trains_agent execute --full-monitoring --require-queue --id {}"
+    CONTAINER_BASH_SCRIPT = \
+        "echo 'Binary::apt::APT::Keep-Downloaded-Packages \"true\";' > /etc/apt/apt.conf.d/docker-clean ; " \
+        "chown -R root /root/.cache/pip ; " \
+        "apt-get update ; " \
+        "apt-get install -y git libsm6 libxext6 libxrender-dev libglib2.0-0 ; " \
+        "(which python3 && python3 -m pip --version) || apt-get install -y python3-pip ; " \
+        "python3 -m pip install trains-agent ; " \
+        "python3 -m trains_agent execute --full-monitoring --require-queue --id {}"
 
     def __init__(self, k8s_pending_queue_name=None, kubectl_cmd=None, container_bash_script=None, debug=False):
         """
