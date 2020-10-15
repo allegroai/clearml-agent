@@ -2376,6 +2376,7 @@ class Worker(ServiceCommandSection):
                 bash_script = [
                     "echo 'Binary::apt::APT::Keep-Downloaded-Packages \"true\";' > /etc/apt/apt.conf.d/docker-clean",
                     "chown -R root /root/.cache/pip",
+                    "export DEBIAN_FRONTEND=noninteractive",
                     "apt-get update",
                     "apt-get install -y git libsm6 libxext6 libxrender-dev libglib2.0-0",
                     "declare LOCAL_PYTHON",
