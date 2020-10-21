@@ -55,6 +55,7 @@ class K8sIntegration(Worker):
             ports_mode=False,
             num_of_services=20,
             user_props_cb=None,
+            trains_conf_file=None,
     ):
         """
         Initialize the k8s integration glue layer daemon
@@ -72,6 +73,7 @@ class K8sIntegration(Worker):
         :param callable user_props_cb: An Optional callable allowing additional user properties to be specified
             when scheduling a task to run in a pod. Callable can receive an optional pod number and should return
             a dictionary of user properties (name and value). Signature is [[Optional[int]], Dict[str,str]]
+        :param str trains_conf_file: trains.conf file to be use by the pod itself
         """
         super(K8sIntegration, self).__init__()
         self.k8s_pending_queue_name = k8s_pending_queue_name or self.K8S_PENDING_QUEUE
@@ -87,6 +89,11 @@ class K8sIntegration(Worker):
         self.num_of_services = num_of_services
         self._edit_hyperparams_support = None
         self._user_props_cb = user_props_cb
+        self.trains_conf_file = None
+        if trains_conf_file:
+            with open(os.path.expandvars(os.path.expanduser(str(trains_conf_file))), 'rt') as f:
+                self.trains_conf_file = f.read()
+            print(self.trains_conf_file)
 
     def _set_task_user_properties(self, task_id: str, **properties: str):
         if self._edit_hyperparams_support is not True:
@@ -140,9 +147,8 @@ class K8sIntegration(Worker):
         # take the first part, this is the docker image name (not arguments)
         docker_image = docker_image.split()[0]
 
-        hocon_config_encoded = HOCONConverter.to_hocon(
-                self._session.config._config
-            ).encode('ascii')
+        hocon_config_encoded = (
+                self.trains_conf_file or HOCONConverter.to_hocon(self._session.config._config)).encode('ascii')
         create_trains_conf = "echo '{}' | base64 --decode >> ~/trains.conf && ".format(
             base64.b64encode(
                 hocon_config_encoded

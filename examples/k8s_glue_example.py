@@ -26,6 +26,10 @@ def parse_args():
         help="If using ports-mode, specifies the base port exposed by the services."
              "For pod #X, the port will be <base-port>+X"
     )
+    parser.add_argument(
+        "--pod-trains-conf", type=str,
+        help="Configuration file to be used by the pod itself (if not provided, current configuration is used)"
+    )
     return parser.parse_args()
 
 
@@ -37,7 +41,9 @@ def main():
         def user_props_cb(pod_number):
             return {"k8s-pod-port": args.base_port + pod_number}
 
-    k8s = K8sIntegration(ports_mode=args.ports_mode, num_of_services=args.num_of_services, user_props_cb=user_props_cb)
+    k8s = K8sIntegration(
+        ports_mode=args.ports_mode, num_of_services=args.num_of_services, user_props_cb=user_props_cb,
+        trains_conf_file=args.pod_trains_conf)
     k8s.k8s_daemon(args.queue)
 
 
