@@ -295,11 +295,9 @@ class VCS(object):
         if not self.session.config.agent.translate_ssh:
             return
 
-        ssh_agent_variable = "SSH_AUTH_SOCK"
-        if not getenv(ssh_agent_variable) and (
-                (ENV_AGENT_GIT_USER.get() or self.session.config.get('agent.git_user', None)) and
-                (ENV_AGENT_GIT_PASS.get() or self.session.config.get('agent.git_pass', None))
-        ):
+        # if we have git_user / git_pass replace ssh credentials with https authentication
+        if (ENV_AGENT_GIT_USER.get() or self.session.config.get('agent.git_user', None)) and \
+                (ENV_AGENT_GIT_PASS.get() or self.session.config.get('agent.git_pass', None)):
             # only apply to a specific domain (if requested)
             config_domain = \
                 ENV_AGENT_GIT_HOST.get() or self.session.config.get("git_host", None)
