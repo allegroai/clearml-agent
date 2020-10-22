@@ -381,7 +381,7 @@ class VCS(object):
         """
         Run command with `input_` as stdin
         """
-        input_ = input_.encode("latin1")
+        input_ = input_.encode("utf-8")
         if not input_.endswith(b"\n"):
             input_ += b"\n"
         process = self._call_subprocess(
