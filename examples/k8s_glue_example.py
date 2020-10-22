@@ -34,6 +34,11 @@ def parse_args():
         "--overrides-yaml", type=str,
         help="YAML file containing pod overrides to be used when launching a new pod"
     )
+    parser.add_argument(
+        "--template-yaml", type=str,
+        help="YAML file containing pod template. If provided pod will be scheduled with kubectl apply "
+             "and overrides are ignored, otherwise it will be scheduled with kubectl run"
+    )
     return parser.parse_args()
 
 
@@ -47,7 +52,7 @@ def main():
 
     k8s = K8sIntegration(
         ports_mode=args.ports_mode, num_of_services=args.num_of_services, user_props_cb=user_props_cb,
-        overrides_yaml=args.overrides_yaml, trains_conf_file=args.pod_trains_conf)
+        overrides_yaml=args.overrides_yaml, trains_conf_file=args.pod_trains_conf, template_yaml=args.template_yaml)
     k8s.k8s_daemon(args.queue)
 
 
