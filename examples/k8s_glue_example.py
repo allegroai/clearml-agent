@@ -30,6 +30,10 @@ def parse_args():
         "--pod-trains-conf", type=str,
         help="Configuration file to be used by the pod itself (if not provided, current configuration is used)"
     )
+    parser.add_argument(
+        "--overrides-yaml", type=str,
+        help="YAML file containing pod overrides to be used when launching a new pod"
+    )
     return parser.parse_args()
 
 
@@ -43,7 +47,7 @@ def main():
 
     k8s = K8sIntegration(
         ports_mode=args.ports_mode, num_of_services=args.num_of_services, user_props_cb=user_props_cb,
-        trains_conf_file=args.pod_trains_conf)
+        overrides_yaml=args.overrides_yaml, trains_conf_file=args.pod_trains_conf)
     k8s.k8s_daemon(args.queue)
 
 
