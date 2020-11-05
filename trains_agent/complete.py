@@ -17,6 +17,12 @@ from trains_agent.interface import get_parser
 
 
 def is_argument_required(action):
+    """
+    Determine whether the argument is required.
+
+    Args:
+        action: (str): write your description
+    """
     return isinstance(action, argparse._StoreAction)
 
 
@@ -43,6 +49,11 @@ def get_options(parser):
 
 
 def main():
+    """
+    Main function.
+
+    Args:
+    """
 
     if len(sys.argv) != 2:
         return 1

@@ -36,16 +36,37 @@ class Credentials(NonStrictDataModel):
     }
     def __init__(
             self, access_key=None, secret_key=None, **kwargs):
+        """
+        Initialize a new access token.
+
+        Args:
+            self: (todo): write your description
+            access_key: (str): write your description
+            secret_key: (str): write your description
+        """
         super(Credentials, self).__init__(**kwargs)
         self.access_key = access_key
         self.secret_key = secret_key
 
     @schema_property('access_key')
     def access_key(self):
+        """
+        The access key.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._property_access_key
 
     @access_key.setter
     def access_key(self, value):
+        """
+        Returns the access key.
+
+        Args:
+            self: (todo): write your description
+            value: (todo): write your description
+        """
         if value is None:
             self._property_access_key = None
             return
@@ -55,10 +76,23 @@ class Credentials(NonStrictDataModel):
 
     @schema_property('secret_key')
     def secret_key(self):
+        """
+        The secret key.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._property_secret_key
 
     @secret_key.setter
     def secret_key(self, value):
+        """
+        The secret key.
+
+        Args:
+            self: (todo): write your description
+            value: (todo): write your description
+        """
         if value is None:
             self._property_secret_key = None
             return
@@ -90,6 +124,15 @@ class CredentialKey(NonStrictDataModel):
     }
     def __init__(
             self, access_key=None, last_used=None, last_used_from=None, **kwargs):
+        """
+        Initialize access_key. : param access_key : param last_used : : return :
+
+        Args:
+            self: (todo): write your description
+            access_key: (str): write your description
+            last_used: (bool): write your description
+            last_used_from: (str): write your description
+        """
         super(CredentialKey, self).__init__(**kwargs)
         self.access_key = access_key
         self.last_used = last_used
@@ -97,10 +140,23 @@ class CredentialKey(NonStrictDataModel):
 
     @schema_property('access_key')
     def access_key(self):
+        """
+        The access key.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._property_access_key
 
     @access_key.setter
     def access_key(self, value):
+        """
+        Returns the access key.
+
+        Args:
+            self: (todo): write your description
+            value: (todo): write your description
+        """
         if value is None:
             self._property_access_key = None
             return
@@ -110,10 +166,23 @@ class CredentialKey(NonStrictDataModel):
 
     @schema_property('last_used')
     def last_used(self):
+        """
+        Returns the last available property.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._property_last_used
 
     @last_used.setter
     def last_used(self, value):
+        """
+        Returns the last none if none.
+
+        Args:
+            self: (todo): write your description
+            value: (todo): write your description
+        """
         if value is None:
             self._property_last_used = None
             return
@@ -125,10 +194,23 @@ class CredentialKey(NonStrictDataModel):
 
     @schema_property('last_used_from')
     def last_used_from(self):
+        """
+        Returns the last available property.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._property_last_used_from
 
     @last_used_from.setter
     def last_used_from(self, value):
+        """
+        Return the last property.
+
+        Args:
+            self: (todo): write your description
+            value: (todo): write your description
+        """
         if value is None:
             self._property_last_used_from = None
             return
@@ -197,15 +279,35 @@ class CreateCredentialsResponse(Response):
     }
     def __init__(
             self, credentials=None, **kwargs):
+        """
+        Initialize credentials.
+
+        Args:
+            self: (todo): write your description
+            credentials: (todo): write your description
+        """
         super(CreateCredentialsResponse, self).__init__(**kwargs)
         self.credentials = credentials
 
     @schema_property('credentials')
     def credentials(self):
+        """
+        : class credentials.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._property_credentials
 
     @credentials.setter
     def credentials(self, value):
+        """
+        Retrieves credentials. credentials.
+
+        Args:
+            self: (todo): write your description
+            value: (todo): write your description
+        """
         if value is None:
             self._property_credentials = None
             return
@@ -245,16 +347,37 @@ class EditUserRequest(Request):
     }
     def __init__(
             self, user=None, role=None, **kwargs):
+        """
+        Initialize the user
+
+        Args:
+            self: (todo): write your description
+            user: (str): write your description
+            role: (str): write your description
+        """
         super(EditUserRequest, self).__init__(**kwargs)
         self.user = user
         self.role = role
 
     @schema_property('user')
     def user(self):
+        """
+        Return the user object.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._property_user
 
     @user.setter
     def user(self, value):
+        """
+        The user property.
+
+        Args:
+            self: (todo): write your description
+            value: (todo): write your description
+        """
         if value is None:
             self._property_user = None
             return
@@ -264,10 +387,23 @@ class EditUserRequest(Request):
 
     @schema_property('role')
     def role(self):
+        """
+        Return the role.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._property_role
 
     @role.setter
     def role(self, value):
+        """
+        The role of the role
+
+        Args:
+            self: (todo): write your description
+            value: (todo): write your description
+        """
         if value is None:
             self._property_role = None
             return
@@ -307,16 +443,37 @@ class EditUserResponse(Response):
     }
     def __init__(
             self, updated=None, fields=None, **kwargs):
+        """
+        Set the fields of the fields. fields.
+
+        Args:
+            self: (todo): write your description
+            updated: (todo): write your description
+            fields: (dict): write your description
+        """
         super(EditUserResponse, self).__init__(**kwargs)
         self.updated = updated
         self.fields = fields
 
     @schema_property('updated')
     def updated(self):
+        """
+        Retrieves the updated object.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._property_updated
 
     @updated.setter
     def updated(self, value):
+        """
+        Returns the updated update value
+
+        Args:
+            self: (todo): write your description
+            value: (todo): write your description
+        """
         if value is None:
             self._property_updated = None
             return
@@ -326,10 +483,23 @@ class EditUserResponse(Response):
 
     @schema_property('fields')
     def fields(self):
+        """
+        : return : class : class :.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._property_fields
 
     @fields.setter
     def fields(self, value):
+        """
+        Return a dictionary of fields.
+
+        Args:
+            self: (todo): write your description
+            value: (str): write your description
+        """
         if value is None:
             self._property_fields = None
             return
@@ -396,15 +566,35 @@ class GetCredentialsResponse(Response):
     }
     def __init__(
             self, credentials=None, **kwargs):
+        """
+        Initialize authentication.
+
+        Args:
+            self: (todo): write your description
+            credentials: (todo): write your description
+        """
         super(GetCredentialsResponse, self).__init__(**kwargs)
         self.credentials = credentials
 
     @schema_property('credentials')
     def credentials(self):
+        """
+        : class credentials.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._property_credentials
 
     @credentials.setter
     def credentials(self, value):
+        """
+        Gets / sets the credential credentials.
+
+        Args:
+            self: (todo): write your description
+            value: (todo): write your description
+        """
         if value is None:
             self._property_credentials = None
             return
@@ -446,15 +636,35 @@ class LoginRequest(Request):
     }
     def __init__(
             self, expiration_sec=None, **kwargs):
+        """
+        Initialize the expiration.
+
+        Args:
+            self: (todo): write your description
+            expiration_sec: (todo): write your description
+        """
         super(LoginRequest, self).__init__(**kwargs)
         self.expiration_sec = expiration_sec
 
     @schema_property('expiration_sec')
     def expiration_sec(self):
+        """
+        Returns the expiration expiration expiration_expiration.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._property_expiration_sec
 
     @expiration_sec.setter
     def expiration_sec(self, value):
+        """
+        The expiration property.
+
+        Args:
+            self: (todo): write your description
+            value: (todo): write your description
+        """
         if value is None:
             self._property_expiration_sec = None
             return
@@ -485,15 +695,35 @@ class LoginResponse(Response):
     }
     def __init__(
             self, token=None, **kwargs):
+        """
+        Initialize the token.
+
+        Args:
+            self: (todo): write your description
+            token: (str): write your description
+        """
         super(LoginResponse, self).__init__(**kwargs)
         self.token = token
 
     @schema_property('token')
     def token(self):
+        """
+        Returns the token as a dict.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._property_token
 
     @token.setter
     def token(self, value):
+        """
+        The token property.
+
+        Args:
+            self: (todo): write your description
+            value: (todo): write your description
+        """
         if value is None:
             self._property_token = None
             return
@@ -551,15 +781,35 @@ class RevokeCredentialsRequest(Request):
     }
     def __init__(
             self, access_key=None, **kwargs):
+        """
+        Initialize an access token.
+
+        Args:
+            self: (todo): write your description
+            access_key: (str): write your description
+        """
         super(RevokeCredentialsRequest, self).__init__(**kwargs)
         self.access_key = access_key
 
     @schema_property('access_key')
     def access_key(self):
+        """
+        The access key.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._property_access_key
 
     @access_key.setter
     def access_key(self, value):
+        """
+        Returns the access key.
+
+        Args:
+            self: (todo): write your description
+            value: (todo): write your description
+        """
         if value is None:
             self._property_access_key = None
             return
@@ -592,15 +842,35 @@ class RevokeCredentialsResponse(Response):
     }
     def __init__(
             self, revoked=None, **kwargs):
+        """
+        Initialize the credentials.
+
+        Args:
+            self: (todo): write your description
+            revoked: (str): write your description
+        """
         super(RevokeCredentialsResponse, self).__init__(**kwargs)
         self.revoked = revoked
 
     @schema_property('revoked')
     def revoked(self):
+        """
+        Access the : meth : ~zhitem.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._property_revoked
 
     @revoked.setter
     def revoked(self, value):
+        """
+        Gets / sets the revision property
+
+        Args:
+            self: (todo): write your description
+            value: (todo): write your description
+        """
         if value is None:
             self._property_revoked = None
             return

@@ -10,25 +10,66 @@ from .errors import ResultNotReadyError, TimeoutExpiredError
 class CallResult(object):
     @property
     def meta(self):
+        """
+        Returns the meta - meta.
+
+        Args:
+            self: (todo): write your description
+        """
         return self.__meta
 
     @property
     def response(self):
+        """
+        : return the response.
+
+        Args:
+            self: (todo): write your description
+        """
         return self.__response
 
     @property
     def response_data(self):
+        """
+        Return the response data.
+
+        Args:
+            self: (todo): write your description
+        """
         return self.__response_data
 
     @property
     def async_accepted(self):
+        """
+        Return the result of the result.
+
+        Args:
+            self: (todo): write your description
+        """
         return self.meta.result_code == 202
 
     @property
     def request_cls(self):
+        """
+        : return request class.
+
+        Args:
+            self: (todo): write your description
+        """
         return self.__request_cls
 
     def __init__(self, meta, response=None, response_data=None, request_cls=None, session=None):
+        """
+        Initialize the response.
+
+        Args:
+            self: (todo): write your description
+            meta: (float): write your description
+            response: (list): write your description
+            response_data: (todo): write your description
+            request_cls: (todo): write your description
+            session: (todo): write your description
+        """
         assert isinstance(meta, ResponseMeta)
         if response and not isinstance(response, Response):
             raise ValueError('response should be an instance of %s' % Response.__name__)
@@ -85,9 +126,21 @@ class CallResult(object):
         return cls(meta=meta, response=response, response_data=response_data, request_cls=request_cls, session=session)
 
     def ok(self):
+        """
+        Determine if the result.
+
+        Args:
+            self: (todo): write your description
+        """
         return self.meta.result_code == 200
 
     def ready(self):
+        """
+        Determine request is ready.
+
+        Args:
+            self: (todo): write your description
+        """
         if not self.async_accepted:
             return True
         session = self.__session
@@ -97,6 +150,12 @@ class CallResult(object):
             return True
 
     def result(self):
+        """
+        Return the result of the result.
+
+        Args:
+            self: (todo): write your description
+        """
         if not self.async_accepted:
             return self
         if self.__async_result is None:
@@ -104,6 +163,15 @@ class CallResult(object):
         return self.__async_result
 
     def wait(self, timeout=None, poll_interval=5, verbose=False):
+        """
+        Waits for a command to complete.
+
+        Args:
+            self: (todo): write your description
+            timeout: (float): write your description
+            poll_interval: (int): write your description
+            verbose: (bool): write your description
+        """
         if not self.async_accepted:
             return self
         session = self.__session
@@ -128,4 +196,11 @@ class CallResult(object):
         raise TimeoutExpiredError(self._format_msg('Timeout expired'), call_id=self.meta.id)
 
     def _format_msg(self, msg):
+        """
+        Formats the message. message.
+
+        Args:
+            self: (todo): write your description
+            msg: (str): write your description
+        """
         return msg + ' for call %s (%s)' % (self.request_cls.__name__, self.meta.id)

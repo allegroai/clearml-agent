@@ -33,9 +33,23 @@ class VirtualenvPip(SystemPip, PackageManager):
         self.python = python
 
     def _make_command(self, command):
+        """
+        Make a command.
+
+        Args:
+            self: (todo): write your description
+            command: (str): write your description
+        """
         return self.session.command(self.bin, "-m", "pip", "--disable-pip-version-check", *command)
 
     def load_requirements(self, requirements):
+        """
+        Load requirements. pip requirements.
+
+        Args:
+            self: (todo): write your description
+            requirements: (dict): write your description
+        """
         if isinstance(requirements, dict) and requirements.get("pip"):
             requirements["pip"] = self.requirements_manager.replace(requirements["pip"])
         super(VirtualenvPip, self).load_requirements(requirements)

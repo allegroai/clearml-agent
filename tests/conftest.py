@@ -23,6 +23,11 @@ def run_trains_agent(script_runner):
         string: The return value. stdout output
     """
     def _method(*args):
+        """
+        Runs the agent.
+
+        Args:
+        """
         trains_agent_file = str(PROJECT_ROOT / "trains_agent.sh")
         ret = script_runner.run(trains_agent_file, *args)
         return ret
@@ -31,8 +36,20 @@ def run_trains_agent(script_runner):
 
 @pytest.fixture(scope='function')
 def trains_agentyaml(tmpdir):
+    """
+    Yield a context manager that yields a temporary directory.
+
+    Args:
+        tmpdir: (str): write your description
+    """
     @contextmanager
     def _method(template_file):
+        """
+        Generate a template file.
+
+        Args:
+            template_file: (str): write your description
+        """
         file = tmpdir.join("trains_agent.yaml")
         with (PROJECT_ROOT / "tests/templates" / template_file).open() as f:
             code = yaml.load(f, Loader=yaml.SafeLoader)

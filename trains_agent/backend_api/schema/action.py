@@ -11,7 +11,21 @@ sequence = instance_of((list, tuple))
 
 
 def sequence_of(types):
+    """
+    Returns true if the given type is a sequence.
+
+    Args:
+        types: (todo): write your description
+    """
     def validator(_, attrib, value):
+        """
+        Validate that the given attribute.
+
+        Args:
+            _: (array): write your description
+            attrib: (dict): write your description
+            value: (str): write your description
+        """
         assert all(isinstance(x, types) for x in value), attrib.name
 
     return and_(sequence, validator)

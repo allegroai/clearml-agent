@@ -13,6 +13,13 @@ from trains_agent.helper.base import nonstrict_in_place_sort
 
 
 def print_text(text, newline=True):
+    """
+    Prints a string.
+
+    Args:
+        text: (str): write your description
+        newline: (str): write your description
+    """
     if newline:
         text += '\n'
     data = text.encode(sys.stdout.encoding or 'utf8', errors='replace')
@@ -23,6 +30,15 @@ def print_text(text, newline=True):
 
 
 def decode_binary_lines(binary_lines, encoding='utf-8', replace_cr=False, overwrite_cr=False):
+    """
+    Decode a list of binary lines.
+
+    Args:
+        binary_lines: (list): write your description
+        encoding: (str): write your description
+        replace_cr: (str): write your description
+        overwrite_cr: (bool): write your description
+    """
     # decode per line, if we failed decoding skip the line
     lines = []
     for b in binary_lines:
@@ -82,25 +98,63 @@ class ListFormatter(object):
         columns = attrib(type=List[Text])
 
         def __init__(self, entries, columns):
+            """
+            Initialize the table to the table.
+
+            Args:
+                self: (todo): write your description
+                entries: (todo): write your description
+                columns: (str): write your description
+            """
             self.entries = entries
             if isinstance(columns, str):
                 columns = columns.split('#')
             self.columns = columns
 
         def as_rows(self):  # type: () -> Iterable[Iterable[Any]]
+            """
+            : return : class :.
+
+            Args:
+                self: (todo): write your description
+            """
             return (
                 map(entry.get, self.columns)
                 for entry in self.entries
             )
 
     def __init__(self, service_name):
+        """
+        Initialize a service.
+
+        Args:
+            self: (todo): write your description
+            service_name: (str): write your description
+        """
         self.service_name = service_name
 
     def get_total(self, entries):
+        """
+        Returns the total number of entries in the given entries.
+
+        Args:
+            self: (todo): write your description
+            entries: (str): write your description
+        """
         return '\nTotal {} {}'.format(self.service_name, len(entries))
 
     @classmethod
     def write_csv(cls, entries, columns, dest, headers=True):
+        """
+        Write a csv to a csv file.
+
+        Args:
+            cls: (todo): write your description
+            entries: (list): write your description
+            columns: (list): write your description
+            dest: (str): write your description
+            headers: (list): write your description
+        """
         table = cls.Table(entries, columns)
         with open(dest, 'w') as output:
             writer = csv.DictWriter(output, fieldnames=table.columns, extrasaction='ignore')
@@ -110,6 +164,14 @@ class ListFormatter(object):
 
     @staticmethod
     def sort_in_place(entries, key, reverse=None):
+        """
+        Sort place in place.
+
+        Args:
+            entries: (list): write your description
+            key: (str): write your description
+            reverse: (bool): write your description
+        """
         if isinstance(key, six.string_types):
             nonstrict_in_place_sort(entries, reverse, *key.split('#'))
         elif callable(key):

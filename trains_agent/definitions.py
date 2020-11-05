@@ -20,6 +20,11 @@ CONFIG_FILE_CANDIDATES = ["~/trains.conf"]
 
 
 def find_config_path():
+    """
+    Return the path to the candidate config file.
+
+    Args:
+    """
     for candidate in CONFIG_FILE_CANDIDATES:
         if Path(candidate).expanduser().exists():
             return candidate
@@ -37,13 +42,34 @@ class EnvironmentConfig(object):
     }
 
     def __init__(self, *names, **kwargs):
+        """
+        Initialize a variable.
+
+        Args:
+            self: (todo): write your description
+            names: (list): write your description
+        """
         self.vars = names
         self.type = kwargs.pop("type", six.text_type)
 
     def convert(self, value):
+        """
+        Convert the value to the appropriate type.
+
+        Args:
+            self: (todo): write your description
+            value: (float): write your description
+        """
         return self.conversions.get(self.type, self.type)(value)
 
     def get(self, key=False):  # type: (bool) -> Optional[Union[Any, Tuple[Text, Any]]]
+        """
+        Return the value of the variable.
+
+        Args:
+            self: (todo): write your description
+            key: (todo): write your description
+        """
         for name in self.vars:
             value = getenv(name)
             if value:

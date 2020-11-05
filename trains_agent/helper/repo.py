@@ -341,6 +341,12 @@ class VCS(object):
             )
 
         def print_output(output):
+            """
+            Print text to stdout.
+
+            Args:
+                output: (todo): write your description
+            """
             print(ensure_text(output))
 
         try:
@@ -418,6 +424,14 @@ class VCS(object):
             )
 
     def _call_subprocess(self, func, argv, **kwargs):
+        """
+        Call a subprocess in a subprocess.
+
+        Args:
+            self: (todo): write your description
+            func: (callable): write your description
+            argv: (list): write your description
+        """
         # type: (Callable[..., RType], Iterable[Text], dict) ->  RType
         cwd = kwargs.pop("cwd", None)
         cwd = cwd and str(cwd)
@@ -436,6 +450,13 @@ class VCS(object):
         return command.call_subprocess(func, **kwargs)
 
     def _get_vcs_command(self, argv):
+        """
+        Returns the command object for the given command.
+
+        Args:
+            self: (todo): write your description
+            argv: (list): write your description
+        """
         # type: (Iterable[PathLike]) -> Argv
         return Argv(self.executable_name, *argv)
 
@@ -498,9 +519,21 @@ class Git(VCS):
 
     @staticmethod
     def remote_branch_name(branch):
+        """
+        Return the name of a branch.
+
+        Args:
+            branch: (todo): write your description
+        """
         return "origin/{}".format(branch)
 
     def executable_not_found_error_help(self):
+        """
+        Return the help message for the executable.
+
+        Args:
+            self: (todo): write your description
+        """
         return 'Cannot find "{}" executable. {}'.format(
             self.executable_name,
             select_for_platform(
@@ -514,6 +547,12 @@ class Git(VCS):
         )
 
     def pull(self):
+        """
+        Pull the contents from the working copy.
+
+        Args:
+            self: (todo): write your description
+        """
         self.call("fetch", "--all", "--recurse-submodules", cwd=self.location)
 
     def checkout(self):  # type: () -> None
@@ -543,6 +582,12 @@ class Hg(VCS):
     patch_base = ("import", "--no-commit")
 
     def executable_not_found_error_help(self):
+        """
+        Return the help message for the executable.
+
+        Args:
+            self: (todo): write your description
+        """
         return 'Cannot find "{}" executable. {}'.format(
             self.executable_name,
             select_for_platform(
@@ -556,6 +601,12 @@ class Hg(VCS):
         )
 
     def pull(self):
+        """
+        Pulls a pull the git repository.
+
+        Args:
+            self: (todo): write your description
+        """
         self.call(
             "pull",
             self.url_with_auth,

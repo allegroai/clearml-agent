@@ -9,6 +9,12 @@ import os.path
 from setuptools import setup, find_packages
 
 def read_text(filepath):
+    """
+    Read text from file
+
+    Args:
+        filepath: (str): write your description
+    """
     with open(filepath, "r") as f:
         return f.read()
 
@@ -18,6 +24,12 @@ long_description = read_text(os.path.join(here, 'README.md'))
 
 
 def read_version_string(version_file):
+    """
+    Read the version string from version string.
+
+    Args:
+        version_file: (str): write your description
+    """
     for line in read_text(version_file).splitlines():
         if line.startswith('__version__'):
             delim = '"' if '"' in line else "'"

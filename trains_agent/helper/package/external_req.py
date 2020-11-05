@@ -12,11 +12,24 @@ class ExternalRequirements(SimpleSubstitution):
     name = "external_link"
 
     def __init__(self, *args, **kwargs):
+        """
+        Handles post requests.
+
+        Args:
+            self: (todo): write your description
+        """
         super(ExternalRequirements, self).__init__(*args, **kwargs)
         self.post_install_req = []
         self.post_install_req_lookup = OrderedDict()
 
     def match(self, req):
+        """
+        Return true if a pip requirement exists.
+
+        Args:
+            self: (todo): write your description
+            req: (todo): write your description
+        """
         # match both editable or code or unparsed
         if not (not req.name or req.req and (req.req.editable or req.req.vcs)):
             return False
@@ -27,6 +40,13 @@ class ExternalRequirements(SimpleSubstitution):
         return True
 
     def post_install(self, session):
+        """
+        Post install install.
+
+        Args:
+            self: (todo): write your description
+            session: (todo): write your description
+        """
         post_install_req = self.post_install_req
         self.post_install_req = []
         for req in post_install_req:
@@ -90,6 +110,13 @@ class ExternalRequirements(SimpleSubstitution):
         return Text('')
 
     def replace_back(self, list_of_requirements):
+        """
+        Given a list of requirements. requirements.
+
+        Args:
+            self: (todo): write your description
+            list_of_requirements: (list): write your description
+        """
         if not list_of_requirements:
             return list_of_requirements
 

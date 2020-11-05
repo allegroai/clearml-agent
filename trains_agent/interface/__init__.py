@@ -12,6 +12,11 @@ SERVICES = [
 
 
 def get_parser():
+    """
+    Return a parser for argparse.
+
+    Args:
+    """
     top_parser = Parser(
         prog=PROGRAM_NAME,
         add_help=False,

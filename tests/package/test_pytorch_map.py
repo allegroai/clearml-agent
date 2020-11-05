@@ -30,4 +30,10 @@ wheels = [
 
 @pytest.mark.parametrize('wheel', wheels, ids=[','.join(map(str, attr.astuple(wheel))) for wheel in wheels])
 def test_map(wheel):
+    """
+    Map a wheel to a wheel.
+
+    Args:
+        wheel: (todo): write your description
+    """
     assert requests.head(wheel.url).ok

@@ -14,6 +14,12 @@ class Events(ServiceCommandSection):
     max_event_size = 64 * 1024
 
     def __init__(self, *args, **kwargs):
+        """
+        Initialize the object.
+
+        Args:
+            self: (todo): write your description
+        """
         super(Events, self).__init__(*args, **kwargs)
 
     @property
@@ -22,7 +28,20 @@ class Events(ServiceCommandSection):
         return 'events'
 
     def send_events(self, list_events):
+        """
+        Send a list of the events
+
+        Args:
+            self: (todo): write your description
+            list_events: (list): write your description
+        """
         def send_packet(jsonlines):
+            """
+            Send a json - rpc packet.
+
+            Args:
+                jsonlines: (str): write your description
+            """
             if not jsonlines:
                 return 0
             num_lines = len(jsonlines)
@@ -58,6 +77,16 @@ class Events(ServiceCommandSection):
         return sent_events
 
     def send_log_events(self, worker_id, task_id, lines, level='DEBUG'):
+        """
+        Send log events to the log
+
+        Args:
+            self: (todo): write your description
+            worker_id: (int): write your description
+            task_id: (str): write your description
+            lines: (todo): write your description
+            level: (str): write your description
+        """
         log_events = []
         base_timestamp = int(time.time() * 1000)
         base_log_items = {
@@ -68,6 +97,12 @@ class Events(ServiceCommandSection):
         }
 
         def get_event(c):
+            """
+            Get event log message.
+
+            Args:
+                c: (str): write your description
+            """
             d = base_log_items.copy()
             d.update(msg=msg, timestamp=base_timestamp + c)
             return d

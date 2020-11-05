@@ -32,21 +32,49 @@ package_normalize = partial(re.compile(r"""\[version=['"](.*)['"]\]""").sub, r"\
 
 
 def package_set(packages):
+    """
+    Return a set of packages.
+
+    Args:
+        packages: (str): write your description
+    """
     return set(map(package_normalize, packages))
 
 
 def _package_diff(path, packages):
+    """
+    Reads ::
+
+    Args:
+        path: (str): write your description
+        packages: (str): write your description
+    """
     # type: (Union[Path, Text], Iterable[Text]) -> Set[Text]
     return package_set(Path(path).read_text().splitlines()) - package_set(packages)
 
 
 class CondaPip(VirtualenvPip):
     def __init__(self, source=None, *args, **kwargs):
+        """
+        Initialize a module.
+
+        Args:
+            self: (todo): write your description
+            source: (str): write your description
+        """
         super(CondaPip, self).__init__(*args, interpreter=Path(kwargs.get('path'), "python.exe")
                                        if is_windows_platform() and kwargs.get('path') else None, **kwargs)
         self.source = source
 
     def run_with_env(self, command, output=False, **kwargs):
+        """
+        Runs a command in a command.
+
+        Args:
+            self: (todo): write your description
+            command: (list): write your description
+            output: (todo): write your description
+        """
         if not self.source:
             return super(CondaPip, self).run_with_env(command, output=output, **kwargs)
         command = CommandSequence(self.source, Argv("pip", *command))
@@ -116,6 +144,12 @@ class CondaAPI(PackageManager):
 
     @staticmethod
     def get_conda_version(output):
+        """
+        Returns the conda version.
+
+        Args:
+            output: (str): write your description
+        """
         match = re.search(r"(\d+\.){0,2}\d+", output)
         if not match:
             raise CommandFailedError("Unidentified conda version string:", output)
@@ -123,10 +157,22 @@ class CondaAPI(PackageManager):
 
     @property
     def bin(self):
+        """
+        Return the bin.
+
+        Args:
+            self: (todo): write your description
+        """
         return self.pip.bin
 
     # noinspection SpellCheckingInspection
     def upgrade_pip(self):
+        """
+        Upgrade pip packages
+
+        Args:
+            self: (todo): write your description
+        """
         # do not change pip version if pre built environement is used
         if self.env_read_only:
             print('Conda environment in read-only mode, skipping pip upgrade.')
@@ -241,6 +287,12 @@ class CondaAPI(PackageManager):
         self._install("--file", path)
 
     def _install(self, *args):
+        """
+        Install a setuptools.
+
+        Args:
+            self: (todo): write your description
+        """
         # type: (*PathLike) -> ()
         # if we are in read only mode, do not install anything
         if self.env_read_only:
@@ -269,10 +321,24 @@ class CondaAPI(PackageManager):
         return pips
 
     def install_packages(self, *packages):
+        """
+        Install packages.
+
+        Args:
+            self: (todo): write your description
+            packages: (str): write your description
+        """
         # type: (*Text) -> ()
         return self._install(*packages)
 
     def uninstall_packages(self, *packages):
+        """
+        Uninstall packages.
+
+        Args:
+            self: (todo): write your description
+            packages: (str): write your description
+        """
         # if we are in read only mode, do not uninstall anything
         if self.env_read_only:
             print('Conda environment in read-only mode, skipping package uninstalling: {}'.format(packages))
@@ -296,6 +362,13 @@ class CondaAPI(PackageManager):
             self.pip.install_from_file(reqs)
 
     def freeze(self, freeze_full_environment=False):
+        """
+        Freeze pip packages.
+
+        Args:
+            self: (todo): write your description
+            freeze_full_environment: (bool): write your description
+        """
         requirements = self.pip.freeze()
         req_lines = []
         conda_lines = []
@@ -354,6 +427,14 @@ class CondaAPI(PackageManager):
         return requirements
 
     def _load_conda_full_env(self, conda_env_dict, requirements):
+        """
+        Load conda environment variables.
+
+        Args:
+            self: (todo): write your description
+            conda_env_dict: (dict): write your description
+            requirements: (str): write your description
+        """
         # noinspection PyBroadException
         try:
             cuda_version = int(self.session.config.get('agent.cuda_version', 0))
@@ -432,6 +513,13 @@ class CondaAPI(PackageManager):
         self.requirements_manager.post_install(self.session)
 
     def load_requirements(self, requirements):
+        """
+        Load requirements from disk requirements file.
+
+        Args:
+            self: (todo): write your description
+            requirements: (dict): write your description
+        """
         # if we are in read only mode, do not uninstall anything
         if self.env_read_only:
             print('Conda environment in read-only mode, skipping requirements installation.')
@@ -565,6 +653,12 @@ class CondaAPI(PackageManager):
         while reqs:
             # notice, we give conda more freedom in version selection, to help it choose best combination
             def clean_ver(ar):
+                """
+                Clean the ars of the ar
+
+                Args:
+                    ar: (str): write your description
+                """
                 if not ar.specs:
                     return ar.tostr()
                 ar.specs = [(ar.specs[0][0], ar.specs[0][1] + '.0' if '.' not in ar.specs[0][1] else ar.specs[0][1])]
@@ -613,6 +707,13 @@ class CondaAPI(PackageManager):
         return True
 
     def _parse_conda_result_bad_packges(self, result_dict):
+        """
+        Parse the yam output.
+
+        Args:
+            self: (todo): write your description
+            result_dict: (dict): write your description
+        """
         if not result_dict:
             return None
 
@@ -642,6 +743,12 @@ class CondaAPI(PackageManager):
         :return: JSON output or text output
         """
         def escape_ansi(line):
+            """
+            Escape special characters.
+
+            Args:
+                line: (str): write your description
+            """
             ansi_escape = re.compile(r'(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]')
             return ansi_escape.sub('', line)
 
@@ -670,6 +777,13 @@ class CondaAPI(PackageManager):
         return result
 
     def get_python_command(self, extra=()):
+        """
+        Return a command on the given the command.
+
+        Args:
+            self: (todo): write your description
+            extra: (str): write your description
+        """
         return CommandSequence(self.source, self.pip.get_python_command(extra=extra))
 
 

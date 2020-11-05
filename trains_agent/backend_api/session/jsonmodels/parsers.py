@@ -36,6 +36,13 @@ def to_json_schema(cls):
 
 
 def build_json_schema(value, parent_builder=None):
+    """
+    Builds a marshmallow.
+
+    Args:
+        value: (str): write your description
+        parent_builder: (str): write your description
+    """
     from .models import Base
 
     cls = value if inspect.isclass(value) else value.__class__
@@ -46,6 +53,13 @@ def build_json_schema(value, parent_builder=None):
 
 
 def build_json_schema_object(cls, parent_builder=None):
+    """
+    Build a marshmallow schema object. schema.
+
+    Args:
+        cls: (todo): write your description
+        parent_builder: (todo): write your description
+    """
     builder = builders.ObjectBuilder(cls, parent_builder)
     if builder.count_type(builder.type) > 1:
         return builder
@@ -61,6 +75,13 @@ def build_json_schema_object(cls, parent_builder=None):
 
 
 def _parse_list(field, parent_builder):
+    """
+    Parse a query from a query builder.
+
+    Args:
+        field: (str): write your description
+        parent_builder: (todo): write your description
+    """
     builder = builders.ListBuilder(
         parent_builder, field.nullable, default=field._default)
     for type in field.items_types:
@@ -69,6 +90,13 @@ def _parse_list(field, parent_builder):
 
 
 def _parse_embedded(field, parent_builder):
+    """
+    Parse an element from an element. dom.
+
+    Args:
+        field: (str): write your description
+        parent_builder: (todo): write your description
+    """
     builder = builders.EmbeddedBuilder(
         parent_builder, field.nullable, default=field._default)
     for type in field.types:
@@ -77,11 +105,24 @@ def _parse_embedded(field, parent_builder):
 
 
 def build_json_schema_primitive(cls, parent_builder):
+    """
+    Build a marshmallow.
+
+    Args:
+        cls: (todo): write your description
+        parent_builder: (str): write your description
+    """
     builder = builders.PrimitiveBuilder(cls, parent_builder)
     return builder
 
 
 def _create_primitive_field_schema(field):
+    """
+    Create a primitive schema for a field.
+
+    Args:
+        field: (todo): write your description
+    """
     if isinstance(field, fields.StringField):
         obj_type = 'string'
     elif isinstance(field, fields.IntField):

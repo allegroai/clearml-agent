@@ -15,16 +15,34 @@ ConverterType = TypeVar("ConverterType", bound=Callable[[Any], Any])
 
 
 def base64_to_text(value):
+    """
+    Convert base64 to base64.
+
+    Args:
+        value: (str): write your description
+    """
     # type: (Any) -> Text
     return base64.b64decode(value).decode("utf-8")
 
 
 def text_to_bool(value):
+    """
+    Convert a string to boolean.
+
+    Args:
+        value: (todo): write your description
+    """
     # type: (Text) -> bool
     return bool(strtobool(value))
 
 
 def any_to_bool(value):
+    """
+    Convert value to bool.
+
+    Args:
+        value: (todo): write your description
+    """
     # type: (Optional[Union[int, float, Text]]) -> bool
     if isinstance(value, six.text_type):
         return text_to_bool(value)
@@ -43,6 +61,12 @@ def or_(*converters, **kwargs):
     exceptions = kwargs.get("exceptions", (ValueError, TypeError))
 
     def wrapper(value):
+        """
+        Converts a callable.
+
+        Args:
+            value: (todo): write your description
+        """
         for converter in converters:
             try:
                 return converter(value)

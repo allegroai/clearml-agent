@@ -10,12 +10,34 @@ class ModelCollection(list):
     """
 
     def __init__(self, field):
+        """
+        Initialize the field
+
+        Args:
+            self: (todo): write your description
+            field: (todo): write your description
+        """
         self.field = field
 
     def append(self, value):
+        """
+        Add a single field to the list.
+
+        Args:
+            self: (todo): write your description
+            value: (todo): write your description
+        """
         self.field.validate_single_value(value)
         super(ModelCollection, self).append(value)
 
     def __setitem__(self, key, value):
+        """
+        Set the value of the field.
+
+        Args:
+            self: (todo): write your description
+            key: (str): write your description
+            value: (str): write your description
+        """
         self.field.validate_single_value(value)
         super(ModelCollection, self).__setitem__(key, value)

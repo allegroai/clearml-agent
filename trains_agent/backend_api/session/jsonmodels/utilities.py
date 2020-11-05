@@ -19,6 +19,12 @@ PythonRegex = namedtuple('PythonRegex', ['regex', 'flags'])
 
 
 def _normalize_string_type(value):
+    """
+    Normalizes a string.
+
+    Args:
+        value: (str): write your description
+    """
     if isinstance(value, six.string_types):
         return six.text_type(value)
     else:
@@ -26,6 +32,13 @@ def _normalize_string_type(value):
 
 
 def _compare_dicts(one, two):
+    """
+    Compare two dicts.
+
+    Args:
+        one: (dict): write your description
+        two: (todo): write your description
+    """
     if len(one) != len(two):
         return False
 
@@ -39,6 +52,13 @@ def _compare_dicts(one, two):
 
 
 def _compare_lists(one, two):
+    """
+    Compare two lists.
+
+    Args:
+        one: (str): write your description
+        two: (todo): write your description
+    """
     if len(one) != len(two):
         return False
 
@@ -52,6 +72,13 @@ def _compare_lists(one, two):
 
 
 def _assert_same_types(one, two):
+    """
+    Asserts that two types are the same.
+
+    Args:
+        one: (todo): write your description
+        two: (todo): write your description
+    """
     if not isinstance(one, type(two)) or not isinstance(two, type(one)):
         raise RuntimeError('Types mismatch! "{type1}" and "{type2}".'.format(
             type1=type(one).__name__, type2=type(two).__name__))

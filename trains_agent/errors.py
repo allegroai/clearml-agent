@@ -44,6 +44,12 @@ class APIError(ClientAPIError, ValueError):
         super(APIError, self).__init__(response, extra_info=extra_info)
 
     def format_traceback(self):
+        """
+        Return the traceback as a string.
+
+        Args:
+            self: (todo): write your description
+        """
         if self.code != INTERNAL_SERVER_ERROR:
             return ''
         traceback = self.get_traceback()
@@ -56,6 +62,13 @@ class APIError(ClientAPIError, ValueError):
 class CommandFailedError(Exception):
 
     def __init__(self, message=None, *args, **kwargs):
+        """
+        Initialize a message.
+
+        Args:
+            self: (todo): write your description
+            message: (str): write your description
+        """
         super(CommandFailedError, self).__init__(message, *args, **kwargs)
         self.message = message
 
@@ -78,9 +91,22 @@ class Sigterm(BaseException):
 @six.python_2_unicode_compatible
 class MissingPackageError(CommandFailedError):
     def __init__(self, name):
+        """
+        Initialize a new name.
+
+        Args:
+            self: (todo): write your description
+            name: (str): write your description
+        """
         super(MissingPackageError, self).__init__(name)
         self.name = name
 
     def __str__(self):
+        """
+        Return a string representation of this object.
+
+        Args:
+            self: (todo): write your description
+        """
         return '{self.__class__.__name__}: ' \
                '"{self.name}" package is required. Please run "pip install {self.name}"'.format(self=self)

@@ -8,11 +8,26 @@ from .errors import ValidationError
 class JsonmodelMeta(type):
 
     def __new__(cls, name, bases, attributes):
+        """
+        Creates a new model class : class : field
+
+        Args:
+            cls: (todo): write your description
+            name: (str): write your description
+            bases: (todo): write your description
+            attributes: (dict): write your description
+        """
         cls.validate_fields(attributes)
         return super(cls, cls).__new__(cls, name, bases, attributes)
 
     @staticmethod
     def validate_fields(attributes):
+        """
+        Validate the fields.
+
+        Args:
+            attributes: (dict): write your description
+        """
         fields = {
             key: value for key, value in attributes.items()
             if isinstance(value, BaseField)
@@ -30,6 +45,12 @@ class Base(six.with_metaclass(JsonmodelMeta, object)):
     """Base class for all models."""
 
     def __init__(self, **kwargs):
+        """
+        Initialize the cache.
+
+        Args:
+            self: (todo): write your description
+        """
         self._cache_key = _CacheKey()
         self.populate(**kwargs)
 
@@ -98,6 +119,12 @@ class Base(six.with_metaclass(JsonmodelMeta, object)):
         return parsers.to_json_schema(cls)
 
     def __repr__(self):
+        """
+        Return a human - readable representation of this object.
+
+        Args:
+            self: (todo): write your description
+        """
         attrs = {}
         for name, _ in self:
             try:
@@ -115,9 +142,23 @@ class Base(six.with_metaclass(JsonmodelMeta, object)):
         )
 
     def __str__(self):
+        """
+        Return a string representation of this object.
+
+        Args:
+            self: (todo): write your description
+        """
         return '{name} object'.format(name=self.__class__.__name__)
 
     def __setattr__(self, name, value):
+        """
+        Set the value of the field.
+
+        Args:
+            self: (todo): write your description
+            name: (str): write your description
+            value: (todo): write your description
+        """
         try:
             return super(Base, self).__setattr__(name, value)
         except ValidationError as error:
@@ -127,6 +168,13 @@ class Base(six.with_metaclass(JsonmodelMeta, object)):
             )
 
     def __eq__(self, other):
+        """
+        Return true if the two fields are equal.
+
+        Args:
+            self: (todo): write your description
+            other: (todo): write your description
+        """
         if type(other) is not type(self):
             return False
 
@@ -147,6 +195,13 @@ class Base(six.with_metaclass(JsonmodelMeta, object)):
         return True
 
     def __ne__(self, other):
+        """
+        Returns true if self is a and false otherwise.
+
+        Args:
+            self: (todo): write your description
+            other: (todo): write your description
+        """
         return not (self == other)
 
 

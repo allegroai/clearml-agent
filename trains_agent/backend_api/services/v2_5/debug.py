@@ -116,15 +116,35 @@ class PingResponse(Response):
     }
     def __init__(
             self, msg=None, **kwargs):
+        """
+        Initialize the message.
+
+        Args:
+            self: (todo): write your description
+            msg: (str): write your description
+        """
         super(PingResponse, self).__init__(**kwargs)
         self.msg = msg
 
     @schema_property('msg')
     def msg(self):
+        """
+        Returns the message as a string.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._property_msg
 
     @msg.setter
     def msg(self, value):
+        """
+        Returns the message.
+
+        Args:
+            self: (todo): write your description
+            value: (todo): write your description
+        """
         if value is None:
             self._property_msg = None
             return
@@ -168,15 +188,35 @@ class PingAuthResponse(Response):
     }
     def __init__(
             self, msg=None, **kwargs):
+        """
+        Initialize the message.
+
+        Args:
+            self: (todo): write your description
+            msg: (str): write your description
+        """
         super(PingAuthResponse, self).__init__(**kwargs)
         self.msg = msg
 
     @schema_property('msg')
     def msg(self):
+        """
+        Returns the message as a string.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._property_msg
 
     @msg.setter
     def msg(self, value):
+        """
+        Returns the message.
+
+        Args:
+            self: (todo): write your description
+            value: (todo): write your description
+        """
         if value is None:
             self._property_msg = None
             return

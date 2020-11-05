@@ -139,6 +139,14 @@ class K8sIntegration(Worker):
                 self.trains_conf_file = f.read()
 
     def _set_task_user_properties(self, task_id: str, **properties: str):
+        """
+        Set properties of a user.
+
+        Args:
+            self: (todo): write your description
+            task_id: (str): write your description
+            properties: (dict): write your description
+        """
         if self._edit_hyperparams_support is not True:
             # either not supported or never tested
             if self._edit_hyperparams_support == self._session.api_version:
@@ -169,6 +177,16 @@ class K8sIntegration(Worker):
                 self._edit_hyperparams_support = self._session.api_version
 
     def run_one_task(self, queue: Text, task_id: Text, worker_args=None, **_):
+        """
+        Run one task
+
+        Args:
+            self: (todo): write your description
+            queue: (todo): write your description
+            task_id: (str): write your description
+            worker_args: (todo): write your description
+            _: (todo): write your description
+        """
         print('Pulling task {} launching on kubernetes cluster'.format(task_id))
         task_data = self._session.api_client.tasks.get_all(id=[task_id])[0]
 
@@ -274,6 +292,13 @@ class K8sIntegration(Worker):
             )
 
     def _parse_docker_args(self, docker_args):
+        """
+        Parse command line arguments.
+
+        Args:
+            self: (todo): write your description
+            docker_args: (list): write your description
+        """
         # type: (list) -> dict
         kube_args = {'env': []}
         while docker_args:
@@ -287,6 +312,18 @@ class K8sIntegration(Worker):
         return kube_args
 
     def _kubectl_apply(self, create_trains_conf, docker_image, docker_args, labels, queue, task_id):
+        """
+        Apply kubectl container.
+
+        Args:
+            self: (todo): write your description
+            create_trains_conf: (bool): write your description
+            docker_image: (todo): write your description
+            docker_args: (dict): write your description
+            labels: (todo): write your description
+            queue: (todo): write your description
+            task_id: (str): write your description
+        """
         template = deepcopy(self.template_dict)
         template.setdefault('apiVersion', 'v1')
         template['kind'] = 'Pod'
@@ -338,6 +375,18 @@ class K8sIntegration(Worker):
         return output, error
 
     def _kubectl_run(self, create_trains_conf, docker_image, labels, queue, task_data, task_id):
+        """
+        Run kubectl container
+
+        Args:
+            self: (todo): write your description
+            create_trains_conf: (bool): write your description
+            docker_image: (todo): write your description
+            labels: (list): write your description
+            queue: (todo): write your description
+            task_data: (str): write your description
+            task_id: (str): write your description
+        """
         if callable(self.kubectl_cmd):
             kubectl_cmd = self.kubectl_cmd(task_id, docker_image, queue, task_data)
         else:

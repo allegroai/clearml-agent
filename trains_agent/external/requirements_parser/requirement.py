@@ -60,6 +60,13 @@ class Requirement(object):
     """
 
     def __init__(self, line):
+        """
+        Initialize the database.
+
+        Args:
+            self: (todo): write your description
+            line: (str): write your description
+        """
         # Do not call this private method
         self.line = line
         self.editable = False
@@ -77,12 +84,31 @@ class Requirement(object):
         self.specs = []
 
     def __repr__(self):
+        """
+        Return a human - readable representation of this object.
+
+        Args:
+            self: (todo): write your description
+        """
         return '<Requirement: "{0}">'.format(self.line)
 
     def __getitem__(self, key):
+        """
+        Get an item from the cache.
+
+        Args:
+            self: (todo): write your description
+            key: (str): write your description
+        """
         return getattr(self, key)
 
     def keys(self):
+        """
+        Return a list of all keys.
+
+        Args:
+            self: (todo): write your description
+        """
         return self.__dict__.keys()
 
     @classmethod

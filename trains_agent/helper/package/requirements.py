@@ -40,16 +40,36 @@ class MarkerRequirement(object):
     pip_new_version = True
 
     def __init__(self, req):  # type: (Requirement) -> None
+        """
+        Initialize a request
+
+        Args:
+            self: (todo): write your description
+            req: (str): write your description
+        """
         self.req = req
 
     @property
     def marker(self):
+        """
+        Returns a marker as a string.
+
+        Args:
+            self: (todo): write your description
+        """
         match = re.search(r';\s*(.*)', self.req.line)
         if match:
             return match.group(1)
         return None
 
     def tostr(self, markers=True):
+        """
+        Generate a string representation of this pipette.
+
+        Args:
+            self: (todo): write your description
+            markers: (str): write your description
+        """
         if not self.uri:
             parts = [self.name or self.line]
 
@@ -82,14 +102,34 @@ class MarkerRequirement(object):
         return ''.join(parts)
 
     def clone(self):
+        """
+        Returns a copy of this request.
+
+        Args:
+            self: (todo): write your description
+        """
         return MarkerRequirement(copy(self.req))
 
     __str__ = tostr
 
     def __repr__(self):
+        """
+        Return a representation of this object.
+
+        Args:
+            self: (todo): write your description
+        """
         return '{self.__class__.__name__}[{self}]'.format(self=self)
 
     def format_specs(self, num_parts=None, max_num_parts=None):
+        """
+        Formats a formatted version string.
+
+        Args:
+            self: (todo): write your description
+            num_parts: (int): write your description
+            max_num_parts: (int): write your description
+        """
         max_num_parts = max_num_parts or num_parts
         if max_num_parts is None or not self.specs:
             return ','.join(starmap(operator.add, self.specs))
@@ -104,21 +144,61 @@ class MarkerRequirement(object):
         return op+'.'.join(version)
 
     def __getattr__(self, item):
+        """
+        Return the value from the cache
+
+        Args:
+            self: (todo): write your description
+            item: (str): write your description
+        """
         return getattr(self.req, item)
 
     @property
     def specs(self):  # type: () -> List[Tuple[Text, Text]]
+        """
+        A list of all specs.
+
+        Args:
+            self: (todo): write your description
+        """
         return self.req.specs
 
     @specs.setter
     def specs(self, value):  # type: (List[Tuple[Text, Text]]) -> None
+        """
+        Set the requirements.
+
+        Args:
+            self: (todo): write your description
+            value: (todo): write your description
+        """
         self.req.specs = value
 
     def fix_specs(self):
+        """
+        Decorator functions.
+
+        Args:
+            self: (todo): write your description
+        """
         def solve_by(func, op_is, specs):
+            """
+            Solve an op_by_version ( op_isis ).
+
+            Args:
+                func: (callable): write your description
+                op_is: (todo): write your description
+                specs: (str): write your description
+            """
             return func([(op, version) for op, version in specs if op == op_is])
 
         def solve_equal(specs):
+            """
+            Solve a list of the given set of equal atoms.
+
+            Args:
+                specs: (float): write your description
+            """
             if len(set(version for _, version in self.specs)) > 1:
                 raise SpecsResolutionError('more than one "==" spec: {}'.format(specs))
             return specs
@@ -249,6 +329,13 @@ class SimpleVersion:
             letter,  # type: str
             number,  # type: Union[str, bytes, SupportsInt]
     ):
+        """
+        Parse a letter letter.
+
+        Args:
+            letter: (str): write your description
+            number: (int): write your description
+        """
         # type: (...) -> Optional[Tuple[str, int]]
 
         if letter:
@@ -284,6 +371,14 @@ class SimpleVersion:
 
     @staticmethod
     def _get_match_key(match, num_parts, ignore_sub_versions):
+        """
+        Parse a match key.
+
+        Args:
+            match: (todo): write your description
+            num_parts: (int): write your description
+            ignore_sub_versions: (bool): write your description
+        """
         if ignore_sub_versions:
             return (0, tuple(int(i) for i in match.group("release").split(".")[:num_parts]),
                     (), (), (), (),)
@@ -318,6 +413,13 @@ class RequirementSubstitution(object):
     _pip_extra_index_url = PIP_EXTRA_INDICES
 
     def __init__(self, session):
+        """
+        Initialize the session.
+
+        Args:
+            self: (todo): write your description
+            session: (todo): write your description
+        """
         # type: (Session) -> ()
         self._session = session
         self.config = session.config  # type: ConfigTree
@@ -339,10 +441,24 @@ class RequirementSubstitution(object):
         pass
 
     def post_install(self, session):
+        """
+        Installs the install.
+
+        Args:
+            self: (todo): write your description
+            session: (todo): write your description
+        """
         pass
 
     @classmethod
     def get_pip_version(cls, package):
+        """
+        Returns the pip version. pip.
+
+        Args:
+            cls: (callable): write your description
+            package: (str): write your description
+        """
         output = Argv(
             'pip',
             'search',
@@ -354,10 +470,22 @@ class RequirementSubstitution(object):
 
     @property
     def cuda_version(self):
+        """
+        The cuda cuda version.
+
+        Args:
+            self: (todo): write your description
+        """
         return self.config['agent.cuda_version']
 
     @property
     def cudnn_version(self):
+        """
+        Return the cudnn version.
+
+        Args:
+            self: (todo): write your description
+        """
         return self.config['agent.cudnn_version']
 
 
@@ -366,9 +494,22 @@ class SimpleSubstitution(RequirementSubstitution):
     @property
     @abstractmethod
     def name(self):
+        """
+        Returns the name.
+
+        Args:
+            self: (todo): write your description
+        """
         pass
 
     def match(self, req):  # type: (MarkerRequirement) -> bool
+        """
+        Return true if this uri matches the given request.
+
+        Args:
+            self: (todo): write your description
+            req: (todo): write your description
+        """
         return (self.name == req.name or (
             req.uri and
             re.match(r'https?://', req.uri) and
@@ -408,6 +549,13 @@ class SimpleSubstitution(RequirementSubstitution):
 class CudaSensitiveSubstitution(SimpleSubstitution):
 
     def match(self, req):  # type: (MarkerRequirement) -> bool
+        """
+        Match the cuda version of this request.
+
+        Args:
+            self: (todo): write your description
+            req: (todo): write your description
+        """
         return self.cuda_version and self.cudnn_version and \
             super(CudaSensitiveSubstitution, self).match(req)
 
@@ -419,6 +567,14 @@ class CudaNotFound(Exception):
 class RequirementsManager(object):
 
     def __init__(self, session, base_interpreter=None):
+        """
+        Initialize the session.
+
+        Args:
+            self: (todo): write your description
+            session: (todo): write your description
+            base_interpreter: (int): write your description
+        """
         # type: (Session, PathLike) -> ()
         self._session = session
         self.config = deepcopy(session.config)  # type: ConfigTree
@@ -440,9 +596,23 @@ class RequirementsManager(object):
                                                  cache_dir=pip_cache_dir.as_posix())
 
     def register(self, cls):  # type: (Type[RequirementSubstitution]) -> None
+        """
+        Register a new handler.
+
+        Args:
+            self: (todo): write your description
+            cls: (todo): write your description
+        """
         self.handlers.append(cls(self._session))
 
     def _replace_one(self, req):  # type: (MarkerRequirement) -> Optional[Text]
+        """
+        Replace one match.
+
+        Args:
+            self: (todo): write your description
+            req: (todo): write your description
+        """
         match = re.search(r';\s*(.*)', Text(req))
         if match:
             req.markers = match.group(1).split(',')
@@ -454,7 +624,20 @@ class RequirementsManager(object):
         return None
 
     def replace(self, requirements):  # type: (Text) -> Text
+        """
+        Replace a requirements in - placeholders.
+
+        Args:
+            self: (str): write your description
+            requirements: (str): write your description
+        """
         def safe_parse(req_str):
+            """
+            Convert a req request.
+
+            Args:
+                req_str: (str): write your description
+            """
             try:
                 return next(parse(req_str))
             except Exception as ex:
@@ -472,6 +655,13 @@ class RequirementsManager(object):
             return requirements
 
         def replace_one(i, req):
+            """
+            Replace one one record.
+
+            Args:
+                i: (array): write your description
+                req: (todo): write your description
+            """
             # type: (int, MarkerRequirement) -> Optional[Text]
             try:
                 return self._replace_one(req)
@@ -495,6 +685,13 @@ class RequirementsManager(object):
         return join_lines(result)
 
     def post_install(self, session):
+        """
+        Installs install handlers : param session : return :
+
+        Args:
+            self: (todo): write your description
+            session: (todo): write your description
+        """
         for h in self.handlers:
             try:
                 h.post_install(session)
@@ -503,6 +700,13 @@ class RequirementsManager(object):
                 raise
 
     def replace_back(self, requirements):
+        """
+        Replace all requirements with the given requirements.
+
+        Args:
+            self: (todo): write your description
+            requirements: (str): write your description
+        """
         if self.translator:
             requirements = self.translator.replace_back(requirements)
 
@@ -515,6 +719,12 @@ class RequirementsManager(object):
 
     @staticmethod
     def get_cuda_version(config):  # type: (ConfigTree) -> (Text, Text)
+        """
+        Determine version of the operating system.
+
+        Args:
+            config: (todo): write your description
+        """
         # we assume os.environ already updated the config['agent.cuda_version'] & config['agent.cudnn_version']
         cuda_version = config['agent.cuda_version']
         cudnn_version = config['agent.cudnn_version']

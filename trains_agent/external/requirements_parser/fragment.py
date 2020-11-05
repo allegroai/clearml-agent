@@ -35,6 +35,12 @@ def get_hash_info(d):
 
 
 def parse_extras_require(egg):
+    """
+    Parse an egg string.
+
+    Args:
+        egg: (todo): write your description
+    """
     if egg is not None:
         match = extras_require_search(egg)
         if match is not None:

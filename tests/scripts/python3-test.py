@@ -1,4 +1,9 @@
 def main():
+    """
+    Main function.
+
+    Args:
+    """
     if not (1 / 2 == 0.5):
         raise ValueError('failure')
     print('success')

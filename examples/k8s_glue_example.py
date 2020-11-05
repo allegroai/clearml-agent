@@ -9,6 +9,11 @@ from trains_agent.glue.k8s import K8sIntegration
 
 
 def parse_args():
+    """
+    Parse command line arguments.
+
+    Args:
+    """
     parser = ArgumentParser()
     parser.add_argument(
         "--queue", type=str, help="Queue to pull tasks from"
@@ -43,11 +48,22 @@ def parse_args():
 
 
 def main():
+    """
+    Main function.
+
+    Args:
+    """
     args = parse_args()
 
     user_props_cb = None
     if args.ports_mode and args.base_port:
         def user_props_cb(pod_number):
+            """
+            Check if a dictionary.
+
+            Args:
+                pod_number: (int): write your description
+            """
             return {"k8s-pod-port": args.base_port + pod_number}
 
     k8s = K8sIntegration(
