@@ -30,6 +30,12 @@ from trains_agent.helper.package.translator import RequirementsTranslator
     ),
 )
 def test_supported(line):
+    """
+    Check if a line is supported.
+
+    Args:
+        line: (str): write your description
+    """
     assert "://" in line
     assert RequirementsTranslator.is_supported_link(line)
 
@@ -73,4 +79,10 @@ def test_supported(line):
     ],
 )
 def test_not_supported(line):
+    """
+    Checks if the given line is supported.
+
+    Args:
+        line: (str): write your description
+    """
     assert not RequirementsTranslator.is_supported_link(line)

@@ -125,6 +125,12 @@ class Regex(object):
                 ))
 
     def _calculate_flags(self):
+        """
+        Calculate the flags
+
+        Args:
+            self: (todo): write your description
+        """
         return reduce(lambda x, y: x | y, self.flags, 0)
 
     def modify_schema(self, field_schema):
@@ -194,9 +200,23 @@ class Enum(object):
         self.choices = list(choices)
 
     def validate(self, value):
+        """
+        Validate value
+
+        Args:
+            self: (todo): write your description
+            value: (todo): write your description
+        """
         if value not in self.choices:
             tpl = "Value '{val}' is not a valid choice."
             raise ValidationError(tpl.format(val=value))
 
     def modify_schema(self, field_schema):
+        """
+        Modify the field schema.
+
+        Args:
+            self: (todo): write your description
+            field_schema: (todo): write your description
+        """
         field_schema['enum'] = self.choices

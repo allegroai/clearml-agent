@@ -2,6 +2,13 @@ from typing import Callable, Dict, Any
 
 
 def filter_keys(filter_, dct):  # type: (Callable[[Any], bool], Dict) -> Dict
+    """
+    Filters out all keys
+
+    Args:
+        filter_: (dict): write your description
+        dct: (dict): write your description
+    """
     return {key: value for key, value in dct.items() if filter_(key)}
 
 

@@ -10,6 +10,12 @@ class PriorityPackageRequirement(SimpleSubstitution):
     optional_package_names = tuple()
 
     def __init__(self, *args, **kwargs):
+        """
+        Initialize the package.
+
+        Args:
+            self: (todo): write your description
+        """
         super(PriorityPackageRequirement, self).__init__(*args, **kwargs)
         # check if we need to replace the packages:
         priority_packages = self.config.get('agent.package_manager.priority_packages', None)
@@ -20,6 +26,13 @@ class PriorityPackageRequirement(SimpleSubstitution):
             self.__class__.optional_package_names = priority_optional_packages
 
     def match(self, req):
+        """
+        Return true if the given package exists.
+
+        Args:
+            self: (todo): write your description
+            req: (todo): write your description
+        """
         # match both Cython & cython
         return req.name and (req.name.lower() in self.name or req.name.lower() in self.optional_package_names)
 

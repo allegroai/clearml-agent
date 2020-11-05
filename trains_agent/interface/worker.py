@@ -8,6 +8,16 @@ from trains_agent.interface.base import foreign_object_id
 class DeprecatedFlag(argparse.Action):
 
     def __call__(self, parser, namespace, values, option_string=None):
+        """
+        Sets a parser.
+
+        Args:
+            self: (todo): write your description
+            parser: (todo): write your description
+            namespace: (str): write your description
+            values: (array): write your description
+            option_string: (str): write your description
+        """
         warning('argument "{}" is deprecated'.format(option_string))
 
 

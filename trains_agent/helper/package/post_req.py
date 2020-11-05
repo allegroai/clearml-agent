@@ -10,6 +10,12 @@ class PostRequirement(SimpleSubstitution):
     optional_package_names = tuple()
 
     def __init__(self, *args, **kwargs):
+        """
+        Initialize packages.
+
+        Args:
+            self: (todo): write your description
+        """
         super(PostRequirement, self).__init__(*args, **kwargs)
         self.post_install_req = []
         # check if we need to replace the packages:
@@ -21,10 +27,24 @@ class PostRequirement(SimpleSubstitution):
             self.__class__.optional_package_names = post_optional_packages
 
     def match(self, req):
+        """
+        Return true if the given package exists.
+
+        Args:
+            self: (todo): write your description
+            req: (todo): write your description
+        """
         # match both horovod
         return req.name and (req.name.lower() in self.name or req.name.lower() in self.optional_package_names)
 
     def post_install(self, session):
+        """
+        Installs package install.
+
+        Args:
+            self: (todo): write your description
+            session: (todo): write your description
+        """
         for req in self.post_install_req:
             if req.name in self.optional_package_names:
                 # noinspection PyBroadException

@@ -30,6 +30,13 @@ from trains_agent.helper.repo import VCS
     ),
 )
 def test(url, expected):
+    """
+    Sets the url to the given url.
+
+    Args:
+        url: (str): write your description
+        expected: (list): write your description
+    """
     result = VCS.replace_ssh_url(url)
     expected = expected or url
     assert result == expected

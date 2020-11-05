@@ -22,6 +22,12 @@ class Singleton(object):
 
     @classmethod
     def update_pid_file(cls):
+        """
+        Update pid file.
+
+        Args:
+            cls: (todo): write your description
+        """
         new_pid = str(os.getpid())
         if not cls._pid_file or cls._pid == new_pid:
             return
@@ -39,6 +45,12 @@ class Singleton(object):
 
     @classmethod
     def get_lock_filename(cls):
+        """
+        Return the filename of the lock.
+
+        Args:
+            cls: (todo): write your description
+        """
         return os.path.join(cls._get_temp_folder(), cls._lock_file_name)
 
     @classmethod
@@ -84,6 +96,12 @@ class Singleton(object):
 
     @classmethod
     def get_running_pids(cls):
+        """
+        Returns a list of running pids.
+
+        Args:
+            cls: (todo): write your description
+        """
         temp_folder = cls._get_temp_folder()
         files = glob(os.path.join(temp_folder, cls.prefix + cls.sep + '*' + cls.ext))
         pids = []
@@ -112,6 +130,16 @@ class Singleton(object):
 
     @classmethod
     def _register_instance(cls, unique_worker_id=None, worker_name=None, api_client=None, allow_double=False):
+        """
+        Register a worker instance.
+
+        Args:
+            cls: (todo): write your description
+            unique_worker_id: (str): write your description
+            worker_name: (str): write your description
+            api_client: (todo): write your description
+            allow_double: (bool): write your description
+        """
         if cls.worker_id:
             return cls.worker_id, cls.instance_slot
         # make sure we have a unique name
@@ -173,16 +201,34 @@ class Singleton(object):
 
     @classmethod
     def _get_temp_folder(cls):
+        """
+        Get the temporary folder
+
+        Args:
+            cls: (todo): write your description
+        """
         if ENV_DOCKER_HOST_MOUNT.get():
             return ENV_DOCKER_HOST_MOUNT.get().split(':')[-1]
         return gettempdir()
 
     @classmethod
     def get_slot(cls):
+        """
+        Return the class associated slot.
+
+        Args:
+            cls: (callable): write your description
+        """
         return cls.instance_slot or 0
 
     @classmethod
     def get_pid_file(cls):
+        """
+        Get pid pid file.
+
+        Args:
+            cls: (str): write your description
+        """
         if not cls._pid_file:
             return None
         return cls._pid_file.name

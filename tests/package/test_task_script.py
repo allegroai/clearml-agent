@@ -29,6 +29,11 @@ SHORT_TIMEOUT = 30
 
 @fixture(scope="session")
 def client():
+    """
+    Return a client object.
+
+    Args:
+    """
     return APIClient(api_version="2.2")
 
 
@@ -47,10 +52,23 @@ def create_task(client, **params):
 
 
 def select_read(file_obj, timeout):
+    """
+    Select data from the file.
+
+    Args:
+        file_obj: (todo): write your description
+        timeout: (float): write your description
+    """
     return select.select([file_obj], [], [], timeout)[0]
 
 
 def run_task(task):
+    """
+    Run a task.
+
+    Args:
+        task: (todo): write your description
+    """
     return Argv("trains_agent", "--debug", "worker", "execute", "--id", task.id)
 
 
@@ -92,6 +110,12 @@ def _iterate_output(timeout, process):
     exit_loop = []  # type: Sequence[IO]
 
     def loop_helper(file_obj):
+        """
+        Return a file read loop.
+
+        Args:
+            file_obj: (todo): write your description
+        """
         # type: (IO) -> Sequence[IO]
         diff = timeout - (time.time() - start)
         if diff <= 0:

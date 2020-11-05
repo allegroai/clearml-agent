@@ -27,14 +27,36 @@ class _ResponseEndpoint(jsonmodels.models.Base):
 class ResponseMeta(jsonmodels.models.Base):
     @property
     def is_valid(self):
+        """
+        : return : true if_valid is valid.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._is_valid
 
     @classmethod
     def from_raw_data(cls, status_code, text, endpoint=None):
+        """
+        Create a new : class from a raw byte string.
+
+        Args:
+            cls: (todo): write your description
+            status_code: (int): write your description
+            text: (str): write your description
+            endpoint: (str): write your description
+        """
         return cls(is_valid=False, result_code=status_code, result_subcode=0, result_msg=text,
                    endpoint=_ResponseEndpoint(name=(endpoint or 'unknown')))
 
     def __init__(self, is_valid=True, **kwargs):
+        """
+        Initialize the field.
+
+        Args:
+            self: (todo): write your description
+            is_valid: (bool): write your description
+        """
         super(ResponseMeta, self).__init__(**kwargs)
         self._is_valid = is_valid
 
@@ -47,6 +69,12 @@ class ResponseMeta(jsonmodels.models.Base):
     error_stack = jsonmodels.fields.StringField()
 
     def __str__(self):
+        """
+        Return a string representation of the result.
+
+        Args:
+            self: (todo): write your description
+        """
         if self.result_code == requests.codes.ok:
             return "<%d: %s/v%s>" % (self.result_code, self.endpoint.name, self.endpoint.actual_version)
         elif self._is_valid:

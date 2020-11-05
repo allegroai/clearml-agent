@@ -33,6 +33,11 @@ Enter the url of the trains-server's Web service, for example: {HOST}
 
 
 def main():
+    """
+    Main function.
+
+    Args:
+    """
     print('TRAINS-AGENT setup process')
     conf_file = Path(LOCAL_CONFIG_FILES[0]).absolute()
     if conf_file.exists() and conf_file.is_file() and conf_file.stat().st_size > 0:
@@ -172,6 +177,13 @@ def main():
 
 
 def parse_host(parsed_host, allow_input=True):
+    """
+    Parse a host string
+
+    Args:
+        parsed_host: (todo): write your description
+        allow_input: (bool): write your description
+    """
     if parsed_host.netloc.startswith('demoapp.'):
         # this is our demo server
         api_host = parsed_host.scheme + "://" + parsed_host.netloc.replace('demoapp.', 'demoapi.', 1) + parsed_host.path
@@ -268,6 +280,11 @@ def get_parsed_field(parsed_config, fields):
 
 
 def read_manual_credentials():
+    """
+    Read credentials
+
+    Args:
+    """
     print('Enter user access key: ', end='')
     access_key = input()
     print('Enter user secret: ', end='')
@@ -276,6 +293,13 @@ def read_manual_credentials():
 
 
 def input_url(host_type, host=None):
+    """
+    Returns a url_type of the given host.
+
+    Args:
+        host_type: (str): write your description
+        host: (str): write your description
+    """
     while True:
         print('{} configured to: {}'.format(host_type, '[{}] '.format(host) if host else ''), end='')
         parse_input = input()
@@ -289,6 +313,13 @@ def input_url(host_type, host=None):
 
 
 def input_host_port(host_type, parsed_host):
+    """
+    Return hostname string
+
+    Args:
+        host_type: (str): write your description
+        parsed_host: (todo): write your description
+    """
     print('Enter port for {} host '.format(host_type), end='')
     replace_port = input().lower()
     return parsed_host.scheme + "://" + parsed_host.netloc + (
@@ -296,6 +327,12 @@ def input_host_port(host_type, parsed_host):
 
 
 def verify_url(parse_input):
+    """
+    Verifies the input string.
+
+    Args:
+        parse_input: (str): write your description
+    """
     # noinspection PyBroadException
     try:
         if not parse_input.startswith('http://') and not parse_input.startswith('https://'):

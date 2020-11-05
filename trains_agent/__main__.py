@@ -18,6 +18,13 @@ from .interface import get_parser
 
 
 def run_command(parser, args, command_name):
+    """
+    Run a command.
+
+    Args:
+        parser: (todo): write your description
+        command_name: (str): write your description
+    """
 
     debug = args.debug
     session.Session.set_debug_mode(debug)
@@ -68,6 +75,11 @@ def run_command(parser, args, command_name):
 
 
 def main():
+    """
+    Main entry point.
+
+    Args:
+    """
     parser = get_parser()
     args = parser.parse_args()
 

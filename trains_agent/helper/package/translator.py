@@ -16,6 +16,15 @@ class RequirementsTranslator(object):
     SUPPORTED_SCHEMES = ["http", "https", "ftp"]
 
     def __init__(self, session, interpreter=None, cache_dir=None):
+        """
+        Initialize the session.
+
+        Args:
+            self: (todo): write your description
+            session: (todo): write your description
+            interpreter: (int): write your description
+            cache_dir: (str): write your description
+        """
         self._session = session
         config = session.config
         self.cache_dir = cache_dir or Path(config["agent.pip_download_cache.path"]).expanduser().as_posix()
@@ -26,6 +35,13 @@ class RequirementsTranslator(object):
         self._translate_back = {}
 
     def download(self, url):
+        """
+        Download the given url.
+
+        Args:
+            self: (todo): write your description
+            url: (str): write your description
+        """
         self.pip.download_package(url, cache_dir=self.cache_dir)
 
     @classmethod
@@ -67,6 +83,13 @@ class RequirementsTranslator(object):
         return downloaded
 
     def replace_back(self, requirements):
+        """
+        Replace the requirements. requirements.
+
+        Args:
+            self: (todo): write your description
+            requirements: (str): write your description
+        """
         if not requirements:
             return requirements
 

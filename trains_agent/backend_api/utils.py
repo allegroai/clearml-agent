@@ -24,12 +24,27 @@ class _RetryFilter(logging.Filter):
     last_instance = None
 
     def __init__(self, total, warning_after=5):
+        """
+        Initialize the filter.
+
+        Args:
+            self: (todo): write your description
+            total: (int): write your description
+            warning_after: (todo): write your description
+        """
         super(_RetryFilter, self).__init__()
         self.total = total
         self.display_warning_after = warning_after
         _RetryFilter.last_instance = self
 
     def filter(self, record):
+        """
+        Filter record
+
+        Args:
+            self: (todo): write your description
+            record: (todo): write your description
+        """
         if record.args and len(record.args) > 0 and isinstance(record.args[0], Retry):
             left = (record.args[0].total, record.args[0].connect, record.args[0].read,
                     record.args[0].redirect, record.args[0].status)
@@ -42,6 +57,13 @@ class _RetryFilter(logging.Filter):
 
 
 def urllib_log_warning_setup(total_retries=10, display_warning_after=5):
+    """
+    Urllib3 logger.
+
+    Args:
+        total_retries: (todo): write your description
+        display_warning_after: (todo): write your description
+    """
     for l in ('urllib3.connectionpool', 'requests.packages.urllib3.connectionpool'):
         urllib3_log = logging.getLogger(l)
         if urllib3_log:
@@ -51,6 +73,16 @@ def urllib_log_warning_setup(total_retries=10, display_warning_after=5):
 
 class TLSv1HTTPAdapter(HTTPAdapter):
     def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):
+        """
+        Initialize a connection pool.
+
+        Args:
+            self: (todo): write your description
+            connections: (todo): write your description
+            maxsize: (int): write your description
+            block: (todo): write your description
+            pool_kwargs: (dict): write your description
+        """
         self.poolmanager = PoolManager(num_pools=connections,
                                        maxsize=maxsize,
                                        block=block,
@@ -69,6 +101,22 @@ def get_http_session_with_retry(
         pool_connections=None,
         pool_maxsize=None,
         config=None):
+    """
+    Return an http session.
+
+    Args:
+        total: (todo): write your description
+        connect: (todo): write your description
+        read: (str): write your description
+        redirect: (str): write your description
+        status: (str): write your description
+        status_forcelist: (list): write your description
+        backoff_factor: (todo): write your description
+        backoff_max: (int): write your description
+        pool_connections: (todo): write your description
+        pool_maxsize: (int): write your description
+        config: (dict): write your description
+    """
     if not config:
         config = {}
     global __disable_certificate_verification_warning

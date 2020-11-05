@@ -75,6 +75,13 @@ class PackageTraceIgnore(object):
         return not include
 
     def include(self, base):
+        """
+        Determine if this package is included.
+
+        Args:
+            self: (todo): write your description
+            base: (str): write your description
+        """
         # type: (Path) -> bool
         for path in inclusive_parents(base):
             if not path.exists():
@@ -94,11 +101,26 @@ class PackageTrace(trace.Trace, object):
     """
 
     def __init__(self, package, out_file, ignore_submodules=(), *args, **kwargs):
+        """
+        Initialize package.
+
+        Args:
+            self: (todo): write your description
+            package: (str): write your description
+            out_file: (str): write your description
+            ignore_submodules: (todo): write your description
+        """
         super(PackageTrace, self).__init__(*args, **kwargs)
         self.ignore = PackageTraceIgnore(package, ignore_submodules)
         self.__out_file = out_file
 
     def __out(self, *args, **kwargs):
+        """
+        Prints out_file and print.
+
+        Args:
+            self: (todo): write your description
+        """
         print(*args, file=self.__out_file, **kwargs)
 
     def globaltrace_lt(self, frame, why, arg):

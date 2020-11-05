@@ -11,6 +11,11 @@ __check_update_thread = None
 
 
 def start_check_update_daemon():
+    """
+    Starts a new daemon thread.
+
+    Args:
+    """
     global __check_update_thread
     if __check_update_thread:
         return
@@ -20,6 +25,11 @@ def start_check_update_daemon():
 
 
 def _check_new_version_available():
+    """
+    Checks if there is available versions are available.
+
+    Args:
+    """
     cur_version = __version__
     update_server_releases = requests.get('https://updates.trains.allegro.ai/updates',
                                           data=json.dumps({"versions": {"trains-agent": str(cur_version)}}),
@@ -39,6 +49,11 @@ def _check_new_version_available():
 
 
 def _check_update_daemon():
+    """
+    Check if the daemon is available.
+
+    Args:
+    """
     counter = 0
     while True:
         # noinspection PyBroadException

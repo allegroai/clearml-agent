@@ -16,10 +16,22 @@ class Service(object):
 
     @property
     def default(self):
+        """
+        Returns the default value of the field.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._default
 
     @property
     def actions(self):
+        """
+        Returns a list of the actions.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._actions
 
     @property
@@ -29,17 +41,43 @@ class Service(object):
 
     @property
     def definitions_refs(self):
+        """
+        A list of all definitions.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._definitions_refs
 
     @property
     def name(self):
+        """
+        The name of the name
+
+        Args:
+            self: (todo): write your description
+        """
         return self._name
 
     @property
     def doc(self):
+        """
+        Returns the doc string.
+
+        Args:
+            self: (todo): write your description
+        """
         return self._doc
 
     def __init__(self, name, service_config):
+        """
+        Initialize a service object.
+
+        Args:
+            self: (todo): write your description
+            name: (str): write your description
+            service_config: (todo): write your description
+        """
         self._name = name
         self._default = None
         self._actions = []
@@ -50,11 +88,25 @@ class Service(object):
 
     @classmethod
     def get_ref_name(cls, ref_string):
+        """
+        Get the reference name of a ref_string.
+
+        Args:
+            cls: (todo): write your description
+            ref_string: (str): write your description
+        """
         m = cls.__jsonschema_ref_ex.match(ref_string)
         if m:
             return m.group(1)
 
     def parse(self, service_config):
+        """
+        Parse a config.
+
+        Args:
+            self: (todo): write your description
+            service_config: (todo): write your description
+        """
         self._default = service_config.get(
             "_default", pyhocon.ConfigTree()
         ).as_plain_ordered_dict()
@@ -91,7 +143,21 @@ class Service(object):
         }
 
     def _parse_action_versions(self, action_name, action_versions):
+        """
+        Parse the action version.
+
+        Args:
+            self: (todo): write your description
+            action_name: (str): write your description
+            action_versions: (dict): write your description
+        """
         def parse_version(action_version):
+            """
+            Parse the action version.
+
+            Args:
+                action_version: (str): write your description
+            """
             try:
                 return float(action_version)
             except (ValueError, TypeError) as ex:
@@ -102,6 +168,12 @@ class Service(object):
                 )
 
         def add_internal(cfg):
+            """
+            Add the given configuration.
+
+            Args:
+                cfg: (todo): write your description
+            """
             if "internal" in action_versions:
                 cfg.setdefault("internal", action_versions["internal"])
             return cfg
@@ -120,6 +192,13 @@ class Service(object):
         }
 
     def _get_schema_references(self, s):
+        """
+        Return a list of schemas from a string.
+
+        Args:
+            self: (todo): write your description
+            s: (dict): write your description
+        """
         refs = set()
         if isinstance(s, dict):
             for k, v in s.items():
@@ -134,6 +213,14 @@ class Service(object):
         return refs
 
     def _expand_schema_references_with_definitions(self, schema, refs=None):
+        """
+        Expand all references in the schema.
+
+        Args:
+            self: (todo): write your description
+            schema: (todo): write your description
+            refs: (str): write your description
+        """
         definitions = schema.get("definitions", {})
         refs = refs if refs is not None else self._get_schema_references(schema)
         required_refs = set(refs).difference(definitions)
@@ -158,11 +245,28 @@ class Service(object):
         return required_refs
 
     def _resolve_schema_references(self, schema, refs=None):
+        """
+        Resolve references in a schema.
+
+        Args:
+            self: (todo): write your description
+            schema: (dict): write your description
+            refs: (str): write your description
+        """
         definitions = schema.get("definitions", {})
         definitions.update({k: v for k, v in self.definitions.items() if k in refs})
         schema["definitions"] = definitions
 
     def _parse_action(self, action_name, action_version, action_config):
+        """
+        Parse an action.
+
+        Args:
+            self: (todo): write your description
+            action_name: (str): write your description
+            action_version: (str): write your description
+            action_config: (todo): write your description
+        """
         data = self.default.copy()
         data.update(action_config)
 

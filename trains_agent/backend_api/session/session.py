@@ -61,18 +61,42 @@ class Session(TokenManager):
 
     @property
     def access_key(self):
+        """
+        Returns the access key.
+
+        Args:
+            self: (todo): write your description
+        """
         return self.__access_key
 
     @property
     def secret_key(self):
+        """
+        The secret key.
+
+        Args:
+            self: (todo): write your description
+        """
         return self.__secret_key
 
     @property
     def host(self):
+        """
+        Return the host.
+
+        Args:
+            self: (todo): write your description
+        """
         return self.__host
 
     @property
     def worker(self):
+        """
+        : class : class : asyncio.
+
+        Args:
+            self: (todo): write your description
+        """
         return self.__worker
 
     def __init__(
@@ -89,6 +113,22 @@ class Session(TokenManager):
         http_retries_config=None,
         **kwargs
     ):
+        """
+        Initialize the connection.
+
+        Args:
+            self: (todo): write your description
+            worker: (todo): write your description
+            api_key: (str): write your description
+            secret_key: (str): write your description
+            host: (str): write your description
+            logger: (todo): write your description
+            verbose: (bool): write your description
+            initialize_logging: (bool): write your description
+            client: (todo): write your description
+            config: (todo): write your description
+            http_retries_config: (todo): write your description
+        """
         # add backward compatibility support for old environment variables
         backward_compatibility_support()
 
@@ -237,6 +277,13 @@ class Session(TokenManager):
         return res
 
     def add_auth_headers(self, headers):
+        """
+        Add a new request headers.
+
+        Args:
+            self: (todo): write your description
+            headers: (dict): write your description
+        """
         headers[self._AUTHORIZATION_HEADER] = "Bearer {}".format(self.token)
         return headers
 
@@ -433,6 +480,13 @@ class Session(TokenManager):
 
     @classmethod
     def get_api_server_host(cls, config=None):
+        """
+        Return an api server host.
+
+        Args:
+            cls: (todo): write your description
+            config: (dict): write your description
+        """
         if not config:
             return None
 
@@ -441,6 +495,13 @@ class Session(TokenManager):
 
     @classmethod
     def get_app_server_host(cls, config=None):
+        """
+        Return the server host.
+
+        Args:
+            cls: (todo): write your description
+            config: (todo): write your description
+        """
         if not config:
             return None
 
@@ -468,6 +529,13 @@ class Session(TokenManager):
 
     @classmethod
     def get_files_server_host(cls, config=None):
+        """
+        Returns a list of ( host_host_host_host.
+
+        Args:
+            cls: (todo): write your description
+            config: (todo): write your description
+        """
         if not config:
             return None
 
@@ -501,6 +569,12 @@ class Session(TokenManager):
         Return True if Session.api_version is greater or equal >= to min_api_version
         """
         def version_tuple(v):
+            """
+            Convert version tuple of integers.
+
+            Args:
+                v: (str): write your description
+            """
             v = tuple(map(int, (v.split("."))))
             return v + (0,) * max(0, 3 - len(v))
         return version_tuple(cls.api_version) >= version_tuple(str(min_api_version))
@@ -559,6 +633,12 @@ class Session(TokenManager):
             raise LoginError('Unrecognized Authentication Error: {} {}'.format(type(ex), ex))
 
     def __str__(self):
+        """
+        Return a string representation of the secret
+
+        Args:
+            self: (todo): write your description
+        """
         return "{self.__class__.__name__}[{self.host}, {self.access_key}/{secret_key}]".format(
             self=self, secret_key=self.secret_key[:5] + "*" * (len(self.secret_key) - 5)
         )

@@ -59,4 +59,10 @@ CONFIG_FILE_EXTENSION = '.conf'
 
 
 def is_config_file(path):
+    """
+    Return true if path is a config file.
+
+    Args:
+        path: (str): write your description
+    """
     return Path(path).suffix == CONFIG_FILE_EXTENSION

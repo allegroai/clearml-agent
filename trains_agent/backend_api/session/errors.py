@@ -4,6 +4,13 @@ class SessionError(Exception):
 
 class AsyncError(SessionError):
     def __init__(self, msg, *args, **kwargs):
+        """
+        Initialize the message.
+
+        Args:
+            self: (todo): write your description
+            msg: (str): write your description
+        """
         super(AsyncError, self).__init__(msg, *args)
         for k, v in kwargs.items():
             setattr(self, k, v)

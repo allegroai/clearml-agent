@@ -69,6 +69,15 @@ def param(url, expected, user=False, password=False):
     ],
 )
 def test(url, user, password, expected):
+    """
+    Sends a user to a post request.
+
+    Args:
+        url: (str): write your description
+        user: (str): write your description
+        password: (str): write your description
+        expected: (list): write your description
+    """
     config = {"agent": {"git_user": user, "git_pass": password}}
     result = Git.add_auth(config, url)
     expected = result if expected is NO_CHANGE else expected
