@@ -92,8 +92,9 @@ class CondaAPI(PackageManager):
         )
         try:
             self.conda = (
-                find_executable("conda")
-                or Argv(select_for_platform(windows="where", linux="which"), "conda").get_output(shell=True).strip()
+                find_executable("conda") or
+                Argv(select_for_platform(windows="where", linux="which"), "conda").get_output(
+                    shell=select_for_platform(windows=True, linux=False)).strip()
             )
         except Exception:
             raise ValueError("ERROR: package manager \"conda\" selected, "
