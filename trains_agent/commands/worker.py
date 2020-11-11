@@ -1210,10 +1210,15 @@ class Worker(ServiceCommandSection):
 
         execution = self.get_execution_info(current_task)
 
-        try:
-            requirements = current_task.script.requirements
-        except AttributeError:
+        if self._session.config.get("agent.package_manager.force_repo_requirements_txt", False):
             requirements = None
+            print("[package_manager.force_repo_requirements_txt=true] "
+                  "Skipping requirements, using repository \"requirements.txt\" ")
+        else:
+            try:
+                requirements = current_task.script.requirements
+            except AttributeError:
+                requirements = None
 
         if not python_version:
             try:
@@ -1430,10 +1435,15 @@ class Worker(ServiceCommandSection):
 
         execution = self.get_execution_info(current_task)
 
-        try:
-            requirements = current_task.script.requirements
-        except AttributeError:
+        if self._session.config.get("agent.package_manager.force_repo_requirements_txt", False):
             requirements = None
+            print("[package_manager.force_repo_requirements_txt=true] "
+                  "Skipping requirements, using repository \"requirements.txt\" ")
+        else:
+            try:
+                requirements = current_task.script.requirements
+            except AttributeError:
+                requirements = None
 
         try:
             python_ver = current_task.script.binary
