@@ -382,8 +382,9 @@ class VCS(object):
         Run command with `input_` as stdin
         """
         input_ = input_.encode("utf-8")
-        if not input_.endswith(b"\n"):
-            input_ += b"\n"
+        # always add extra empty line 
+        # (there is no downside, and it solves empty lines issue at end of patch cause corrupt message)
+        input_ += b"\n"
         process = self._call_subprocess(
             subprocess.Popen,
             argv,
