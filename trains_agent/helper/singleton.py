@@ -4,6 +4,8 @@ from time import sleep
 from glob import glob
 from tempfile import gettempdir, NamedTemporaryFile
 
+from typing import List, Tuple, Optional
+
 from trains_agent.definitions import ENV_DOCKER_HOST_MOUNT
 from trains_agent.helper.base import warning
 
@@ -84,11 +86,12 @@ class Singleton(object):
 
     @classmethod
     def get_running_pids(cls):
+        # type: () -> List[Tuple[int, Optional[str], Optional[int], str]]
         temp_folder = cls._get_temp_folder()
         files = glob(os.path.join(temp_folder, cls.prefix + cls.sep + '*' + cls.ext))
         pids = []
         for file in files:
-            parts = file.split(cls.sep)
+            parts = os.path.basename(file).split(cls.sep)
             # noinspection PyBroadException
             try:
                 pid = int(parts[1])

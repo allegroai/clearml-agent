@@ -2520,7 +2520,7 @@ class Worker(ServiceCommandSection):
         # Iterate over all running process
         for pid, uid, slot, file in sorted(Singleton.get_running_pids(), key=lambda x: x[1] or ''):
             # wither we have a match for the worker_id or we just pick the first one
-            if pid >= 0 and (
+            if pid >= 0 and uid is not None and (
                     (worker_id and uid == worker_id) or
                     (not worker_id and uid.startswith('{}:'.format(worker_name)))):
                 # this is us kill it
