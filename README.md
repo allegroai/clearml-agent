@@ -227,6 +227,14 @@ The **Trains Agent** will first try to pull jobs from the `important_jobs` queue
 
 Adding queues, managing job order within a queue and moving jobs between queues, is available using the Web UI, see example on our [open server](https://demoapp.trains.allegro.ai/workers-and-queues/queues)
 
+#### Stopping the Trains Agent
+
+To stop a **Trains Agent** running in the background, run the same command line used to start the agent with `--stop` appended.  
+For example, to stop the first of the above shown same machine, single gpu agents:
+```bash
+trains-agent daemon --detached --gpus 0 --queue default --docker nvidia/cuda --stop
+```
+
 ## How do I create an experiment on the Trains Server? <a name="from-scratch"></a>
 * Integrate [Trains](https://github.com/allegroai/trains) with your code
 * Execute the code on your machine (Manually / PyCharm / Jupyter Notebook)
