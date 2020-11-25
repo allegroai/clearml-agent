@@ -49,6 +49,8 @@ class K8sIntegration(Worker):
         "sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd ; " \
         "echo 'AcceptEnv TRAINS_API_ACCESS_KEY TRAINS_API_SECRET_KEY' >> /etc/ssh/sshd_config ; " \
         'echo "export VISIBLE=now" >> /etc/profile ; ' \
+        'echo "export PATH=$PATH" >> /etc/profile ; ' \
+        'echo "ldconfig" >> /etc/profile ; ' \
         "/usr/sbin/sshd -p {port} & ; "
 
     CONTAINER_BASH_SCRIPT = \
@@ -327,7 +329,7 @@ class K8sIntegration(Worker):
         container = merge_dicts(
             container,
             dict(name=name, image=docker_image,
-                 command=['/bin/sh'],
+                 command=['/bin/bash'],
                  args=['-c', create_trains_conf + self.container_bash_script.format(
                      extra_bash_init_cmd=self.extra_bash_init_script,
                      task_id=task_id)]))
