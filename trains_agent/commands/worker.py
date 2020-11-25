@@ -542,6 +542,10 @@ class Worker(ServiceCommandSection):
                 '--full-monitoring' if self._services_mode else '--disable-monitoring',
                 '--standalone-mode' if self._standalone_mode else '',
                 task_id)
+
+            # send the actual used command line to the backend
+            self.send_logs(task_id=task_id, lines=['Executing: {}\n'.format(full_docker_cmd)], level="INFO")
+
             cmd = Argv(*full_docker_cmd)
             print('Running Docker:\n{}\n'.format(str(cmd)))
         else:
@@ -2296,7 +2300,7 @@ class Worker(ServiceCommandSection):
             if os.environ.get('TRAINS_DOCKER_SKIP_GPUS_FLAG', None):
                 dockers_nvidia_visible_devices = gpu_devices
             else:
-                base_cmd += ['--gpus', 'device='+gpu_devices, ]
+                base_cmd += ['--gpus', '\"device={}\"'.format(gpu_devices), ]
             # We are using --gpu, so we should not pass NVIDIA_VISIBLE_DEVICES, I think.
             # base_cmd += ['-e', 'NVIDIA_VISIBLE_DEVICES=' + gpu_devices, ]
         elif gpu_devices.strip() == 'none':
