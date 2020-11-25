@@ -39,6 +39,10 @@ def parse_args():
         help="YAML file containing pod template. If provided pod will be scheduled with kubectl apply "
              "and overrides are ignored, otherwise it will be scheduled with kubectl run"
     )
+    parser.add_argument(
+        "--ssh-server-port", type=int, default=0,
+        help="If non-zero, every pod will also start an SSH server on the selected port (default: zero, not active)"
+    )
     return parser.parse_args()
 
 
@@ -53,7 +57,8 @@ def main():
     k8s = K8sIntegration(
         ports_mode=args.ports_mode, num_of_services=args.num_of_services, user_props_cb=user_props_cb,
         overrides_yaml=args.overrides_yaml, trains_conf_file=args.pod_trains_conf, template_yaml=args.template_yaml,
-        extra_bash_init_script=K8sIntegration.get_ssh_server_bash(ssh_port_number=10022)
+        extra_bash_init_script=K8sIntegration.get_ssh_server_bash(
+            ssh_port_number=args.ssh_server_port) if args.ssh_server_port else None
     )
     k8s.k8s_daemon(args.queue)
 
