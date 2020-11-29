@@ -2362,6 +2362,8 @@ class Worker(ServiceCommandSection):
                     raise ValueError('Error: could not copy .ssh directory into: {}'.format(new_ssh_cache))
 
         base_cmd += ['-e', 'TRAINS_WORKER_ID='+worker_id, ]
+        # update the docker image, so the system knows where it runs
+        base_cmd += ['-e', 'TRAINS_DOCKER_IMAGE={} {}'.format(docker_image, ' '.join(docker_arguments)).strip()]
 
         # if we are running a RC version, install the same version in the docker
         # because the default latest, will be a release version (not RC)
