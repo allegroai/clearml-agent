@@ -534,7 +534,7 @@ class Git(VCS):
         root=Argv(executable_name, "rev-parse", "--show-toplevel"),
     )
 
-    patch_base = ("apply",)
+    patch_base = ("apply", "--unidiff-zero", )
 
 
 class Hg(VCS):
