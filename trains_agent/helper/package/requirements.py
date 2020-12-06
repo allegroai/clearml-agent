@@ -338,6 +338,14 @@ class RequirementSubstitution(object):
         """
         pass
 
+    def post_scan_add_req(self):  # type: () -> Optional[MarkerRequirement]
+        """
+        Allows the RequirementSubstitution to add an extra line/requirements after
+        the initial requirements scan is completed.
+        Called only once per requirements.txt object
+        """
+        return None
+
     def post_install(self, session):
         pass
 
@@ -492,6 +500,14 @@ class RequirementsManager(object):
         )
         if not conda:
             result = map(self.translator.translate, result)
+
+        result = list(result)
+        # add post scan add requirements call back
+        for h in self.handlers:
+            req = h.post_scan_add_req()
+            if req:
+                result.append(req.tostr())
+
         return join_lines(result)
 
     def post_install(self, session):

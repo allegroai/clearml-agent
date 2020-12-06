@@ -90,7 +90,7 @@ from trains_agent.helper.process import (
     get_docker_id,
     commit_docker, terminate_process,
 )
-from trains_agent.helper.package.priority_req import PriorityPackageRequirement
+from trains_agent.helper.package.priority_req import PriorityPackageRequirement, PackageCollectorRequirement
 from trains_agent.helper.repo import clone_repository_cached, RepoInfo, VCS
 from trains_agent.helper.resource_monitor import ResourceMonitor
 from trains_agent.helper.runtime_verification import check_runtime, print_uptime_properties
@@ -322,6 +322,7 @@ class Worker(ServiceCommandSection):
         PriorityPackageRequirement,
         PostRequirement,
         ExternalRequirements,
+        partial(PackageCollectorRequirement, collect_package=['trains']),
     )
 
     # poll queues every _polling_interval seconds
