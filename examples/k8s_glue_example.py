@@ -15,7 +15,7 @@ def parse_args():
     )
     parser.add_argument(
         "--ports-mode", action='store_true', default=False,
-        help="Ports-mode will add a label to the pod which can be used in services in order to expose ports"
+        help="Ports-Mode will add a label to the pod which can be used as service, in order to expose ports"
     )
     parser.add_argument(
         "--num-of-services", type=int, default=20,
@@ -23,8 +23,12 @@ def parse_args():
     )
     parser.add_argument(
         "--base-port", type=int,
-        help="If using ports-mode, specifies the base port exposed by the services."
+        help="Used in conjunction with ports-mode, specifies the base port exposed by the services. "
              "For pod #X, the port will be <base-port>+X"
+    )
+    parser.add_argument(
+        "--gateway-address", type=str, default=None,
+        help="Used in conjunction with ports-mode, specify the external address of the k8s ingress / ELB"
     )
     parser.add_argument(
         "--pod-trains-conf", type=str,
@@ -51,8 +55,12 @@ def main():
 
     user_props_cb = None
     if args.ports_mode and args.base_port:
-        def user_props_cb(pod_number):
-            return {"k8s-pod-port": args.base_port + pod_number}
+        def k8s_user_props_cb(pod_number):
+            user_prop = {"k8s-pod-port": args.base_port + pod_number}
+            if args.gateway_address:
+                user_prop["k8s-gateway-address"] = args.gateway_address
+            return user_prop
+        user_props_cb = k8s_user_props_cb
 
     k8s = K8sIntegration(
         ports_mode=args.ports_mode, num_of_services=args.num_of_services, user_props_cb=user_props_cb,
