@@ -55,7 +55,7 @@ def main():
 
     user_props_cb = None
     if args.ports_mode and args.base_port:
-        def k8s_user_props_cb(pod_number):
+        def k8s_user_props_cb(pod_number=0):
             user_prop = {"k8s-pod-port": args.base_port + pod_number}
             if args.gateway_address:
                 user_prop["k8s-gateway-address"] = args.gateway_address
