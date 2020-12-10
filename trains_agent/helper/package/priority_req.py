@@ -49,12 +49,12 @@ class PackageCollectorRequirement(SimpleSubstitution):
 
     def __init__(self, session, collect_package):
         super(PackageCollectorRequirement, self).__init__(session)
-        self._collect_packages = collect_package
+        self._collect_packages = collect_package or tuple()
         self._last_req = None
 
     def match(self, req):
         # match package names
-        return req.name and (req.name.lower() in self.name or req.name.lower() in self._collect_packages)
+        return req.name and req.name.lower() in self._collect_packages
 
     def replace(self, req):
         """

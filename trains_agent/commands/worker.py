@@ -323,6 +323,7 @@ class Worker(ServiceCommandSection):
         PostRequirement,
         ExternalRequirements,
         partial(PackageCollectorRequirement, collect_package=['trains']),
+        partial(PackageCollectorRequirement, collect_package=['clearml']),
     )
 
     # poll queues every _polling_interval seconds
