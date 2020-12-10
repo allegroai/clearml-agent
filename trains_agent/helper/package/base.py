@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from typing import Text, Iterable, Union
 
 import six
-from trains_agent.helper.base import mkstemp, safe_remove_file, join_lines
+from trains_agent.helper.base import mkstemp, safe_remove_file, join_lines, select_for_platform
 from trains_agent.helper.process import Executable, Argv, PathLike
 
 
@@ -66,7 +66,8 @@ class PackageManager(object):
         pass
 
     def upgrade_pip(self):
-        result = self._install("pip"+self.get_pip_version(), "--upgrade")
+        result = self._install(
+            select_for_platform(windows='"pip{}"', linux='pip{}').format(self.get_pip_version()), "--upgrade")
         packages = self.run_with_env(('list',), output=True).splitlines()
         # p.split is ('pip', 'x.y.z')
         pip = [p.split() for p in packages if len(p.split()) == 2 and p.split()[0] == 'pip']

@@ -210,7 +210,7 @@ def get_python_path(script_dir, entry_point, package_api, is_conda_env=False):
             (Path(script_dir) / Path(entry_point)).parent.absolute().as_posix(),
             python_path_sep=python_path_sep)
         if is_windows_platform():
-            return python_path.replace('/', '\\') + org_python_path
+            python_path = python_path.replace('/', '\\')
 
         return python_path if is_conda_env else (python_path + org_python_path)
     except Exception:

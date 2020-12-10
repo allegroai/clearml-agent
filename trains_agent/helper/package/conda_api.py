@@ -2,7 +2,7 @@ from __future__ import unicode_literals
 
 import json
 import re
-import shutil
+import os
 import subprocess
 from collections import OrderedDict
 from distutils.spawn import find_executable
@@ -132,7 +132,7 @@ class CondaAPI(PackageManager):
         if self.env_read_only:
             print('Conda environment in read-only mode, skipping pip upgrade.')
             return ''
-        return self._install("pip" + self.pip.get_pip_version())
+        return self._install(select_for_platform(windows='"pip{}"', linux='pip{}').format(self.pip.get_pip_version()))
 
     def create(self):
         """
@@ -150,7 +150,7 @@ class CondaAPI(PackageManager):
                     requirements_manager=self.requirements_manager,
                     path=self.path,
                 )
-                conda_env = Path(self.conda).parent.parent / 'etc' / 'profile.d' / 'conda.sh'
+                conda_env = self._get_conda_sh()
                 self.source = self.pip.source = CommandSequence(('source', conda_env.as_posix()), self.source)
                 self.env_read_only = True
                 return self
@@ -167,7 +167,7 @@ class CondaAPI(PackageManager):
                 ).get_output()
 
                 self.source = self.pip.source = ("conda", "activate", self.path.as_posix())
-                conda_env = Path(self.conda).parent.parent / 'etc' / 'profile.d' / 'conda.sh'
+                conda_env = self._get_conda_sh()
                 self.source = self.pip.source = CommandSequence(('source', conda_env.as_posix()), self.source)
                 # unpack cleanup
                 print("Fixing prefix in Conda environment {}".format(self.path))
@@ -196,7 +196,7 @@ class CondaAPI(PackageManager):
             else ("conda", "activate", self.path.as_posix())
         )
 
-        conda_env = Path(self.conda).parent.parent / 'etc' / 'profile.d' / 'conda.sh'
+        conda_env = self._get_conda_sh()
         if conda_env.is_file() and not is_windows_platform():
             self.source = self.pip.source = CommandSequence(('source', conda_env.as_posix()), self.source)
 
@@ -672,6 +672,20 @@ class CondaAPI(PackageManager):
 
     def get_python_command(self, extra=()):
         return CommandSequence(self.source, self.pip.get_python_command(extra=extra))
+
+    def _get_conda_sh(self):
+        # type () -> Path
+        base_conda_env = Path(self.conda).parent.parent / 'etc' / 'profile.d' / 'conda.sh'
+        if base_conda_env.is_file():
+            return base_conda_env
+        for path in os.environ.get('PATH', '').split(select_for_platform(windows=';', linux=':')):
+            conda = find_executable("conda", path=path)
+            if not conda:
+                continue
+            conda_env = Path(conda).parent.parent / 'etc' / 'profile.d' / 'conda.sh'
+            if conda_env.is_file():
+                return conda_env
+        return base_conda_env
 
 
 # enable hashing with cmp=False because pdb fails on un-hashable exceptions
