@@ -3,6 +3,7 @@ from __future__ import print_function, division, unicode_literals
 import base64
 import logging
 import os
+import re
 import subprocess
 import tempfile
 from copy import deepcopy
@@ -238,6 +239,10 @@ class K8sIntegration(Worker):
         except Exception:
             queue_name = 'k8s'
 
+        # conform queue name to k8s standards
+        safe_queue_name = queue_name.lower().strip()
+        safe_queue_name = re.sub(r'\W+', '', safe_queue_name).replace('_', '').replace('-', '')
+
         # Search for a free pod number
         pod_number = 1
         while self.ports_mode:
@@ -278,13 +283,13 @@ class K8sIntegration(Worker):
             output, error = self._kubectl_apply(
                 create_trains_conf=create_trains_conf,
                 labels=labels, docker_image=docker_image, docker_args=docker_args,
-                task_id=task_id, queue=queue, queue_name=queue_name)
+                task_id=task_id, queue=queue, queue_name=safe_queue_name)
         else:
             output, error = self._kubectl_run(
                 create_trains_conf=create_trains_conf,
                 labels=labels, docker_image=docker_image,
                 task_data=task_data,
-                task_id=task_id, queue=queue, queue_name=queue_name)
+                task_id=task_id, queue=queue, queue_name=safe_queue_name)
 
         error = '' if not error else (error if isinstance(error, str) else error.decode('utf-8'))
         output = '' if not output else (output if isinstance(output, str) else output.decode('utf-8'))
