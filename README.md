@@ -3,7 +3,7 @@
 <img src="docs/clearml_agent_logo.png" width="250px">
 
 **ClearML Agent - ML-Ops made easy  
-An ML-Ops scheduler & orchestration solution supporting Linux, macOS and Windows**
+ML-Ops scheduler & orchestration solution supporting Linux, macOS and Windows**
 
 [![GitHub license](https://img.shields.io/github/license/allegroai/trains-agent.svg)](https://img.shields.io/github/license/allegroai/trains-agent.svg)
 [![PyPI pyversions](https://img.shields.io/pypi/pyversions/clearml-agent.svg)](https://img.shields.io/pypi/pyversions/clearml-agent.svg)
