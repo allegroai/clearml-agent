@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/clearml_agent_logo.png" width="250px">
+<img src="https://github.com/allegroai/clearml-agent/blob/master/docs/clearml_agent_logo.png?raw=true" width="250px">
 
 **ClearML Agent - ML-Ops made easy  
 ML-Ops scheduler & orchestration solution supporting Linux, macOS and Windows**
