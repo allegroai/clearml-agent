@@ -1,8 +1,8 @@
 """
 Script for generating command-line completion.
-Called by trains_agent/utilities/complete.sh (or a copy of it) like so:
+Called by clearml_agent/utilities/complete.sh (or a copy of it) like so:
 
-python -m trains_agent.complete "current command line"
+python -m clearml_agent.complete "current command line"
 
 And writes line-separated completion targets to stdout.
 Results are line-separated in order to enable other whitespace in results.
@@ -13,7 +13,7 @@ from __future__ import print_function
 import argparse
 import sys
 
-from trains_agent.interface import get_parser
+from clearml_agent.interface import get_parser
 
 
 def is_argument_required(action):

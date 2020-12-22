@@ -1,7 +1,7 @@
 import pytest
 from furl import furl
 
-from trains_agent.helper.package.translator import RequirementsTranslator
+from clearml_agent.helper.package.translator import RequirementsTranslator
 
 
 @pytest.mark.parametrize(

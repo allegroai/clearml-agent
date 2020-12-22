@@ -1,4 +1,4 @@
-from trains_agent.commands.base import ServiceCommandSection
+from clearml_agent.commands.base import ServiceCommandSection
 
 
 class Config(ServiceCommandSection):

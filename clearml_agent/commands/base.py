@@ -9,16 +9,16 @@ from operator import attrgetter
 from traceback import print_exc
 from typing import Text
 
-from trains_agent.helper.console import ListFormatter, print_text
-from trains_agent.helper.dicts import filter_keys
+from clearml_agent.helper.console import ListFormatter, print_text
+from clearml_agent.helper.dicts import filter_keys
 
 import six
-from trains_agent.backend_api import services
+from clearml_agent.backend_api import services
 
-from trains_agent.errors import APIError, CommandFailedError
-from trains_agent.helper.base import Singleton, return_list, print_parameters, dump_yaml, load_yaml, error, warning
-from trains_agent.interface.base import ObjectID
-from trains_agent.session import Session
+from clearml_agent.errors import APIError, CommandFailedError
+from clearml_agent.helper.base import Singleton, return_list, print_parameters, dump_yaml, load_yaml, error, warning
+from clearml_agent.interface.base import ObjectID
+from clearml_agent.session import Session
 
 
 class NameResolutionError(CommandFailedError):
@@ -74,7 +74,7 @@ class BaseCommandSection(object):
 
     @staticmethod
     def log(message, *args):
-        print("trains-agent: {}".format(message % args))
+        print("clearml-agent: {}".format(message % args))
 
     @classmethod
     def exit(cls, message, code=1):  # type: (Text, int) -> ()

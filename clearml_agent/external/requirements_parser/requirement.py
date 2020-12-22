@@ -30,7 +30,7 @@ LOCAL_REGEX = re.compile(
 
 class Requirement(object):
     """
-    Represents a single requirementfrom trains_agent.external.requirements_parser.requirement import Requirement
+    Represents a single requirementfrom clearml_agent.external.requirements_parser.requirement import Requirement
 
     Typically instances of this class are created with ``Requirement.parse``.
     For local file requirements, there's no verification that the file

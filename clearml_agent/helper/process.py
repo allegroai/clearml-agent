@@ -20,8 +20,8 @@ from future.builtins import super
 from pathlib2 import Path
 
 import six
-from trains_agent.definitions import PROGRAM_NAME, CONFIG_FILE
-from trains_agent.helper.base import bash_c, is_windows_platform, select_for_platform, chain_map
+from clearml_agent.definitions import PROGRAM_NAME, CONFIG_FILE
+from clearml_agent.helper.base import bash_c, is_windows_platform, select_for_platform, chain_map
 
 PathLike = Union[Text, Path]
 

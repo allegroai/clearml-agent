@@ -5,13 +5,15 @@ from pyhocon import ConfigFactory, ConfigMissingException
 from pathlib2 import Path
 from six.moves.urllib.parse import urlparse
 
-from trains_agent.backend_api.session import Session
-from trains_agent.backend_api.session.defs import ENV_HOST
-from trains_agent.backend_config.defs import LOCAL_CONFIG_FILES
+from clearml_agent.backend_api.session import Session
+from clearml_agent.backend_api.session.defs import ENV_HOST
+from clearml_agent.backend_config.defs import LOCAL_CONFIG_FILES
 
 
 description = """
-Please create new trains credentials through the profile page in your trains web app (e.g. https://demoapp.trains.allegro.ai/profile)
+Please create new clearml credentials through the profile page in your clearml web app (e.g. https://demoapp.demo.clear.ml/profile)
+Or with the free hosted service at https://app.community.clear.ml/profile
+    
 In the profile page, press "Create new credentials", then press "Copy to clipboard".
 
 Paste copied configuration here: 
@@ -25,7 +27,7 @@ except Exception:
 
 host_description = """
 Editing configuration file: {CONFIG_FILE}
-Enter the url of the trains-server's Web service, for example: {HOST}
+Enter the url of the clearml-server's Web service, for example: {HOST}
 """.format(
     CONFIG_FILE=LOCAL_CONFIG_FILES[0],
     HOST=def_host,
@@ -33,8 +35,12 @@ Enter the url of the trains-server's Web service, for example: {HOST}
 
 
 def main():
-    print('TRAINS-AGENT setup process')
-    conf_file = Path(LOCAL_CONFIG_FILES[0]).absolute()
+    print('CLEARML-AGENT setup process')
+    for f in LOCAL_CONFIG_FILES:
+        conf_file = Path(f).absolute()
+        if conf_file.exists():
+            break
+
     if conf_file.exists() and conf_file.is_file() and conf_file.stat().st_size > 0:
         print('Configuration file already exists: {}'.format(str(conf_file)))
         print('Leaving setup, feel free to edit the configuration file.')
@@ -42,7 +48,12 @@ def main():
 
     print(description, end='')
     sentinel = ''
-    parse_input = '\n'.join(iter(input, sentinel))
+    parse_input = ''
+    for line in iter(input, sentinel):
+        parse_input += line+'\n'
+        if line.rstrip() == '}':
+            break
+
     credentials = None
     api_server = None
     web_server = None
@@ -86,7 +97,7 @@ def main():
 
     files_host = input_url('File Store Host', files_host)
 
-    print('\nTRAINS Hosts configuration:\nWeb App: {}\nAPI: {}\nFile Store: {}\n'.format(
+    print('\nClearML Hosts configuration:\nWeb App: {}\nAPI: {}\nFile Store: {}\n'.format(
         web_host, api_host, files_host))
 
     retry = 1
@@ -140,14 +151,14 @@ def main():
     # noinspection PyBroadException
     try:
         with open(str(conf_file), 'wt') as f:
-            header = '# TRAINS-AGENT configuration file\n' \
+            header = '# CLEARML-AGENT configuration file\n' \
                      'api {\n' \
                      '    # Notice: \'host\' is the api server (default port 8008), not the web server.\n' \
                      '    api_server: %s\n' \
                      '    web_server: %s\n' \
                      '    files_server: %s\n' \
                      '    # Credentials are generated using the webapp, %s/profile\n' \
-                     '    # Override with os environment: TRAINS_API_ACCESS_KEY / TRAINS_API_SECRET_KEY\n' \
+                     '    # Override with os environment: CLEARML_API_ACCESS_KEY / CLEARML_API_SECRET_KEY\n' \
                      '    credentials {"access_key": "%s", "secret_key": "%s"}\n' \
                      '}\n\n' % (api_host, web_host, files_host,
                                 web_host, credentials['access_key'], credentials['secret_key'])
@@ -158,7 +169,7 @@ def main():
                               'agent.git_pass=\"{}\"\n' \
                               '\n'.format(git_user or '', git_pass or '')
             f.write(git_credentials)
-            extra_index_str = '# extra_index_url: ["https://allegroai.jfrog.io/trainsai/api/pypi/public/simple"]\n' \
+            extra_index_str = '# extra_index_url: ["https://allegroai.jfrog.io/clearml/api/pypi/public/simple"]\n' \
                               'agent.package_manager.extra_index_url= ' \
                               '[\n{}\n]\n\n'.format("\n".join(map("\"{}\"".format, extra_index_urls)))
             f.write(extra_index_str)
@@ -168,7 +179,7 @@ def main():
         return
 
     print('\nNew configuration stored in {}'.format(str(conf_file)))
-    print('TRAINS-AGENT setup completed successfully.')
+    print('CLEARML-AGENT setup completed successfully.')
 
 
 def parse_host(parsed_host, allow_input=True):
@@ -309,7 +320,7 @@ def verify_url(parse_input):
             parsed_host = None
     except Exception:
         parsed_host = None
-        print('Could not parse url {}\nEnter your trains-server host: '.format(parse_input), end='')
+        print('Could not parse url {}\nEnter your clearml-server host: '.format(parse_input), end='')
     return parsed_host
 
 

@@ -24,27 +24,28 @@ from typing import Text, Optional, Any, Tuple
 import attr
 import psutil
 import six
-from trains_agent.backend_api.services import queues as queues_api
-from trains_agent.backend_api.services import tasks as tasks_api
+from clearml_agent.backend_api.services import queues as queues_api
+from clearml_agent.backend_api.services import tasks as tasks_api
 from pathlib2 import Path
 from pyhocon import ConfigTree, ConfigFactory
 from six.moves.urllib.parse import quote
 
-from trains_agent.backend_config.defs import UptimeConf
-from trains_agent.helper.check_update import start_check_update_daemon
-from trains_agent.commands.base import resolve_names, ServiceCommandSection
-from trains_agent.definitions import (
+from clearml_agent.backend_config.defs import UptimeConf
+from clearml_agent.helper.check_update import start_check_update_daemon
+from clearml_agent.commands.base import resolve_names, ServiceCommandSection
+from clearml_agent.definitions import (
     ENVIRONMENT_SDK_PARAMS,
     PROGRAM_NAME,
     DEFAULT_VENV_UPDATE_URL,
+    ENV_DOCKER_IMAGE,
     ENV_TASK_EXECUTE_AS_USER,
     ENV_DOCKER_HOST_MOUNT,
     ENV_TASK_EXTRA_PYTHON_PATH,
     ENV_AGENT_GIT_USER,
-    ENV_AGENT_GIT_PASS)
-from trains_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
-from trains_agent.errors import APIError, CommandFailedError, Sigterm
-from trains_agent.helper.base import (
+    ENV_AGENT_GIT_PASS, ENV_WORKER_ID, ENV_DOCKER_SKIP_GPUS_FLAG, )
+from clearml_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
+from clearml_agent.errors import APIError, CommandFailedError, Sigterm
+from clearml_agent.helper.base import (
     return_list,
     print_parameters,
     dump_yaml,
@@ -66,19 +67,19 @@ from trains_agent.helper.base import (
     is_linux_platform,
     rm_file,
     add_python_path, safe_remove_tree, )
-from trains_agent.helper.console import ensure_text, print_text, decode_binary_lines
-from trains_agent.helper.os.daemonize import daemonize_process
-from trains_agent.helper.package.base import PackageManager
-from trains_agent.helper.package.conda_api import CondaAPI
-from trains_agent.helper.package.post_req import PostRequirement
-from trains_agent.helper.package.external_req import ExternalRequirements
-from trains_agent.helper.package.pip_api.system import SystemPip
-from trains_agent.helper.package.pip_api.venv import VirtualenvPip
-from trains_agent.helper.package.poetry_api import PoetryConfig, PoetryAPI
-from trains_agent.helper.package.pytorch import PytorchRequirement
-from trains_agent.helper.package.requirements import RequirementsManager
-from trains_agent.helper.package.venv_update_api import VenvUpdateAPI
-from trains_agent.helper.process import (
+from clearml_agent.helper.console import ensure_text, print_text, decode_binary_lines
+from clearml_agent.helper.os.daemonize import daemonize_process
+from clearml_agent.helper.package.base import PackageManager
+from clearml_agent.helper.package.conda_api import CondaAPI
+from clearml_agent.helper.package.post_req import PostRequirement
+from clearml_agent.helper.package.external_req import ExternalRequirements
+from clearml_agent.helper.package.pip_api.system import SystemPip
+from clearml_agent.helper.package.pip_api.venv import VirtualenvPip
+from clearml_agent.helper.package.poetry_api import PoetryConfig, PoetryAPI
+from clearml_agent.helper.package.pytorch import PytorchRequirement
+from clearml_agent.helper.package.requirements import RequirementsManager
+from clearml_agent.helper.package.venv_update_api import VenvUpdateAPI
+from clearml_agent.helper.process import (
     kill_all_child_processes,
     WorkerParams,
     ExitStatus,
@@ -90,17 +91,17 @@ from trains_agent.helper.process import (
     get_docker_id,
     commit_docker, terminate_process,
 )
-from trains_agent.helper.package.priority_req import PriorityPackageRequirement, PackageCollectorRequirement
-from trains_agent.helper.repo import clone_repository_cached, RepoInfo, VCS
-from trains_agent.helper.resource_monitor import ResourceMonitor
-from trains_agent.helper.runtime_verification import check_runtime, print_uptime_properties
-from trains_agent.session import Session
-from trains_agent.helper.singleton import Singleton
+from clearml_agent.helper.package.priority_req import PriorityPackageRequirement, PackageCollectorRequirement
+from clearml_agent.helper.repo import clone_repository_cached, RepoInfo, VCS
+from clearml_agent.helper.resource_monitor import ResourceMonitor
+from clearml_agent.helper.runtime_verification import check_runtime, print_uptime_properties
+from clearml_agent.session import Session
+from clearml_agent.helper.singleton import Singleton
 
 from .events import Events
 
-DOCKER_ROOT_CONF_FILE = "/root/trains.conf"
-DOCKER_DEFAULT_CONF_FILE = "/root/default_trains.conf"
+DOCKER_ROOT_CONF_FILE = "/root/clearml.conf"
+DOCKER_DEFAULT_CONF_FILE = "/root/default_clearml.conf"
 
 
 @attr.s
@@ -337,8 +338,8 @@ class Worker(ServiceCommandSection):
     # last message before passing control to the actual task
     _task_logging_pass_control_message = "Running task id [{}]:"
 
-    _run_as_user_home = '/trains_agent_home'
-    _docker_fixed_user_cache = '/trains_agent_cache'
+    _run_as_user_home = '/clearml_agent_home'
+    _docker_fixed_user_cache = '/clearml_agent_cache'
     _temp_cleanup_list = []
 
     @property
@@ -485,9 +486,9 @@ class Worker(ServiceCommandSection):
             return
         # setup console log
         temp_stdout_name = safe_mkstemp(
-            suffix=".txt", prefix=".trains_agent_out.", name_only=True
+            suffix=".txt", prefix=".clearml_agent_out.", name_only=True
         )
-        # temp_stderr_name = safe_mkstemp(suffix=".txt", prefix=".trains_agent_err.", name_only=True)
+        # temp_stderr_name = safe_mkstemp(suffix=".txt", prefix=".clearml_agent_err.", name_only=True)
         temp_stderr_name = None
         print(
             "Storing stdout and stderr log to '{}', '{}'".format(
@@ -565,7 +566,7 @@ class Worker(ServiceCommandSection):
         status = ExitStatus.failure
         try:
             # set WORKER ID
-            os.environ['TRAINS_WORKER_ID'] = self.worker_id
+            ENV_WORKER_ID.set(self.worker_id)
 
             if self._docker_force_pull and docker_image:
                 full_pull_cmd = ['docker', 'pull', docker_image]
@@ -619,7 +620,7 @@ class Worker(ServiceCommandSection):
         :param queues: IDs of queues to pull tasks from
         :type queues: list of ``Text``
         :param worker_params: Worker command line arguments
-        :type worker_params: ``trains_agent.helper.process.WorkerParams``
+        :type worker_params: ``clearml_agent.helper.process.WorkerParams``
         :param priority_order: If True pull order in priority manner. always from the first
             If False, pull from each queue once in a round robin manner
         :type priority_order: bool
@@ -870,7 +871,7 @@ class Worker(ServiceCommandSection):
 
         # create temp config file with current configuration
         self.temp_config_path = NamedTemporaryFile(
-            suffix=".cfg", prefix=".trains_agent.", mode='w+t').name
+            suffix=".cfg", prefix=".clearml_agent.", mode='w+t').name
 
         # print docker image
         if docker is not False and docker is not None:
@@ -893,19 +894,19 @@ class Worker(ServiceCommandSection):
                     warning(message+'\n')
 
         if self._services_mode:
-            print('Trains-Agent running in services mode')
+            print('ClearML-Agent running in services mode')
 
         self._daemon_foreground = foreground
         if not foreground:
             out_file, name = safe_mkstemp(
-                prefix=".trains_agent_daemon_out",
+                prefix=".clearml_agent_daemon_out",
                 suffix=".txt",
                 open_kwargs={
                     "buffering": self._session.config.get("agent.log_files_buffering", 1)
                 },
             )
             print(
-                "Running TRAINS-AGENT daemon in background mode, writing stdout/stderr to {}".format(
+                "Running CLEARML-AGENT daemon in background mode, writing stdout/stderr to {}".format(
                     name
                 )
             )
@@ -946,7 +947,7 @@ class Worker(ServiceCommandSection):
                     tb = six.text_type(traceback.format_exc())
                     print("FATAL ERROR:")
                     print(tb)
-                    crash_file, name = safe_mkstemp(prefix=".trains_agent-crash", suffix=".log")
+                    crash_file, name = safe_mkstemp(prefix=".clearml_agent-crash", suffix=".log")
                     try:
                         with crash_file:
                             crash_file.write(tb)
@@ -1272,7 +1273,7 @@ class Worker(ServiceCommandSection):
     def _build_docker(self, docker, target, task_id, entry_point=None, standalone_mode=True):
 
         self.temp_config_path = safe_mkstemp(
-            suffix=".cfg", prefix=".trains_agent.", text=True, name_only=True
+            suffix=".cfg", prefix=".clearml_agent.", text=True, name_only=True
         )
         if not target:
             target = "task_id_{}".format(task_id)
@@ -1337,7 +1338,7 @@ class Worker(ServiceCommandSection):
         if entry_point == "clone_task" or entry_point == "reuse_task":
             change = 'ENTRYPOINT if [ ! -s "{trains_conf}" ] ; then ' \
                      'cp {default_trains_conf} {trains_conf} ; ' \
-                     ' fi ; trains-agent execute --id {task_id} --standalone-mode {clone}'.format(
+                     ' fi ; clearml-agent execute --id {task_id} --standalone-mode {clone}'.format(
                         default_trains_conf=DOCKER_DEFAULT_CONF_FILE,
                         trains_conf=DOCKER_ROOT_CONF_FILE,
                         task_id=task_id,
@@ -1527,7 +1528,7 @@ class Worker(ServiceCommandSection):
             "task_id": current_task.id,
             "log_level": log_level,
             "log_to_backend": "0",
-            "config_file": self._session.config_file,  # The config file is the tmp file that trains_agent created
+            "config_file": self._session.config_file,  # The config file is the tmp file that clearml_agent created
         }
         os.environ.update(
             {
@@ -1542,18 +1543,18 @@ class Worker(ServiceCommandSection):
 
         # Add the script CWD to the python path
         python_path = get_python_path(script_dir, execution.entry_point, self.package_api, is_conda_env=self.is_conda)
-        if os.environ.get(ENV_TASK_EXTRA_PYTHON_PATH):
-            python_path = add_python_path(python_path, os.environ.get(ENV_TASK_EXTRA_PYTHON_PATH))
+        if ENV_TASK_EXTRA_PYTHON_PATH.get():
+            python_path = add_python_path(python_path, ENV_TASK_EXTRA_PYTHON_PATH.get())
         if python_path:
             os.environ['PYTHONPATH'] = python_path
 
         # check if we want to run as another user, only supported on linux
-        if os.environ.get(ENV_TASK_EXECUTE_AS_USER, None) and is_linux_platform():
+        if ENV_TASK_EXECUTE_AS_USER.get() and is_linux_platform():
             command, script_dir = self._run_as_user_patch(
                 command, self._session.config_file,
                 script_dir, venv_folder,
                 self._session.config.get('sdk.storage.cache.default_base_dir'),
-                os.environ.get(ENV_TASK_EXECUTE_AS_USER))
+                ENV_TASK_EXECUTE_AS_USER.get())
             use_execv = False
         else:
             use_execv = is_linux_platform() and not isinstance(self.package_api, (PoetryAPI, CondaAPI))
@@ -1583,7 +1584,7 @@ class Worker(ServiceCommandSection):
             else:
                 # store stdout/stderr into file, and send to backend
                 temp_stdout_fname = log_file or safe_mkstemp(
-                    suffix=".txt", prefix=".trains_agent_out.", name_only=True
+                    suffix=".txt", prefix=".clearml_agent_out.", name_only=True
                 )
                 print("Storing stdout and stderr log into [%s]" % temp_stdout_fname)
                 exit_code, _ = self._log_command_output(
@@ -1966,7 +1967,7 @@ class Worker(ServiceCommandSection):
 
     def debug(self, message):
         if self._session.debug_mode:
-            print("trains_agent: {}".format(message))
+            print("clearml_agent: {}".format(message))
 
     def find_python_executable_for_version(self, config_version):
         # type: (Text) -> Tuple[Text, Text, Text]
@@ -2166,7 +2167,7 @@ class Worker(ServiceCommandSection):
             args.update(kwargs)
             return self._get_docker_cmd(**args)
 
-        docker_image = str(os.environ.get("TRAINS_DOCKER_IMAGE") or
+        docker_image = str(ENV_DOCKER_IMAGE.get() or
                            self._session.config.get("agent.default_docker.image", "nvidia/cuda")) \
             if not docker_args else docker_args[0]
         docker_arguments = docker_image.split(' ') if docker_image else []
@@ -2183,10 +2184,10 @@ class Worker(ServiceCommandSection):
         print("Running in Docker {} mode (v19.03 and above) - using default docker image: {} running {}\n".format(
             '*standalone*' if self._standalone_mode else '', docker_image, python_version))
         temp_config = deepcopy(self._session.config)
-        mounted_cache_dir = self._docker_fixed_user_cache  # '/root/.trains/cache'
-        mounted_pip_dl_dir = '/root/.trains/pip-download-cache'
-        mounted_vcs_cache = '/root/.trains/vcs-cache'
-        mounted_venv_dir = '/root/.trains/venvs-builds'
+        mounted_cache_dir = self._docker_fixed_user_cache  # '/root/.clearml/cache'
+        mounted_pip_dl_dir = '/root/.clearml/pip-download-cache'
+        mounted_vcs_cache = '/root/.clearml/vcs-cache'
+        mounted_venv_dir = '/root/.clearml/venvs-builds'
         host_cache = Path(os.path.expandvars(
             self._session.config["sdk.storage.cache.default_base_dir"])).expanduser().as_posix()
         host_pip_dl = Path(os.path.expandvars(
@@ -2209,10 +2210,10 @@ class Worker(ServiceCommandSection):
                                            self._session.config.get("agent.git_pass", None)))
 
         host_apt_cache = Path(os.path.expandvars(self._session.config.get(
-            "agent.docker_apt_cache", '~/.trains/apt-cache'))).expanduser().as_posix()
+            "agent.docker_apt_cache", '~/.clearml/apt-cache'))).expanduser().as_posix()
         host_pip_cache = Path(os.path.expandvars(self._session.config.get(
-            "agent.docker_pip_cache", '~/.trains/pip-cache'))).expanduser().as_posix()
-        host_ssh_cache = mkdtemp(prefix='trains_agent.ssh.')
+            "agent.docker_pip_cache", '~/.clearml/pip-cache'))).expanduser().as_posix()
+        host_ssh_cache = mkdtemp(prefix='clearml_agent.ssh.')
         self._temp_cleanup_list.append(host_ssh_cache)
 
         # make sure all folders are valid
@@ -2257,7 +2258,7 @@ class Worker(ServiceCommandSection):
         preprocess_bash_script = self._session.config.get("agent.docker_preprocess_bash_script", None)
 
         self.temp_config_path = self.temp_config_path or safe_mkstemp(
-            suffix=".cfg", prefix=".trains_agent.", text=True, name_only=True
+            suffix=".cfg", prefix=".clearml_agent.", text=True, name_only=True
         )
 
         docker_cmd = dict(worker_id=self.worker_id,
@@ -2298,13 +2299,13 @@ class Worker(ServiceCommandSection):
         dockers_nvidia_visible_devices = 'all'
         gpu_devices = os.environ.get('NVIDIA_VISIBLE_DEVICES', None)
         if gpu_devices is None or gpu_devices.lower().strip() == 'all':
-            if os.environ.get('TRAINS_DOCKER_SKIP_GPUS_FLAG', None):
+            if ENV_DOCKER_SKIP_GPUS_FLAG.get():
                 dockers_nvidia_visible_devices = os.environ.get('NVIDIA_VISIBLE_DEVICES') or \
                                                  dockers_nvidia_visible_devices
             else:
                 base_cmd += ['--gpus', 'all', ]
         elif gpu_devices.strip() and gpu_devices.strip() != 'none':
-            if os.environ.get('TRAINS_DOCKER_SKIP_GPUS_FLAG', None):
+            if ENV_DOCKER_SKIP_GPUS_FLAG.get():
                 dockers_nvidia_visible_devices = gpu_devices
             else:
                 base_cmd += ['--gpus', '\"device={}\"'.format(gpu_devices), ]
@@ -2338,7 +2339,7 @@ class Worker(ServiceCommandSection):
 
         # check if we need to map host folders
         if ENV_DOCKER_HOST_MOUNT.get():
-            # expect TRAINS_AGENT_K8S_HOST_MOUNT = '/mnt/host/data:/root/.trains'
+            # expect CLEARML_AGENT_K8S_HOST_MOUNT = '/mnt/host/data:/root/.clearml'
             k8s_node_mnt, _, k8s_pod_mnt = ENV_DOCKER_HOST_MOUNT.get().partition(':')
             # search and replace all the host folders with the k8s
             host_mounts = [host_apt_cache, host_pip_cache, host_pip_dl, host_cache, host_vcs_cache]
@@ -2351,7 +2352,7 @@ class Worker(ServiceCommandSection):
             host_apt_cache, host_pip_cache, host_pip_dl, host_cache, host_vcs_cache = host_mounts
 
             # copy the configuration file into the mounted folder
-            new_conf_file = os.path.join(k8s_pod_mnt, '.trains_agent.{}.cfg'.format(quote(worker_id, safe="")))
+            new_conf_file = os.path.join(k8s_pod_mnt, '.clearml_agent.{}.cfg'.format(quote(worker_id, safe="")))
             try:
                 rm_tree(new_conf_file)
                 rm_file(new_conf_file)
@@ -2361,7 +2362,7 @@ class Worker(ServiceCommandSection):
                 raise ValueError('Error: could not copy configuration file into: {}'.format(new_conf_file))
 
             if host_ssh_cache:
-                new_ssh_cache = os.path.join(k8s_pod_mnt, '.trains_agent.{}.ssh'.format(quote(worker_id, safe="")))
+                new_ssh_cache = os.path.join(k8s_pod_mnt, '.clearml_agent.{}.ssh'.format(quote(worker_id, safe="")))
                 try:
                     rm_tree(new_ssh_cache)
                     shutil.copytree(host_ssh_cache, new_ssh_cache)
@@ -2369,29 +2370,29 @@ class Worker(ServiceCommandSection):
                 except Exception:
                     raise ValueError('Error: could not copy .ssh directory into: {}'.format(new_ssh_cache))
 
-        base_cmd += ['-e', 'TRAINS_WORKER_ID='+worker_id, ]
+        base_cmd += ['-e', 'CLEARML_WORKER_ID='+worker_id, ]
         # update the docker image, so the system knows where it runs
-        base_cmd += ['-e', 'TRAINS_DOCKER_IMAGE={} {}'.format(docker_image, ' '.join(docker_arguments)).strip()]
+        base_cmd += ['-e', 'CLEARML_DOCKER_IMAGE={} {}'.format(docker_image, ' '.join(docker_arguments)).strip()]
 
         # if we are running a RC version, install the same version in the docker
         # because the default latest, will be a release version (not RC)
         specify_version = ''
         try:
-            from trains_agent.version import __version__
+            from clearml_agent.version import __version__
             _version_parts = __version__.split('.')
             if force_current_version or 'rc' in _version_parts[-1].lower() or 'rc' in _version_parts[-2].lower():
                 specify_version = '=={}'.format(__version__)
         except:
             pass
 
-        if os.environ.get('FORCE_LOCAL_TRAINS_AGENT_WHEEL'):
-            local_wheel = os.path.expanduser(os.environ.get('FORCE_LOCAL_TRAINS_AGENT_WHEEL'))
+        if os.environ.get('FORCE_LOCAL_CLEARML_AGENT_WHEEL'):
+            local_wheel = os.path.expanduser(os.environ.get('FORCE_LOCAL_CLEARML_AGENT_WHEEL'))
             docker_wheel = str(Path('/tmp') / Path(local_wheel).name)
             base_cmd += ['-v', local_wheel + ':' + docker_wheel]
-            trains_agent_wheel = '\"{}\"'.format(docker_wheel)
+            clearml_agent_wheel = '\"{}\"'.format(docker_wheel)
         else:
-            # trains-agent{specify_version}
-            trains_agent_wheel = 'trains-agent{specify_version}'.format(specify_version=specify_version)
+            # clearml-agent{specify_version}
+            clearml_agent_wheel = 'clearml-agent{specify_version}'.format(specify_version=specify_version)
 
         if not standalone_mode:
             if not bash_script:
@@ -2421,10 +2422,10 @@ class Worker(ServiceCommandSection):
                     docker_bash_script + " ; " +
                     "[ ! -z $LOCAL_PYTHON ] || export LOCAL_PYTHON={python} ; " +
                     "$LOCAL_PYTHON -m pip install -U \"pip{pip_version}\" ; " +
-                    "$LOCAL_PYTHON -m pip install -U {trains_agent_wheel} ; ").format(
+                    "$LOCAL_PYTHON -m pip install -U {clearml_agent_wheel} ; ").format(
                 python_single_digit=python_version.split('.')[0],
                 python=python_version, pip_version=PackageManager.get_pip_version(),
-                trains_agent_wheel=trains_agent_wheel)
+                clearml_agent_wheel=clearml_agent_wheel)
 
         if host_git_credentials:
             for git_credentials in host_git_credentials:
@@ -2442,7 +2443,7 @@ class Worker(ServiceCommandSection):
                 update_scheme +
                 extra_shell_script +
                 "cp {} {} ; ".format(DOCKER_ROOT_CONF_FILE, DOCKER_DEFAULT_CONF_FILE) +
-                "NVIDIA_VISIBLE_DEVICES={nv_visible} $LOCAL_PYTHON -u -m trains_agent ".format(
+                "NVIDIA_VISIBLE_DEVICES={nv_visible} $LOCAL_PYTHON -u -m clearml_agent ".format(
                     nv_visible=dockers_nvidia_visible_devices, python=python_version)
              ])
 
@@ -2473,7 +2474,7 @@ class Worker(ServiceCommandSection):
                 os.setuid(self.uid)
 
         # create a home folder for our user
-        trains_agent_home = self._run_as_user_home + '{}'.format(
+        clearml_agent_home = self._run_as_user_home + '{}'.format(
             '.'+str(Singleton.get_slot()) if Singleton.get_slot() else '')
         try:
             home_folder = self._run_as_user_home
@@ -2511,7 +2512,7 @@ class Worker(ServiceCommandSection):
 
         # make sure we could access the trains_conf file
         try:
-            user_trains_conf = os.path.join(home_folder, 'trains.conf')
+            user_trains_conf = os.path.join(home_folder, 'clearml.conf')
             shutil.copy(trains_conf, user_trains_conf)
             Path(user_trains_conf).chmod(0o0777)
         except:
@@ -2539,11 +2540,11 @@ class Worker(ServiceCommandSection):
                     (worker_id and uid == worker_id) or
                     (not worker_id and uid.startswith('{}:'.format(worker_name)))):
                 # this is us kill it
-                print('Terminating trains-agent worker_id={} pid={}'.format(uid, pid))
+                print('Terminating clearml-agent worker_id={} pid={}'.format(uid, pid))
                 if not terminate_process(pid, timeout=10):
                     error('Could not terminate process pid={}'.format(pid))
                 return True
-        print('Could not find a running trains-agent instance with worker_name={} worker_id={}'.format(
+        print('Could not find a running clearml-agent instance with worker_name={} worker_id={}'.format(
             worker_name, worker_id))
         return False
 

@@ -1,8 +1,8 @@
 import argparse
 from textwrap import dedent
 
-from trains_agent.helper.base import warning, is_windows_platform
-from trains_agent.interface.base import foreign_object_id
+from clearml_agent.helper.base import warning, is_windows_platform
+from clearml_agent.interface.base import foreign_object_id
 
 
 class DeprecatedFlag(argparse.Action):
@@ -57,7 +57,7 @@ DAEMON_ARGS = dict({
         'group': 'Docker support',
     },
     '--force-current-version': {
-        'help': 'Force trains-agent to use the current trains-agent version when running in the docker',
+        'help': 'Force clearml-agent to use the current clearml-agent version when running in the docker',
         'action': 'store_true',
         'group': 'Docker support',
     },
@@ -94,14 +94,14 @@ DAEMON_ARGS = dict({
         'action': 'store_true',
     },
     '--uptime': {
-        'help': 'Specify uptime for trains-agent in "<hours> <days>" format. for example, use "17-20 TUE" to set '
+        'help': 'Specify uptime for clearml-agent in "<hours> <days>" format. for example, use "17-20 TUE" to set '
                 'Tuesday\'s uptime to 17-20'
                 'Note: Make sure to have only one of uptime/downtime configuration and not both.',
         'nargs': '*',
         'default': None,
     },
     '--downtime': {
-        'help': 'Specify uptime for trains-agent in "<hours> <days>" format. for example, use "09-13 TUE" to set '
+        'help': 'Specify uptime for clearml-agent in "<hours> <days>" format. for example, use "09-13 TUE" to set '
                 'Tuesday\'s downtime to 09-13'
                 'Note: Make sure to have only on of uptime/downtime configuration and not both.',
         'nargs': '*',
@@ -199,13 +199,13 @@ COMMANDS = {
         'help': 'List all worker machines and status',
     },
     'daemon': {
-        'help': 'Start Trains-Agent daemon worker',
+        'help': 'Start ClearML-Agent daemon worker',
         'args': DAEMON_ARGS,
     },
     'config': {
         'help': 'Check daemon configuration and print it',
     },
     'init': {
-        'help': 'Trains-Agent configuration wizard',
+        'help': 'ClearML-Agent configuration wizard',
     }
 }

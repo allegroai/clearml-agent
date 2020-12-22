@@ -8,10 +8,10 @@ from functools import partial
 import six
 from pathlib2 import Path
 
-from trains_agent import definitions
-from trains_agent.session import Session
+from clearml_agent import definitions
+from clearml_agent.session import Session
 
-HEADER = 'TRAINS-AGENT Deep Learning DevOps'
+HEADER = 'CLEARML-AGENT Deep Learning DevOps'
 
 
 class Parser(argparse.ArgumentParser):
@@ -192,7 +192,7 @@ def add_service(subparsers, name, commands, command_name_dest='command', formatt
         parser_class=partial(Parser, usage_on_error=False),
         dest='action')
 
-    # This is a fix for a bug in python3's argparse: running "trains-agent some_service" fails
+    # This is a fix for a bug in python3's argparse: running "clearml-agent some_service" fails
     service_subparsers.required = True
 
     for name, subparser in commands.pop('subparsers', {}).items():
@@ -368,8 +368,8 @@ def base_arguments(top_parser):
     top_parser.add_argument(
         '--version',
         action='version',
-        version='TRAINS-AGENT version %s' % Session.version,
-        help='TRAINS-AGENT version number')
+        version='CLEARML-AGENT version %s' % Session.version,
+        help='CLEARML-AGENT version number')
     top_parser.add_argument(
         '--config-file',
         help='Use a different configuration file (default: "{}")'.format(definitions.CONFIG_FILE))

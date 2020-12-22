@@ -5,8 +5,8 @@ import time
 
 from future.builtins import super
 
-from trains_agent.commands.base import ServiceCommandSection
-from trains_agent.helper.base import return_list
+from clearml_agent.commands.base import ServiceCommandSection
+from clearml_agent.helper.base import return_list
 
 
 class Events(ServiceCommandSection):

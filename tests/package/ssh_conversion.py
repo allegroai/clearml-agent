@@ -1,6 +1,6 @@
 import pytest
 
-from trains_agent.helper.repo import VCS
+from clearml_agent.helper.repo import VCS
 
 
 @pytest.mark.parametrize(

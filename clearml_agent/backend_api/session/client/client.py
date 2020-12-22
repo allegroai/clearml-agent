@@ -106,15 +106,15 @@ class StrictSession(Session):
             init()
             return
 
-        original = os.environ.get(LOCAL_CONFIG_FILE_OVERRIDE_VAR, None)
+        original = LOCAL_CONFIG_FILE_OVERRIDE_VAR.get() or None
         try:
-            os.environ[LOCAL_CONFIG_FILE_OVERRIDE_VAR] = str(config_file)
+            LOCAL_CONFIG_FILE_OVERRIDE_VAR.set(str(config_file))
             init()
         finally:
             if original is None:
-                os.environ.pop(LOCAL_CONFIG_FILE_OVERRIDE_VAR, None)
+                LOCAL_CONFIG_FILE_OVERRIDE_VAR.pop()
             else:
-                os.environ[LOCAL_CONFIG_FILE_OVERRIDE_VAR] = original
+                LOCAL_CONFIG_FILE_OVERRIDE_VAR.set(original)
 
     def send(self, request, *args, **kwargs):
         result = super(StrictSession, self).send(request, *args, **kwargs)
@@ -222,7 +222,7 @@ class TableResponse(Response):
             return "" if result is None else result
 
         fields = fields or self.fields
-        from trains_agent.helper.base import create_table
+        from clearml_agent.helper.base import create_table
         return create_table(
             (dict((attr, getter(item, attr)) for attr in fields) for item in self),
             titles=fields, columns=fields, headers=True,

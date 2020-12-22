@@ -4,8 +4,8 @@ import requests
 from pathlib2 import Path
 
 import six
-from trains_agent.definitions import CONFIG_DIR
-from trains_agent.helper.process import Argv, DEVNULL
+from clearml_agent.definitions import CONFIG_DIR
+from clearml_agent.helper.process import Argv, DEVNULL
 from .pip_api.venv import VirtualenvPip
 
 

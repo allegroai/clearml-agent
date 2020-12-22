@@ -13,18 +13,18 @@ from pathlib2 import Path
 
 import six
 
-from trains_agent.definitions import ENV_AGENT_GIT_USER, ENV_AGENT_GIT_PASS, ENV_AGENT_GIT_HOST
-from trains_agent.helper.console import ensure_text, ensure_binary
-from trains_agent.errors import CommandFailedError
-from trains_agent.helper.base import (
+from clearml_agent.definitions import ENV_AGENT_GIT_USER, ENV_AGENT_GIT_PASS, ENV_AGENT_GIT_HOST
+from clearml_agent.helper.console import ensure_text, ensure_binary
+from clearml_agent.errors import CommandFailedError
+from clearml_agent.helper.base import (
     select_for_platform,
     rm_tree,
     ExecutionInfo,
     normalize_path,
     create_file_if_not_exists,
 )
-from trains_agent.helper.process import DEVNULL, Argv, PathLike, COMMAND_SUCCESS
-from trains_agent.session import Session
+from clearml_agent.helper.process import DEVNULL, Argv, PathLike, COMMAND_SUCCESS
+from clearml_agent.session import Session
 
 
 class VcsFactory(object):

@@ -1,22 +1,22 @@
 from datetime import timedelta
 from distutils.util import strtobool
 from enum import IntEnum
-from os import getenv
+from os import getenv, environ
 from typing import Text, Optional, Union, Tuple, Any
 
 from furl import furl
 from pathlib2 import Path
 
 import six
-from trains_agent.helper.base import normalize_path
+from clearml_agent.helper.base import normalize_path
 
-PROGRAM_NAME = "trains-agent"
+PROGRAM_NAME = "clearml-agent"
 FROM_FILE_PREFIX_CHARS = "@"
 
-CONFIG_DIR = normalize_path("~/.trains")
-TOKEN_CACHE_FILE = normalize_path("~/.trains.trains_agent.tmp")
+CONFIG_DIR = normalize_path("~/.clearml")
+TOKEN_CACHE_FILE = normalize_path("~/.clearml.clearml_agent.tmp")
 
-CONFIG_FILE_CANDIDATES = ["~/trains.conf"]
+CONFIG_FILE_CANDIDATES = ["~/clearml.conf"]
 
 
 def find_config_path():
@@ -40,6 +40,14 @@ class EnvironmentConfig(object):
         self.vars = names
         self.type = kwargs.pop("type", six.text_type)
 
+    def pop(self):
+        for k in self.vars:
+            environ.pop(k, None)
+
+    def set(self, value):
+        for k in self.vars:
+            environ[k] = str(value)
+
     def convert(self, value):
         return self.conversions.get(self.type, self.type)(value)
 
@@ -55,23 +63,23 @@ class EnvironmentConfig(object):
 
 
 ENVIRONMENT_CONFIG = {
-    "api.api_server": EnvironmentConfig("TRAINS_API_HOST", ),
+    "api.api_server": EnvironmentConfig("CLEARML_API_HOST", "TRAINS_API_HOST", ),
     "api.credentials.access_key": EnvironmentConfig(
-        "TRAINS_API_ACCESS_KEY",
+        "CLEARML_API_ACCESS_KEY", "TRAINS_API_ACCESS_KEY",
     ),
     "api.credentials.secret_key": EnvironmentConfig(
-        "TRAINS_API_SECRET_KEY",
+        "CLEARML_API_SECRET_KEY", "TRAINS_API_SECRET_KEY",
     ),
-    "agent.worker_name": EnvironmentConfig("TRAINS_WORKER_NAME", ),
-    "agent.worker_id": EnvironmentConfig("TRAINS_WORKER_ID", ),
+    "agent.worker_name": EnvironmentConfig("CLEARML_WORKER_NAME", "TRAINS_WORKER_NAME", ),
+    "agent.worker_id": EnvironmentConfig("CLEARML_WORKER_ID", "TRAINS_WORKER_ID", ),
     "agent.cuda_version": EnvironmentConfig(
-        "TRAINS_CUDA_VERSION", "CUDA_VERSION"
+        "CLEARML_CUDA_VERSION", "TRAINS_CUDA_VERSION", "CUDA_VERSION"
     ),
     "agent.cudnn_version": EnvironmentConfig(
-        "TRAINS_CUDNN_VERSION", "CUDNN_VERSION"
+        "CLEARML_CUDNN_VERSION", "TRAINS_CUDNN_VERSION", "CUDNN_VERSION"
     ),
     "agent.cpu_only": EnvironmentConfig(
-        "TRAINS_CPU_ONLY", "CPU_ONLY", type=bool
+        names=("CLEARML_CPU_ONLY", "TRAINS_CPU_ONLY", "CPU_ONLY"), type=bool
     ),
     "sdk.aws.s3.key": EnvironmentConfig("AWS_ACCESS_KEY_ID"),
     "sdk.aws.s3.secret": EnvironmentConfig("AWS_SECRET_ACCESS_KEY"),
@@ -82,13 +90,14 @@ ENVIRONMENT_CONFIG = {
 }
 
 ENVIRONMENT_SDK_PARAMS = {
-    "task_id": ("TRAINS_TASK_ID", ),
-    "config_file": ("TRAINS_CONFIG_FILE", ),
-    "log_level": ("TRAINS_LOG_LEVEL", ),
-    "log_to_backend": ("TRAINS_LOG_TASK_TO_BACKEND", ),
+    "task_id": ("CLEARML_TASK_ID", "TRAINS_TASK_ID", ),
+    "config_file": ("CLEARML_CONFIG_FILE", "TRAINS_CONFIG_FILE", ),
+    "log_level": ("CLEARML_LOG_LEVEL", "TRAINS_LOG_LEVEL", ),
+    "log_to_backend": ("CLEARML_LOG_TASK_TO_BACKEND", "TRAINS_LOG_TASK_TO_BACKEND", ),
 }
 
-ENVIRONMENT_BACKWARD_COMPATIBLE = EnvironmentConfig("TRAINS_AGENT_ALG_ENV", type=bool)
+ENVIRONMENT_BACKWARD_COMPATIBLE = EnvironmentConfig(
+    names=("CLEARML_AGENT_ALG_ENV", "TRAINS_AGENT_ALG_ENV"), type=bool)
 
 VIRTUAL_ENVIRONMENT_PATH = {
     "python2": normalize_path(CONFIG_DIR, "py2venv"),
@@ -96,7 +105,7 @@ VIRTUAL_ENVIRONMENT_PATH = {
 }
 
 DEFAULT_BASE_DIR = normalize_path(CONFIG_DIR, "data_cache")
-DEFAULT_HOST = "https://demoapi.trains.allegro.ai"
+DEFAULT_HOST = "https://demoapi.demo.clear.ml"
 MAX_DATASET_SOURCES_COUNT = 50000
 
 INVALID_WORKER_ID = (400, 1001)
@@ -105,11 +114,6 @@ WORKER_ALREADY_REGISTERED = (400, 1003)
 API_VERSION = "v1.5"
 TOKEN_EXPIRATION_SECONDS = int(timedelta(days=2).total_seconds())
 
-HTTP_HEADERS = {
-    "worker": "X-Trains-Worker",
-    "act-as": "X-Trains-Act-As",
-    "client": "X-Trains-Agent",
-}
 METADATA_EXTENSION = ".json"
 
 DEFAULT_VENV_UPDATE_URL = (
@@ -120,12 +124,16 @@ DEFAULT_VCS_CACHE = normalize_path(CONFIG_DIR, "vcs-cache")
 PIP_EXTRA_INDICES = [
 ]
 DEFAULT_PIP_DOWNLOAD_CACHE = normalize_path(CONFIG_DIR, "pip-download-cache")
-ENV_AGENT_GIT_USER = EnvironmentConfig('TRAINS_AGENT_GIT_USER')
-ENV_AGENT_GIT_PASS = EnvironmentConfig('TRAINS_AGENT_GIT_PASS')
-ENV_AGENT_GIT_HOST = EnvironmentConfig('TRAINS_AGENT_GIT_HOST')
-ENV_TASK_EXECUTE_AS_USER = 'TRAINS_AGENT_EXEC_USER'
-ENV_TASK_EXTRA_PYTHON_PATH = 'TRAINS_AGENT_EXTRA_PYTHON_PATH'
-ENV_DOCKER_HOST_MOUNT = EnvironmentConfig('TRAINS_AGENT_K8S_HOST_MOUNT', 'TRAINS_AGENT_DOCKER_HOST_MOUNT')
+ENV_DOCKER_IMAGE = EnvironmentConfig('CLEARML_DOCKER_IMAGE', 'TRAINS_DOCKER_IMAGE')
+ENV_WORKER_ID = EnvironmentConfig('CLEARML_WORKER_ID', 'TRAINS_WORKER_ID')
+ENV_DOCKER_SKIP_GPUS_FLAG = EnvironmentConfig('CLEARML_DOCKER_SKIP_GPUS_FLAG', 'TRAINS_DOCKER_SKIP_GPUS_FLAG')
+ENV_AGENT_GIT_USER = EnvironmentConfig('CLEARML_AGENT_GIT_USER', 'TRAINS_AGENT_GIT_USER')
+ENV_AGENT_GIT_PASS = EnvironmentConfig('CLEARML_AGENT_GIT_PASS', 'TRAINS_AGENT_GIT_PASS')
+ENV_AGENT_GIT_HOST = EnvironmentConfig('CLEARML_AGENT_GIT_HOST', 'TRAINS_AGENT_GIT_HOST')
+ENV_TASK_EXECUTE_AS_USER = EnvironmentConfig('CLEARML_AGENT_EXEC_USER', 'TRAINS_AGENT_EXEC_USER')
+ENV_TASK_EXTRA_PYTHON_PATH = EnvironmentConfig('CLEARML_AGENT_EXTRA_PYTHON_PATH', 'TRAINS_AGENT_EXTRA_PYTHON_PATH')
+ENV_DOCKER_HOST_MOUNT = EnvironmentConfig('CLEARML_AGENT_K8S_HOST_MOUNT', 'CLEARML_AGENT_DOCKER_HOST_MOUNT',
+                                          'TRAINS_AGENT_K8S_HOST_MOUNT', 'TRAINS_AGENT_DOCKER_HOST_MOUNT')
 
 
 class FileBuffering(IntEnum):

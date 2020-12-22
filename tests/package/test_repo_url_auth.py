@@ -1,6 +1,6 @@
 import pytest
 
-from trains_agent.helper.repo import Git
+from clearml_agent.helper.repo import Git
 
 NO_CHANGE = object()
 

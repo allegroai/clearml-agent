@@ -2,10 +2,10 @@ from typing import Any
 
 from pathlib2 import Path
 
-from trains_agent.helper.base import select_for_platform, rm_tree, ExecutionInfo
-from trains_agent.helper.package.base import PackageManager
-from trains_agent.helper.process import Argv, PathLike
-from trains_agent.session import Session
+from clearml_agent.helper.base import select_for_platform, rm_tree, ExecutionInfo
+from clearml_agent.helper.package.base import PackageManager
+from clearml_agent.helper.process import Argv, PathLike
+from clearml_agent.session import Session
 from ..pip_api.system import SystemPip
 from ..requirements import RequirementsManager
 

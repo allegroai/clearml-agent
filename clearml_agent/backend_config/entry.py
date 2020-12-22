@@ -85,8 +85,9 @@ class Entry(object):
 
     def set(self, value):
         # type: (Any, Any) -> (Text, Any)
-        key, _ = self.get_pair(default=None, converter=None)
-        self._set(key, str(value))
+        # key, _ = self.get_pair(default=None, converter=None)
+        for k in self.keys:
+            self._set(k, str(value))
 
     def _set(self, key, value):
         # type: (Text, Text) -> None

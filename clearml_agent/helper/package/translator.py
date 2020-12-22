@@ -3,7 +3,7 @@ from typing import Text
 from furl import furl
 from pathlib2 import Path
 
-from trains_agent.config import Config
+from clearml_agent.config import Config
 from .pip_api.system import SystemPip
 
 

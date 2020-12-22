@@ -1,7 +1,7 @@
 from pyhocon import ConfigTree
 
 import six
-from trains_agent.helper.base import Singleton
+from clearml_agent.helper.base import Singleton
 
 
 @six.add_metaclass(Singleton)

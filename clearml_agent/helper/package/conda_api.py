@@ -15,14 +15,14 @@ import yaml
 from time import time
 from attr import attrs, attrib, Factory
 from pathlib2 import Path
-from trains_agent.external.requirements_parser import parse
-from trains_agent.external.requirements_parser.requirement import Requirement
+from clearml_agent.external.requirements_parser import parse
+from clearml_agent.external.requirements_parser.requirement import Requirement
 
-from trains_agent.errors import CommandFailedError
-from trains_agent.helper.base import rm_tree, NonStrictAttrs, select_for_platform, is_windows_platform, ExecutionInfo
-from trains_agent.helper.process import Argv, Executable, DEVNULL, CommandSequence, PathLike
-from trains_agent.helper.package.requirements import SimpleVersion
-from trains_agent.session import Session
+from clearml_agent.errors import CommandFailedError
+from clearml_agent.helper.base import rm_tree, NonStrictAttrs, select_for_platform, is_windows_platform, ExecutionInfo
+from clearml_agent.helper.process import Argv, Executable, DEVNULL, CommandSequence, PathLike
+from clearml_agent.helper.package.requirements import SimpleVersion
+from clearml_agent.session import Session
 from .base import PackageManager
 from .pip_api.venv import VirtualenvPip
 from .requirements import RequirementsManager, MarkerRequirement

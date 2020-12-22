@@ -14,12 +14,12 @@ from pathlib2 import Path
 from pyhocon import ConfigTree
 
 import six
-from trains_agent.definitions import PIP_EXTRA_INDICES
-from trains_agent.helper.base import warning, is_conda, which, join_lines, is_windows_platform
-from trains_agent.helper.process import Argv, PathLike
-from trains_agent.session import Session, normalize_cuda_version
-from trains_agent.external.requirements_parser import parse
-from trains_agent.external.requirements_parser.requirement import Requirement
+from clearml_agent.definitions import PIP_EXTRA_INDICES
+from clearml_agent.helper.base import warning, is_conda, which, join_lines, is_windows_platform
+from clearml_agent.helper.process import Argv, PathLike
+from clearml_agent.session import Session, normalize_cuda_version
+from clearml_agent.external.requirements_parser import parse
+from clearml_agent.external.requirements_parser.requirement import Requirement
 
 from .translator import RequirementsTranslator
 

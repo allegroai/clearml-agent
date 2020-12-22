@@ -5,8 +5,8 @@ import attr
 import sys
 import os
 from pathlib2 import Path
-from trains_agent.helper.process import Argv, DEVNULL, check_if_command_exists
-from trains_agent.session import Session, POETRY
+from clearml_agent.helper.process import Argv, DEVNULL, check_if_command_exists
+from clearml_agent.session import Session, POETRY
 
 
 def prop_guard(prop, log_prop=None):

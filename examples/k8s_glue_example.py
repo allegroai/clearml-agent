@@ -5,7 +5,7 @@ The K8sIntegration component will label each pod accordingly.
 """
 from argparse import ArgumentParser
 
-from trains_agent.glue.k8s import K8sIntegration
+from clearml_agent.glue.k8s import K8sIntegration
 
 
 def parse_args():
@@ -31,7 +31,7 @@ def parse_args():
         help="Used in conjunction with ports-mode, specify the external address of the k8s ingress / ELB"
     )
     parser.add_argument(
-        "--pod-trains-conf", type=str,
+        "--pod-clearml-conf", type=str,
         help="Configuration file to be used by the pod itself (if not provided, current configuration is used)"
     )
     parser.add_argument(

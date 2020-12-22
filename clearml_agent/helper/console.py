@@ -9,7 +9,7 @@ from attr import attrs, attrib
 
 import six
 from six import binary_type, text_type
-from trains_agent.helper.base import nonstrict_in_place_sort
+from clearml_agent.helper.base import nonstrict_in_place_sort
 
 
 def print_text(text, newline=True):

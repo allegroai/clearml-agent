@@ -11,7 +11,7 @@ from typing import Text, Sequence
 import attr
 import psutil
 from pathlib2 import Path
-from trains_agent.session import Session
+from clearml_agent.session import Session
 
 try:
     from .gpu import gpustat
@@ -81,7 +81,7 @@ class ResourceMonitor(object):
             # active_gpus == False means no GPU reporting
             self._active_gpus = False
         elif not self._gpustat:
-            log.warning('Trains-Agent Resource Monitor: GPU monitoring is not available')
+            log.warning('ClearML-Agent Resource Monitor: GPU monitoring is not available')
         else:
             # None means no filtering, report all gpus
             self._active_gpus = None

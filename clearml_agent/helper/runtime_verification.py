@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 from typing import List, Tuple, Optional
 
-from trains_agent.backend_config.defs import UptimeConf
+from clearml_agent.backend_config.defs import UptimeConf
 
 DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
 PATTERN = re.compile(r"^(?P<hours>[^\s]+)\s(?P<days>[^\s]+)")

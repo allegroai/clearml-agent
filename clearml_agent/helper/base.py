@@ -1,4 +1,4 @@
-""" TRAINS-AGENT Stdout Helper Functions  """
+""" CLEARML-AGENT Stdout Helper Functions  """
 from __future__ import print_function, unicode_literals
 
 import io
@@ -28,8 +28,8 @@ from tqdm import tqdm
 
 import six
 from six.moves import reduce
-from trains_agent.errors import CommandFailedError
-from trains_agent.helper.dicts import filter_keys
+from clearml_agent.errors import CommandFailedError
+from clearml_agent.helper.dicts import filter_keys
 
 pretty_lines = False
 
@@ -380,11 +380,11 @@ AllDumper.add_multi_representer(object, lambda dumper, data: dumper.represent_st
 
 
 def error(message):
-    print('\ntrains_agent: ERROR: {}\n'.format(message))
+    print('\nclearml_agent: ERROR: {}\n'.format(message))
 
 
 def warning(message):
-    print('trains_agent: Warning: {}'.format(message))
+    print('clearml_agent: Warning: {}'.format(message))
 
 
 class TqdmStream(object):

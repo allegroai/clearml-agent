@@ -1,6 +1,8 @@
 from os.path import expanduser
 from pathlib2 import Path
 
+from ..backend_config.environment import EnvEntry
+
 ENV_VAR = 'TRAINS_ENV'
 """ Name of system environment variable that can be used to specify the config environment name """
 
@@ -17,23 +19,24 @@ ENV_CONFIG_PATHS = [
 
 
 LOCAL_CONFIG_PATHS = [
-    # '/etc/opt/trains',               # used by servers for docker-generated configuration
-    # expanduser('~/.trains/config'),
+    # '/etc/opt/clearml',               # used by servers for docker-generated configuration
+    # expanduser('~/.clearml/config'),
 ]
 """ Local config paths, not related to environment """
 
 
 LOCAL_CONFIG_FILES = [
     expanduser('~/trains.conf'),    # used for workstation configuration (end-users, workers)
+    expanduser('~/clearml.conf'),    # used for workstation configuration (end-users, workers)
 ]
 """ Local config files (not paths) """
 
 
-LOCAL_CONFIG_FILE_OVERRIDE_VAR = 'TRAINS_CONFIG_FILE'
+LOCAL_CONFIG_FILE_OVERRIDE_VAR = EnvEntry('CLEARML_CONFIG_FILE', 'TRAINS_CONFIG_FILE', )
 """ Local config file override environment variable. If this is set, no other local config files will be used. """
 
 
-ENV_CONFIG_PATH_OVERRIDE_VAR = 'TRAINS_CONFIG_PATH'
+ENV_CONFIG_PATH_OVERRIDE_VAR = EnvEntry('CLEARML_CONFIG_PATH', 'TRAINS_CONFIG_PATH', )
 """ 
 Environment-related config path override environment variable. If this is set, no other env config path will be used. 
 """

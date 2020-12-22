@@ -4,13 +4,13 @@ import argparse
 import sys
 import warnings
 
-from trains_agent.backend_api.session.datamodel import UnusedKwargsWarning
+from clearml_agent.backend_api.session.datamodel import UnusedKwargsWarning
 
-import trains_agent
-from trains_agent.config import get_config
-from trains_agent.definitions import FileBuffering, CONFIG_FILE
-from trains_agent.helper.base import reverse_home_folder_expansion, chain_map, named_temporary_file
-from trains_agent.helper.process import ExitStatus
+import clearml_agent
+from clearml_agent.config import get_config
+from clearml_agent.definitions import FileBuffering, CONFIG_FILE
+from clearml_agent.helper.base import reverse_home_folder_expansion, chain_map, named_temporary_file
+from clearml_agent.helper.process import ExitStatus
 from . import interface, session, definitions, commands
 from .errors import ConfigFileNotFound, Sigterm, APIError
 from .helper.trace import PackageTrace
@@ -47,7 +47,7 @@ def run_command(parser, args, command_name):
     except ConfigFileNotFound:
         message = 'Cannot find configuration file in "{}".\n' \
                   'To create a configuration file, run:\n' \
-                  '$ trains_agent init'.format(reverse_home_folder_expansion(CONFIG_FILE))
+                  '$ clearml_agent init'.format(reverse_home_folder_expansion(CONFIG_FILE))
         command_class.exit(message)
     except APIError as api_error:
         if not debug:

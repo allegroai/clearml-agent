@@ -2,10 +2,10 @@ import sys
 from itertools import chain
 from typing import Text, Optional
 
-from trains_agent.definitions import PIP_EXTRA_INDICES, PROGRAM_NAME
-from trains_agent.helper.package.base import PackageManager
-from trains_agent.helper.process import Argv, DEVNULL
-from trains_agent.session import Session
+from clearml_agent.definitions import PIP_EXTRA_INDICES, PROGRAM_NAME
+from clearml_agent.helper.package.base import PackageManager
+from clearml_agent.helper.process import Argv, DEVNULL
+from clearml_agent.session import Session
 
 
 class SystemPip(PackageManager):

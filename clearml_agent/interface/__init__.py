@@ -3,7 +3,7 @@ from functools import partial
 from importlib import import_module
 import argparse
 
-from trains_agent.definitions import PROGRAM_NAME
+from clearml_agent.definitions import PROGRAM_NAME
 from .base import Parser, base_arguments, add_service, OnlyPluralChoicesHelpFormatter
 
 SERVICES = [

@@ -5,8 +5,8 @@ from contextlib import contextmanager
 from typing import Text, Iterable, Union
 
 import six
-from trains_agent.helper.base import mkstemp, safe_remove_file, join_lines, select_for_platform
-from trains_agent.helper.process import Executable, Argv, PathLike
+from clearml_agent.helper.base import mkstemp, safe_remove_file, join_lines, select_for_platform
+from clearml_agent.helper.process import Executable, Argv, PathLike
 
 
 @six.add_metaclass(abc.ABCMeta)

@@ -13,14 +13,15 @@ import json
 from time import sleep
 from typing import Text, List
 
-from trains_agent.commands.events import Events
-from trains_agent.commands.worker import Worker
-from trains_agent.errors import APIError
-from trains_agent.helper.base import safe_remove_file
-from trains_agent.helper.dicts import merge_dicts
-from trains_agent.helper.process import get_bash_output
-from trains_agent.helper.resource_monitor import ResourceMonitor
-from trains_agent.interface.base import ObjectID
+from clearml_agent.commands.events import Events
+from clearml_agent.commands.worker import Worker
+from clearml_agent.definitions import ENV_DOCKER_IMAGE
+from clearml_agent.errors import APIError
+from clearml_agent.helper.base import safe_remove_file
+from clearml_agent.helper.dicts import merge_dicts
+from clearml_agent.helper.process import get_bash_output
+from clearml_agent.helper.resource_monitor import ResourceMonitor
+from clearml_agent.interface.base import ObjectID
 
 
 class K8sIntegration(Worker):
@@ -28,16 +29,16 @@ class K8sIntegration(Worker):
 
     KUBECTL_APPLY_CMD = "kubectl apply -f"
 
-    KUBECTL_RUN_CMD = "kubectl run trains-{queue_name}-id-{task_id} " \
+    KUBECTL_RUN_CMD = "kubectl run clearml-{queue_name}-id-{task_id} " \
                       "--image {docker_image} " \
                       "--restart=Never --replicas=1 " \
                       "--generator=run-pod/v1 " \
-                      "--namespace=trains"
+                      "--namespace=clearml"
 
     KUBECTL_DELETE_CMD = "kubectl delete pods " \
                          "--selector=TRAINS=agent " \
                          "--field-selector=status.phase!=Pending,status.phase!=Running " \
-                         "--namespace=trains"
+                         "--namespace=clearml"
 
     BASH_INSTALL_SSH_CMD = [
         "apt-get install -y openssh-server",
@@ -46,7 +47,8 @@ class K8sIntegration(Worker):
         "echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config",
         "sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config",
         r"sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd",
-        "echo 'AcceptEnv TRAINS_API_ACCESS_KEY TRAINS_API_SECRET_KEY' >> /etc/ssh/sshd_config",
+        "echo 'AcceptEnv TRAINS_API_ACCESS_KEY TRAINS_API_SECRET_KEY CLEARML_API_ACCESS_KEY CLEARML_API_SECRET_KEY' "
+        ">> /etc/ssh/sshd_config",
         'echo "export VISIBLE=now" >> /etc/profile',
         'echo "export PATH=$PATH" >> /etc/profile',
         'echo "ldconfig" >> /etc/profile',
@@ -63,9 +65,9 @@ class K8sIntegration(Worker):
         "export LOCAL_PYTHON=$(which python3.$i) && break ; done",
         "[ ! -z $LOCAL_PYTHON ] || apt-get install -y python3-pip",
         "[ ! -z $LOCAL_PYTHON ] || export LOCAL_PYTHON=python3",
-        "$LOCAL_PYTHON -m pip install trains-agent",
+        "$LOCAL_PYTHON -m pip install clearml-agent",
         "{extra_bash_init_cmd}",
-        "$LOCAL_PYTHON -m trains_agent execute --full-monitoring --require-queue --id {task_id}"
+        "$LOCAL_PYTHON -m clearml_agent execute --full-monitoring --require-queue --id {task_id}"
     ]
 
     AGENT_LABEL = "TRAINS=agent"
@@ -108,7 +110,7 @@ class K8sIntegration(Worker):
         :param str overrides_yaml: YAML file containing the overrides for the pod (optional)
         :param str template_yaml: YAML file containing the template  for the pod (optional).
             If provided the pod is scheduled with kubectl apply and overrides are ignored, otherwise with kubectl run.
-        :param str trains_conf_file: trains.conf file to be use by the pod itself (optional)
+        :param str trains_conf_file: clearml.conf file to be use by the pod itself (optional)
         :param str extra_bash_init_script: Additional bash script to run before starting the Task inside the container
         """
         super(K8sIntegration, self).__init__()
@@ -213,7 +215,7 @@ class K8sIntegration(Worker):
         if task_data.execution.docker_cmd:
             docker_parts = task_data.execution.docker_cmd
         else:
-            docker_parts = str(os.environ.get("TRAINS_DOCKER_IMAGE") or
+            docker_parts = str(ENV_DOCKER_IMAGE.get() or
                                self._session.config.get("agent.default_docker.image", "nvidia/cuda"))
 
         # take the first part, this is the docker image name (not arguments)
@@ -221,10 +223,10 @@ class K8sIntegration(Worker):
         docker_image = docker_parts[0]
         docker_args = docker_parts[1:] if len(docker_parts) > 1 else []
 
-        # get the trains.conf encoded file
+        # get the clearml.conf encoded file
         # noinspection PyProtectedMember
         hocon_config_encoded = (self.trains_conf_file or self._session._config_file).encode('ascii')
-        create_trains_conf = "echo '{}' | base64 --decode >> ~/trains.conf".format(
+        create_trains_conf = "echo '{}' | base64 --decode >> ~/clearml.conf".format(
             base64.b64encode(
                 hocon_config_encoded
             ).decode('ascii')
@@ -246,7 +248,7 @@ class K8sIntegration(Worker):
         # Search for a free pod number
         pod_number = 1
         while self.ports_mode:
-            kubectl_cmd_new = "kubectl get pods -l {pod_label},{agent_label} -n trains".format(
+            kubectl_cmd_new = "kubectl get pods -l {pod_label},{agent_label} -n clearml".format(
                 pod_label=self.LIMIT_POD_LABEL.format(pod_number=pod_number),
                 agent_label=self.AGENT_LABEL
             )
@@ -333,7 +335,7 @@ class K8sIntegration(Worker):
         template.setdefault('apiVersion', 'v1')
         template['kind'] = 'Pod'
         template.setdefault('metadata', {})
-        name = 'trains-{queue}-id-{task_id}'.format(queue=queue_name, task_id=task_id)
+        name = 'clearml-{queue}-id-{task_id}'.format(queue=queue_name, task_id=task_id)
         template['metadata']['name'] = name
         template.setdefault('spec', {})
         template['spec'].setdefault('containers', [])
@@ -370,7 +372,7 @@ class K8sIntegration(Worker):
         else:
             template['spec']['containers'].append(container)
 
-        fp, yaml_file = tempfile.mkstemp(prefix='trains_k8stmpl_', suffix='.yml')
+        fp, yaml_file = tempfile.mkstemp(prefix='clearml_k8stmpl_', suffix='.yml')
         os.close(fp)
         with open(yaml_file, 'wt') as f:
             yaml.dump(template, f)
@@ -444,7 +446,7 @@ class K8sIntegration(Worker):
         :param queues: IDs of queues to pull tasks from
         :type queues: list of ``Text``
         :param worker_params: Worker command line arguments
-        :type worker_params: ``trains_agent.helper.process.WorkerParams``
+        :type worker_params: ``clearml_agent.helper.process.WorkerParams``
         """
         events_service = self.get_service(Events)
 

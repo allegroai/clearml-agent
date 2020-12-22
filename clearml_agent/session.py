@@ -12,13 +12,13 @@ import attr
 from pathlib2 import Path
 from pyhocon import ConfigFactory, HOCONConverter, ConfigTree
 
-from trains_agent.backend_api.session import Session as _Session, Request
-from trains_agent.backend_api.session.client import APIClient
-from trains_agent.backend_config.defs import LOCAL_CONFIG_FILE_OVERRIDE_VAR, LOCAL_CONFIG_FILES
-from trains_agent.definitions import ENVIRONMENT_CONFIG, ENV_TASK_EXECUTE_AS_USER, ENVIRONMENT_BACKWARD_COMPATIBLE
-from trains_agent.errors import APIError
-from trains_agent.helper.base import HOCONEncoder
-from trains_agent.helper.process import Argv
+from clearml_agent.backend_api.session import Session as _Session, Request
+from clearml_agent.backend_api.session.client import APIClient
+from clearml_agent.backend_config.defs import LOCAL_CONFIG_FILE_OVERRIDE_VAR, LOCAL_CONFIG_FILES
+from clearml_agent.definitions import ENVIRONMENT_CONFIG, ENV_TASK_EXECUTE_AS_USER, ENVIRONMENT_BACKWARD_COMPATIBLE
+from clearml_agent.errors import APIError
+from clearml_agent.helper.base import HOCONEncoder
+from clearml_agent.helper.process import Argv
 from .version import __version__
 
 POETRY = "poetry"
@@ -70,7 +70,7 @@ class Session(_Session):
         if kwargs.get('config_file'):
             config_file = Path(os.path.expandvars(kwargs.get('config_file'))).expanduser().absolute().as_posix()
             kwargs['config_file'] = config_file
-            os.environ[LOCAL_CONFIG_FILE_OVERRIDE_VAR] = config_file
+            LOCAL_CONFIG_FILE_OVERRIDE_VAR.set(config_file)
             if not Path(config_file).is_file():
                 raise ValueError("Could not open configuration file: {}".format(config_file))
 
@@ -88,7 +88,7 @@ class Session(_Session):
                 os.environ['CUDA_VISIBLE_DEVICES'] = os.environ['NVIDIA_VISIBLE_DEVICES'] = kwargs.get('gpus')
 
         if kwargs.get('only_load_config'):
-            from trains_agent.backend_api.config import load
+            from clearml_agent.backend_api.config import load
             self.config = load()
         else:
             super(Session, self).__init__(*args, **kwargs)
@@ -99,8 +99,12 @@ class Session(_Session):
 
         self.log = self.get_logger(__name__)
         self.trace = kwargs.get('trace', False)
-        self._config_file = kwargs.get('config_file') or \
-                            os.environ.get(LOCAL_CONFIG_FILE_OVERRIDE_VAR) or LOCAL_CONFIG_FILES[0]
+        self._config_file = kwargs.get('config_file') or LOCAL_CONFIG_FILE_OVERRIDE_VAR.get()
+        if not self._config_file:
+            for f in reversed(LOCAL_CONFIG_FILES):
+                if os.path.exists(os.path.expanduser(os.path.expandvars(f))):
+                    self._config_file = f
+                    break
         self.api_client = APIClient(session=self, api_version="2.5")
         # HACK make sure we have python version to execute,
         # if nothing was specific, use the one that runs us
@@ -147,7 +151,7 @@ class Session(_Session):
 
         # initialize cuda versions
         try:
-            from trains_agent.helper.package.requirements import RequirementsManager
+            from clearml_agent.helper.package.requirements import RequirementsManager
             agent = self.config['agent']
             agent['cuda_version'], agent['cudnn_version'] = \
                 RequirementsManager.get_cuda_version(self.config) if not cpu_only else ('0', '0')
@@ -202,7 +206,7 @@ class Session(_Session):
                        'agent.docker_pip_cache', 'agent.docker_apt_cache')
         singleton_folders = ('agent.venvs_dir', 'agent.vcs_cache.path', 'agent.docker_apt_cache')
 
-        if os.environ.get(ENV_TASK_EXECUTE_AS_USER):
+        if ENV_TASK_EXECUTE_AS_USER.get():
             folder_keys = tuple(list(folder_keys) + ['sdk.storage.cache.default_base_dir'])
             singleton_folders = tuple(list(singleton_folders) + ['sdk.storage.cache.default_base_dir'])
 
@@ -257,7 +261,7 @@ class Session(_Session):
         config = ConfigFactory.from_dict(config)
         self.log.debug("Run by interpreter: %s", sys.executable)
         print(
-            "Current configuration (trains_agent v{}, location: {}):\n"
+            "Current configuration (clearml_agent v{}, location: {}):\n"
             "----------------------\n{}\n".format(
                 self.version, self._config_file, HOCONConverter.convert(config, "properties")
             )

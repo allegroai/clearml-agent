@@ -6,12 +6,12 @@ from tempfile import gettempdir, NamedTemporaryFile
 
 from typing import List, Tuple, Optional
 
-from trains_agent.definitions import ENV_DOCKER_HOST_MOUNT
-from trains_agent.helper.base import warning
+from clearml_agent.definitions import ENV_DOCKER_HOST_MOUNT
+from clearml_agent.helper.base import warning
 
 
 class Singleton(object):
-    prefix = '.trainsagent'
+    prefix = '.clearmlagent'
     sep = '_'
     ext = '.tmp'
     worker_id = None

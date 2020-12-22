@@ -1,5 +1,5 @@
 import sys
-from trains_agent import __main__
+from clearml_agent import __main__
 
 
 if __name__ == "__main__":

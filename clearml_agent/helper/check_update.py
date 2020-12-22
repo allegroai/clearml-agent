@@ -21,14 +21,14 @@ def start_check_update_daemon():
 
 def _check_new_version_available():
     cur_version = __version__
-    update_server_releases = requests.get('https://updates.trains.allegro.ai/updates',
-                                          data=json.dumps({"versions": {"trains-agent": str(cur_version)}}),
+    update_server_releases = requests.get('https://updates.clear.ml/updates',
+                                          data=json.dumps({"versions": {"clearml-agent": str(cur_version)}}),
                                           timeout=3.0)
     if update_server_releases.ok:
         update_server_releases = update_server_releases.json()
     else:
         return None
-    trains_answer = update_server_releases.get("trains-agent", {})
+    trains_answer = update_server_releases.get("clearml-agent", {})
     latest_version = trains_answer.get("version")
     cur_version = cur_version
     latest_version = latest_version or ''
@@ -48,7 +48,7 @@ def _check_update_daemon():
             if latest_version:
                 if latest_version[1]:
                     sep = os.linesep
-                    print('TRAINS-AGENT new package available: UPGRADE to v{} is recommended!\nRelease Notes:\n{}'.format(
+                    print('CLEARML-AGENT new package available: UPGRADE to v{} is recommended!\nRelease Notes:\n{}'.format(
                         latest_version[0], sep.join(latest_version[2])))
                 else:
                     print('TRAINS-SERVER new version available: upgrade to v{} is recommended!'.format(

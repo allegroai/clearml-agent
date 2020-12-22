@@ -11,6 +11,10 @@ class EnvEntry(Entry):
         conversions[bool] = text_to_bool
         return conversions
 
+    def pop(self):
+        for k in self.keys:
+            environ.pop(k, None)
+
     def _get(self, key):
         value = getenv(key, "").strip()
         return value or NotSet
@@ -27,27 +31,34 @@ class EnvEntry(Entry):
 
 def backward_compatibility_support():
     from ..definitions import ENVIRONMENT_CONFIG, ENVIRONMENT_SDK_PARAMS, ENVIRONMENT_BACKWARD_COMPATIBLE
-    if not ENVIRONMENT_BACKWARD_COMPATIBLE.get():
-        return
+    if ENVIRONMENT_BACKWARD_COMPATIBLE.get():
+        # Add TRAINS_ prefix on every CLEARML_ os environment we support
+        for k, v in ENVIRONMENT_CONFIG.items():
+            try:
+                trains_vars = [var for var in v.vars if var.startswith('CLEARML_')]
+                if not trains_vars:
+                    continue
+                alg_var = trains_vars[0].replace('CLEARML_', 'TRAINS_', 1)
+                if alg_var not in v.vars:
+                    v.vars = tuple(list(v.vars) + [alg_var])
+            except:
+                continue
+        for k, v in ENVIRONMENT_SDK_PARAMS.items():
+            try:
+                trains_vars = [var for var in v if var.startswith('CLEARML_')]
+                if not trains_vars:
+                    continue
+                alg_var = trains_vars[0].replace('CLEARML_', 'TRAINS_', 1)
+                if alg_var not in v:
+                    ENVIRONMENT_SDK_PARAMS[k] = tuple(list(v) + [alg_var])
+            except:
+                continue
 
-    # Add ALG_ prefix on every TRAINS_ os environment we support
-    for k, v in ENVIRONMENT_CONFIG.items():
-        try:
-            trains_vars = [var for var in v.vars if var.startswith('TRAINS_')]
-            if not trains_vars:
-                continue
-            alg_var = trains_vars[0].replace('TRAINS_', 'ALG_', 1)
-            if alg_var not in v.vars:
-                v.vars = tuple(list(v.vars) + [alg_var])
-        except:
+    # set OS environ:
+    keys = environ.keys()
+    for k in keys:
+        if not k.startswith('CLEARML_'):
             continue
-    for k, v in ENVIRONMENT_SDK_PARAMS.items():
-        try:
-            trains_vars = [var for var in v if var.startswith('TRAINS_')]
-            if not trains_vars:
-                continue
-            alg_var = trains_vars[0].replace('TRAINS_', 'ALG_', 1)
-            if alg_var not in v:
-                ENVIRONMENT_SDK_PARAMS[k] = tuple(list(v) + [alg_var])
-        except:
-            continue
+        backwards_k = k.replace('CLEARML_', 'TRAINS_', 1)
+        if backwards_k not in keys:
+            environ[backwards_k] = environ[k]

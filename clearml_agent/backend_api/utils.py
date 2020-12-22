@@ -107,7 +107,7 @@ def get_http_session_with_retry(
     if not session.verify and __disable_certificate_verification_warning < 2:
         # show warning
         __disable_certificate_verification_warning += 1
-        logging.getLogger('TRAINS').warning(
+        logging.getLogger('ClearML').warning(
             msg='InsecureRequestWarning: Certificate verification is disabled! Adding '
                 'certificate verification is strongly advised. See: '
                 'https://urllib3.readthedocs.io/en/latest/advanced-usage.html#ssl-warnings')

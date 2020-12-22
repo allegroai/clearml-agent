@@ -10,12 +10,12 @@ from sys import platform as sys_platform
 import pytest
 import requirements
 
-from trains_agent.commands.worker import Worker
-from trains_agent.helper.package.pytorch import PytorchRequirement
-from trains_agent.helper.package.requirements import RequirementsManager, \
+from clearml_agent.commands.worker import Worker
+from clearml_agent.helper.package.pytorch import PytorchRequirement
+from clearml_agent.helper.package.requirements import RequirementsManager, \
     RequirementSubstitution, MarkerRequirement
-from trains_agent.helper.process import get_bash_output
-from trains_agent.session import Session
+from clearml_agent.helper.process import get_bash_output
+from clearml_agent.session import Session
 
 _cuda_based_packages_hack = ('seematics.caffe', 'lightnet')
 

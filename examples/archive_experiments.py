@@ -5,7 +5,7 @@ An example script that cleans up failed experiments by moving them to the archiv
 import argparse
 from datetime import datetime
 
-from trains_agent import APIClient
+from clearml_agent import APIClient
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--project", "-P", help="Project ID. Only clean up experiments from this project")
