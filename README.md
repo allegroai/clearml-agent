@@ -8,7 +8,6 @@ ML-Ops scheduler & orchestration solution supporting Linux, macOS and Windows**
 [![GitHub license](https://img.shields.io/github/license/allegroai/trains-agent.svg)](https://img.shields.io/github/license/allegroai/trains-agent.svg)
 [![PyPI pyversions](https://img.shields.io/pypi/pyversions/clearml-agent.svg)](https://img.shields.io/pypi/pyversions/clearml-agent.svg)
 [![PyPI version shields.io](https://img.shields.io/pypi/v/clearml-agent.svg)](https://img.shields.io/pypi/v/clearml-agent.svg)
-[![PyPI status](https://img.shields.io/pypi/status/clearml-agent.svg)](https://pypi.python.org/pypi/clearml-agent/)
 
 </div>
 
