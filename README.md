@@ -21,9 +21,9 @@ ML-Ops scheduler & orchestration solution supporting Linux, macOS and Windows**
 * Implement optimized resource utilization policies
 * Deploy execution environments with either virtualenv or fully docker containerized with zero effort
 * Launch-and-Forget service containers
-* [Cloud autoscaling](https://allegro.ai/clearml/docs/examples/services/aws_autoscaler/aws_autoscaler/)
-* [Customizable cleanup](https://allegro.ai/clearml/docs/examples/services/cleanup/cleanup_service/)
-* Advanced [pipeline building and execution](https://allegro.ai/clearml/docs/examples/frameworks/pytorch/notebooks/table/tabular_training_pipeline/)
+* [Cloud autoscaling](https://allegro.ai/clearml/docs/docs/examples/services/aws_autoscaler/aws_autoscaler.html)
+* [Customizable cleanup](https://allegro.ai/clearml/docs/docs/examples/services/cleanup/cleanup_service.html)
+* Advanced [pipeline building and execution](https://allegro.ai/clearml/docs/docs/examples/frameworks/pytorch/notebooks/table/tabular_training_pipeline.html)
 
 It is a zero configuration fire-and-forget execution agent, providing a full ML/DL cluster solution.
 
@@ -122,7 +122,7 @@ The ClearML Agent executes experiments using the following process:
 
 #### System Design & Flow
 
-<img src="https://allegro.ai/clearml/docs/img/ClearML_Architecture.png" width="100%" alt="clearml-architecture">
+<img src="https://allegro.ai/clearml/docs/_images/ClearML_Architecture.png" width="100%" alt="clearml-architecture">
 
 
 #### Installing the ClearML Agent
