@@ -67,7 +67,7 @@ class PackageManager(object):
 
     def upgrade_pip(self):
         result = self._install(
-            select_for_platform(windows='"pip{}"', linux='pip{}').format(self.get_pip_version()), "--upgrade")
+            select_for_platform(windows='pip{}', linux='pip{}').format(self.get_pip_version()), "--upgrade")
         packages = self.run_with_env(('list',), output=True).splitlines()
         # p.split is ('pip', 'x.y.z')
         pip = [p.split() for p in packages if len(p.split()) == 2 and p.split()[0] == 'pip']

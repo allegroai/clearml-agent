@@ -132,7 +132,7 @@ class CondaAPI(PackageManager):
         if self.env_read_only:
             print('Conda environment in read-only mode, skipping pip upgrade.')
             return ''
-        return self._install(select_for_platform(windows='"pip{}"', linux='pip{}').format(self.pip.get_pip_version()))
+        return self._install(select_for_platform(windows='pip{}', linux='pip{}').format(self.pip.get_pip_version()))
 
     def create(self):
         """
@@ -284,17 +284,11 @@ class CondaAPI(PackageManager):
         """
         Try to install packages from conda. Install packages which are not available from conda with pip.
         """
-        try:
-            self._install_from_file(path)
-            return
-        except PackageNotFoundError as e:
-            pip_packages = [e.pkg]
-        except PackagesNotFoundError as e:
-            pip_packages = package_set(e.packages)
-        with self.temp_file("conda_reqs", _package_diff(path, pip_packages)) as reqs:
-            self.install_from_file(reqs)
-        with self.temp_file("pip_reqs", pip_packages) as reqs:
-            self.pip.install_from_file(reqs)
+        requirements = {}
+        # assume requirements.txt
+        with open(path, 'rt') as f:
+            requirements['pip'] = f.read()
+        self.load_requirements(requirements)
 
     def freeze(self, freeze_full_environment=False):
         requirements = self.pip.freeze()
