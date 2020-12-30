@@ -2329,11 +2329,13 @@ class Worker(ServiceCommandSection):
                                            os.environ.get('KUBERNETES_PORT')):
             # map network to sibling docker, unless we have other network argument
             if not any(a.strip().startswith('--network') for a in base_cmd):
+                # noinspection PyBroadException
                 try:
                     network_mode = get_bash_output(
                         'docker inspect --format=\'{{.HostConfig.NetworkMode}}\' $(basename $(cat /proc/1/cpuset))')
-                    base_cmd += ['--network', network_mode]
-                except:
+                    if network_mode:
+                        base_cmd += ['--network', network_mode]
+                except Exception:
                     pass
             base_cmd += ['-e', 'NVIDIA_VISIBLE_DEVICES={}'.format(dockers_nvidia_visible_devices)]
 
