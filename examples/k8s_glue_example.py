@@ -64,7 +64,7 @@ def main():
 
     k8s = K8sIntegration(
         ports_mode=args.ports_mode, num_of_services=args.num_of_services, user_props_cb=user_props_cb,
-        overrides_yaml=args.overrides_yaml, trains_conf_file=args.pod_trains_conf, template_yaml=args.template_yaml,
+        overrides_yaml=args.overrides_yaml, clearml_conf_file=args.pod_clearml_conf, template_yaml=args.template_yaml,
         extra_bash_init_script=K8sIntegration.get_ssh_server_bash(
             ssh_port_number=args.ssh_server_port) if args.ssh_server_port else None
     )
