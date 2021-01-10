@@ -254,15 +254,15 @@ class VCS(object):
         return url
 
     @classmethod
-    def replace_http_url(cls, url, port=None):
-        # type: (Text, Optional[int]) -> Text
+    def replace_http_url(cls, url, port=None, username=None):
+        # type: (Text, Optional[int], Optional[str]) -> Text
         """
         Replace HTTPS URL with SSH URL when applicable
         """
         parsed_url = furl(url)
         if parsed_url.scheme == "https":
             parsed_url.scheme = "ssh"
-            parsed_url.username = "git"
+            parsed_url.username = username or "git"
             parsed_url.password = None
             # make sure there is no port in the final url (safe_furl support)
             # the original port was an https port, and we do not know if there is a different ssh port,
@@ -285,7 +285,10 @@ class VCS(object):
                 return
             if parsed_url.scheme == "https":
                 new_url = self.replace_http_url(
-                    self.url, port=self.session.config.get('agent.force_git_ssh_port', None))
+                    self.url,
+                    port=self.session.config.get('agent.force_git_ssh_port', None),
+                    username=self.session.config.get('agent.force_git_ssh_user', None)
+                )
                 if new_url != self.url:
                     print("Using SSH credentials - replacing https url '{}' with ssh url '{}'".format(
                         self.url, new_url))
