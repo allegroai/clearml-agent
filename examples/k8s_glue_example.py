@@ -47,6 +47,10 @@ def parse_args():
         "--ssh-server-port", type=int, default=0,
         help="If non-zero, every pod will also start an SSH server on the selected port (default: zero, not active)"
     )
+    parser.add_argument(
+        "--namespace", type=str,
+        help="Specify the namespace in which pods will be created (default: %(default)s)", default="clearml"
+    )
     return parser.parse_args()
 
 
@@ -66,7 +70,8 @@ def main():
         ports_mode=args.ports_mode, num_of_services=args.num_of_services, user_props_cb=user_props_cb,
         overrides_yaml=args.overrides_yaml, clearml_conf_file=args.pod_clearml_conf, template_yaml=args.template_yaml,
         extra_bash_init_script=K8sIntegration.get_ssh_server_bash(
-            ssh_port_number=args.ssh_server_port) if args.ssh_server_port else None
+            ssh_port_number=args.ssh_server_port) if args.ssh_server_port else None,
+        namespace=args.namespace,
     )
     k8s.k8s_daemon(args.queue)
 
