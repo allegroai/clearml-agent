@@ -64,6 +64,8 @@ class EnvironmentConfig(object):
 
 ENVIRONMENT_CONFIG = {
     "api.api_server": EnvironmentConfig("CLEARML_API_HOST", "TRAINS_API_HOST", ),
+    "api.files_server": EnvironmentConfig("CLEARML_FILES_HOST", "TRAINS_FILES_HOST", ),
+    "api.web_server": EnvironmentConfig("CLEARML_WEB_HOST", "TRAINS_WEB_HOST", ),
     "api.credentials.access_key": EnvironmentConfig(
         "CLEARML_API_ACCESS_KEY", "TRAINS_API_ACCESS_KEY",
     ),

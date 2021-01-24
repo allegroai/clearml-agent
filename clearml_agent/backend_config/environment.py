@@ -55,7 +55,7 @@ def backward_compatibility_support():
                 continue
 
     # set OS environ:
-    keys = environ.keys()
+    keys = list(environ.keys())
     for k in keys:
         if not k.startswith('CLEARML_'):
             continue
