@@ -4,7 +4,7 @@ import shutil
 import subprocess
 from distutils.spawn import find_executable
 from hashlib import md5
-from os import environ, getenv
+from os import environ
 from typing import Text, Sequence, Mapping, Iterable, TypeVar, Callable, Tuple, Optional
 
 import attr
@@ -88,7 +88,7 @@ class VCS(object):
     # additional environment variables for VCS commands
     COMMAND_ENV = {}
 
-    PATCH_ADDED_FILE_RE = re.compile(r"^\+\+\+ b/(?P<path>.*)")
+    PATCH_ADDED_FILE_RE = re.compile(r"^--- a/(?P<path>.*)")
 
     def __init__(self, session, url, location, revision):
         # type: (Session, Text, PathLike, Text) -> ()
@@ -115,21 +115,21 @@ class VCS(object):
         """
         return self.add_auth(self.session.config, self.url)
 
-    @abc.abstractproperty
+    @abc.abstractmethod
     def executable_name(self):
         """
         Name of command executable
         """
         pass
 
-    @abc.abstractproperty
+    @abc.abstractmethod
     def main_branch(self):
         """
         Name of default/main branch
         """
         pass
 
-    @abc.abstractproperty
+    @abc.abstractmethod
     def checkout_flags(self):
         # type: () -> Sequence[Text]
         """
@@ -137,7 +137,7 @@ class VCS(object):
         """
         pass
 
-    @abc.abstractproperty
+    @abc.abstractmethod
     def patch_base(self):
         # type: () -> Sequence[Text]
         """
@@ -467,7 +467,7 @@ class VCS(object):
             parsed_url.set(username=config_user, password=config_pass)
         return parsed_url.url
 
-    @abc.abstractproperty
+    @abc.abstractmethod
     def info_commands(self):
         # type: () -> Mapping[Text, Argv]
         """
@@ -527,7 +527,7 @@ class Git(VCS):
         self.call("checkout", self.revision, *self.checkout_flags, cwd=self.location)
         try:
             self.call("submodule", "update", "--recursive", cwd=self.location)
-        except:
+        except:  # noqa
             pass
 
     info_commands = dict(
