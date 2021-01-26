@@ -24,7 +24,13 @@ def parse_args():
     parser.add_argument(
         "--base-port", type=int,
         help="Used in conjunction with ports-mode, specifies the base port exposed by the services. "
-             "For pod #X, the port will be <base-port>+X"
+             "For pod #X, the port will be <base-port>+X. Note that pod number is calculated based on base-pod-num"
+             "e.g. if base-port=20000 and base-pod-num=3, the port for the first pod will be 20003"
+    )
+    parser.add_argument(
+        "--base-pod-num", type=int, default=1,
+        help="Used in conjunction with ports-mode and base-port, specifies the base pod number to be used by the "
+             "service (default: %(default)s)"
     )
     parser.add_argument(
         "--gateway-address", type=str, default=None,
@@ -67,9 +73,9 @@ def main():
         user_props_cb = k8s_user_props_cb
 
     k8s = K8sIntegration(
-        ports_mode=args.ports_mode, num_of_services=args.num_of_services, user_props_cb=user_props_cb,
-        overrides_yaml=args.overrides_yaml, clearml_conf_file=args.pod_clearml_conf, template_yaml=args.template_yaml,
-        extra_bash_init_script=K8sIntegration.get_ssh_server_bash(
+        ports_mode=args.ports_mode, num_of_services=args.num_of_services, base_pod_num=args.base_pod_num,
+        user_props_cb=user_props_cb, overrides_yaml=args.overrides_yaml, clearml_conf_file=args.pod_clearml_conf,
+        template_yaml=args.template_yaml, extra_bash_init_script=K8sIntegration.get_ssh_server_bash(
             ssh_port_number=args.ssh_server_port) if args.ssh_server_port else None,
         namespace=args.namespace,
     )
