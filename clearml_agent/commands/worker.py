@@ -848,8 +848,6 @@ class Worker(ServiceCommandSection):
         return None
 
     def set_runtime_properties(self, key, value):
-        ##
-        return True
         if self._runtime_props_support is not True:
             # either not supported or never tested
             if self._runtime_props_support == self._session.api_version:
@@ -1463,7 +1461,8 @@ class Worker(ServiceCommandSection):
                 cwd=vcs.location if vcs and vcs.location else directory,
                 package_api=self.global_package_api if install_globally else None,
             )
-        freeze = self.freeze_task_environment(requirements_manager=requirements_manager)
+        freeze = self.freeze_task_environment(
+            task_id=task_id, requirements_manager=requirements_manager, update_requirements=False)
         script_dir = directory
 
         # Summary
@@ -1711,10 +1710,11 @@ class Worker(ServiceCommandSection):
             "agent.package_manager.conda_full_env_update", False)
 
         freeze = self.freeze_task_environment(
-            current_task.id if not skip_freeze_update else None,
+            task_id=current_task.id,
             requirements_manager=requirements_manager,
             add_venv_folder_cache=venv_folder,
             execution_info=execution,
+            update_requirements=not skip_freeze_update,
         )
         script_dir = (directory if isinstance(directory, Path) else Path(directory)).absolute().as_posix()
 
@@ -2020,7 +2020,7 @@ class Worker(ServiceCommandSection):
             )
 
     def freeze_task_environment(self, task_id=None, requirements_manager=None,
-                                add_venv_folder_cache=None, execution_info=None):
+                                add_venv_folder_cache=None, execution_info=None, update_requirements=False):
         try:
             freeze = self.package_api.freeze()
         except Exception as e:
@@ -2060,6 +2060,10 @@ class Worker(ServiceCommandSection):
                 cuda_version=self._session.config.get("agent.cuda_version"),
                 source_folder=add_venv_folder_cache,
                 exclude_sub_folders=['task_repository', 'code'])
+
+        # If do not update back requirements
+        if not update_requirements:
+            return freeze
 
         request = tasks_api.SetRequirementsRequest(task=task_id, requirements=requirements)
         try:

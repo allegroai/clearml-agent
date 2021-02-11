@@ -141,19 +141,7 @@ class CondaAPI(PackageManager):
         """
         if self.conda_env_as_base_docker and self.conda_pre_build_env_path:
             if Path(self.conda_pre_build_env_path).is_dir():
-                print("Using pre-existing Conda environment from {}".format(self.conda_pre_build_env_path))
-                self.path = Path(self.conda_pre_build_env_path)
-                self.source = ("conda", "activate", self.path.as_posix())
-                self.pip = CondaPip(
-                    session=self.session,
-                    source=self.source,
-                    python=self.python,
-                    requirements_manager=self.requirements_manager,
-                    path=self.path,
-                )
-                conda_env = self._get_conda_sh()
-                self.source = self.pip.source = CommandSequence(('source', conda_env.as_posix()), self.source)
-                self.env_read_only = True
+                self._init_existing_environment(self.conda_pre_build_env_path)
                 return self
             elif Path(self.conda_pre_build_env_path).is_file():
                 print("Restoring Conda environment from {}".format(self.conda_pre_build_env_path))
@@ -210,6 +198,21 @@ class CondaAPI(PackageManager):
         except Exception:
             pass
         return self
+
+    def _init_existing_environment(self, conda_pre_build_env_path):
+        print("Using pre-existing Conda environment from {}".format(conda_pre_build_env_path))
+        self.path = Path(conda_pre_build_env_path)
+        self.source = ("conda", "activate", self.path.as_posix())
+        self.pip = CondaPip(
+            session=self.session,
+            source=self.source,
+            python=self.python,
+            requirements_manager=self.requirements_manager,
+            path=self.path,
+        )
+        conda_env = self._get_conda_sh()
+        self.source = self.pip.source = CommandSequence(('source', conda_env.as_posix()), self.source)
+        self.env_read_only = True
 
     def remove(self):
         """
@@ -666,6 +669,8 @@ class CondaAPI(PackageManager):
         return result
 
     def get_python_command(self, extra=()):
+        if not self.source:
+            self._init_existing_environment(self.path)
         return CommandSequence(self.source, self.pip.get_python_command(extra=extra))
 
     def _get_conda_sh(self):
