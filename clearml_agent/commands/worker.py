@@ -915,6 +915,11 @@ class Worker(ServiceCommandSection):
             if not self._session.debug_mode:
                 self._temp_cleanup_list.append(name)
 
+            # on widows we do nothing
+            if detached and is_windows_platform():
+                print('Detached not supported on Windows, ignoring --detached')
+                detached = False
+
             if not detached:
                 # redirect std out/err to new file
                 sys.stdout = sys.stderr = out_file
