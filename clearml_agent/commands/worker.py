@@ -1251,10 +1251,11 @@ class Worker(ServiceCommandSection):
             except:
                 python_version = None
 
-        venv_folder, requirements_manager = self.install_virtualenv(
-            venv_dir=target, requested_python_version=python_version, execution_info=execution)
+        venv_folder, requirements_manager, is_cached = self.install_virtualenv(
+            venv_dir=target, requested_python_version=python_version, execution_info=execution,
+            cached_requirements=requirements)
 
-        if self._default_pip:
+        if not is_cached and self._default_pip:
             if install_globally and self.global_package_api:
                 self.global_package_api.install_packages(*self._default_pip)
             else:
@@ -1262,14 +1263,15 @@ class Worker(ServiceCommandSection):
 
         directory, vcs, repo_info = self.get_repo_info(execution, current_task, venv_folder.as_posix())
 
-        self.install_requirements(
-            execution,
-            repo_info,
-            requirements_manager=requirements_manager,
-            cached_requirements=requirements,
-            cwd=vcs.location if vcs and vcs.location else directory,
-            package_api=self.global_package_api if install_globally else None,
-        )
+        if not is_cached:
+            self.install_requirements(
+                execution,
+                repo_info,
+                requirements_manager=requirements_manager,
+                cached_requirements=requirements,
+                cwd=vcs.location if vcs and vcs.location else directory,
+                package_api=self.global_package_api if install_globally else None,
+            )
         freeze = self.freeze_task_environment(requirements_manager=requirements_manager)
         script_dir = directory
 
@@ -1482,10 +1484,11 @@ class Worker(ServiceCommandSection):
         except:
             python_ver = None
 
-        venv_folder, requirements_manager = self.install_virtualenv(
-            standalone_mode=standalone_mode, requested_python_version=python_ver, execution_info=execution)
+        venv_folder, requirements_manager, is_cached = self.install_virtualenv(
+            standalone_mode=standalone_mode, requested_python_version=python_ver,
+            execution_info=execution, cached_requirements=requirements)
 
-        if not standalone_mode:
+        if not is_cached and not standalone_mode:
             if self._default_pip:
                 self.package_api.install_packages(*self._default_pip)
 
@@ -1497,7 +1500,7 @@ class Worker(ServiceCommandSection):
 
         print("\n")
 
-        if not standalone_mode:
+        if not is_cached and not standalone_mode:
             self.install_requirements(
                 execution,
                 repo_info,
@@ -1511,8 +1514,12 @@ class Worker(ServiceCommandSection):
         skip_freeze_update = self.is_conda and not self._session.config.get(
             "agent.package_manager.conda_full_env_update", False)
 
-        freeze = self.freeze_task_environment(current_task.id if not skip_freeze_update else None,
-                                              requirements_manager=requirements_manager)
+        freeze = self.freeze_task_environment(
+            current_task.id if not skip_freeze_update else None,
+            requirements_manager=requirements_manager,
+            add_venv_folder_cache=venv_folder,
+            execution_info=execution,
+        )
         script_dir = (directory if isinstance(directory, Path) else Path(directory)).absolute().as_posix()
 
         # run code
@@ -1806,7 +1813,8 @@ class Worker(ServiceCommandSection):
                 status_message=self._task_status_change_message,
             )
 
-    def freeze_task_environment(self, task_id=None, requirements_manager=None):
+    def freeze_task_environment(self, task_id=None, requirements_manager=None,
+                                add_venv_folder_cache=None, execution_info=None):
         try:
             freeze = self.package_api.freeze()
         except Exception as e:
@@ -1821,12 +1829,30 @@ class Worker(ServiceCommandSection):
             return freeze
 
         # get original requirements and update with the new frozen requirements
+        previous_reqs = {}
+        # noinspection PyBroadException
         try:
             current_task = get_task(self._session, task_id, only_fields=["script.requirements"])
             requirements = current_task.script.requirements
+            previous_reqs = dict(**requirements)
+            # replace only once.
+            if requirements.get('pip') and not requirements.get('org_pip'):
+                requirements['org_pip'] = requirements.pop('pip')
+            if requirements.get('conda') and not requirements.get('org_conda'):
+                requirements['org_conda'] = requirements.pop('conda')
             requirements.update(freeze)
         except Exception:
             requirements = freeze
+
+        # add to cache
+        print('Adding venv into cache: {}'.format(add_venv_folder_cache))
+        if add_venv_folder_cache:
+            self.package_api.add_cached_venv(
+                requirements=[freeze, previous_reqs],
+                docker_cmd=execution_info.docker_cmd if execution_info else None,
+                python_version=getattr(self.package_api, 'python', ''),
+                source_folder=add_venv_folder_cache,
+                exclude_sub_folders=['task_repository', 'code'])
 
         request = tasks_api.SetRequirementsRequest(task=task_id, requirements=requirements)
         try:
@@ -2064,11 +2090,12 @@ class Worker(ServiceCommandSection):
         )
 
     def install_virtualenv(
-            self, venv_dir=None, requested_python_version=None, standalone_mode=False, execution_info=None):
-        # type: (str, str, bool, ExecutionInfo) -> Tuple[Path, RequirementsManager]
+            self, venv_dir=None, requested_python_version=None, standalone_mode=False,
+            execution_info=None, cached_requirements=None):
+        # type: (str, str, bool, ExecutionInfo, dict) -> Tuple[Path, RequirementsManager, bool]
         """
         Install a new python virtual environment, removing the old one if exists
-        :return: virtualenv directory and requirements manager to use with task
+        :return: virtualenv directory, requirements manager to use with task, True if there is a cached venv entry
         """
         requested_python_version = requested_python_version or \
                                    Text(self._session.config.get("agent.python_binary", None)) or \
@@ -2120,6 +2147,8 @@ class Worker(ServiceCommandSection):
             session=self._session,
         )
 
+        call_package_manager_create = False
+
         if not self.is_conda and standalone_mode:
             # pip with standalone mode
             get_pip = partial(VirtualenvPip, **package_manager_params)
@@ -2135,7 +2164,7 @@ class Worker(ServiceCommandSection):
                 self.package_api = VirtualenvPip(**package_manager_params)
             if first_time:
                 self.package_api.remove()
-                self.package_api.create()
+                call_package_manager_create = True
             self.global_package_api = SystemPip(**global_package_manager_params)
         elif standalone_mode:
             # conda with standalone mode
@@ -2147,6 +2176,7 @@ class Worker(ServiceCommandSection):
             self.package_api = get_conda()
             # no support for reusing Conda environments
             self.package_api.remove()
+            call_package_manager_create = True
 
             if venv_dir.exists():
                 timestamp = datetime.utcnow().strftime("%Y-%m-%d-%H-%M-%S")
@@ -2161,9 +2191,21 @@ class Worker(ServiceCommandSection):
                 venv_dir = new_venv_folder
                 self.package_api = get_conda(path=venv_dir)
 
+        # check if we have a cached folder
+        if cached_requirements and self.package_api.get_cached_venv(
+            requirements=cached_requirements,
+            docker_cmd=execution_info.docker_cmd if execution_info else None,
+            python_version=package_manager_params['python'],
+            destination_folder=Path(venv_dir)
+        ):
+            print('::: Using Cached environment {} :::'.format(self.package_api.get_last_used_entry_cache()))
+            return venv_dir, requirements_manager, True
+
+        # create the initial venv
+        if call_package_manager_create:
             self.package_api.create()
 
-        return venv_dir, requirements_manager
+        return venv_dir, requirements_manager, False
 
     def parse_requirements(self, reqs_file=None, overrides=None):
         os = None
@@ -2221,6 +2263,9 @@ class Worker(ServiceCommandSection):
         temp_config.put("agent.git_pass", (ENV_AGENT_GIT_PASS.get() or
                                            self._session.config.get("agent.git_pass", None)))
 
+        if temp_config.get("agent.venvs_cache.path"):
+            temp_config.put("agent.venvs_cache.path", '/root/.clearml/venvs-cache')
+
         self._host_ssh_cache = mkdtemp(prefix='clearml_agent.ssh.')
         self._temp_cleanup_list.append(self._host_ssh_cache)
 
@@ -2233,6 +2278,9 @@ class Worker(ServiceCommandSection):
             self._session.config["agent.pip_download_cache.path"])).expanduser().as_posix()
         host_vcs_cache = Path(os.path.expandvars(
             self._session.config["agent.vcs_cache.path"])).expanduser().as_posix()
+        host_venvs_cache = Path(os.path.expandvars(
+            self._session.config["agent.venvs_cache.path"])).expanduser().as_posix() \
+            if self._session.config.get("agent.venvs_cache.path") else None
         host_ssh_cache = self._host_ssh_cache
 
         host_apt_cache = Path(os.path.expandvars(self._session.config.get(
@@ -2247,6 +2295,8 @@ class Worker(ServiceCommandSection):
         Path(host_pip_dl).mkdir(parents=True, exist_ok=True)
         Path(host_vcs_cache).mkdir(parents=True, exist_ok=True)
         Path(host_ssh_cache).mkdir(parents=True, exist_ok=True)
+        if host_venvs_cache:
+            Path(host_venvs_cache).mkdir(parents=True, exist_ok=True)
 
         # copy the .ssh folder to a temp folder, to be mapped into docker
         # noinspection PyBroadException
@@ -2283,6 +2333,7 @@ class Worker(ServiceCommandSection):
         mounted_cache_dir = temp_config.get("sdk.storage.cache.default_base_dir")
         mounted_pip_dl_dir = temp_config.get("agent.pip_download_cache.path")
         mounted_vcs_cache = temp_config.get("agent.vcs_cache.path")
+        mounted_venvs_cache = temp_config.get("agent.venvs_cache.path")
 
         # Make sure we have created the configuration file for the executor
         if not self.dump_config(self.temp_config_path, config=temp_config):
@@ -2302,6 +2353,7 @@ class Worker(ServiceCommandSection):
             host_cache=host_cache, mounted_cache=mounted_cache_dir,
             host_pip_dl=host_pip_dl, mounted_pip_dl=mounted_pip_dl_dir,
             host_vcs_cache=host_vcs_cache, mounted_vcs_cache=mounted_vcs_cache,
+            host_venvs_cache=host_venvs_cache, mounted_venvs_cache=mounted_venvs_cache,
             standalone_mode=self._standalone_mode,
             force_current_version=self._force_current_version,
             bash_script=bash_script,
@@ -2320,6 +2372,7 @@ class Worker(ServiceCommandSection):
                         host_cache, mounted_cache,
                         host_pip_dl, mounted_pip_dl,
                         host_vcs_cache, mounted_vcs_cache,
+                        host_venvs_cache, mounted_venvs_cache,
                         standalone_mode=False, extra_docker_arguments=None, extra_shell_script=None,
                         force_current_version=None, host_git_credentials=None,
                         bash_script=None, preprocess_bash_script=None):
@@ -2375,14 +2428,16 @@ class Worker(ServiceCommandSection):
             # expect CLEARML_AGENT_K8S_HOST_MOUNT = '/mnt/host/data:/root/.clearml'
             k8s_node_mnt, _, k8s_pod_mnt = ENV_DOCKER_HOST_MOUNT.get().partition(':')
             # search and replace all the host folders with the k8s
-            host_mounts = [host_apt_cache, host_pip_cache, host_pip_dl, host_cache, host_vcs_cache]
+            host_mounts = [host_apt_cache, host_pip_cache, host_pip_dl, host_cache, host_vcs_cache, host_venvs_cache]
             for i, m in enumerate(host_mounts):
+                if not m:
+                    continue
                 if k8s_pod_mnt not in m:
                     print('Warning: K8S mount missing, ignoring cached folder {}'.format(m))
                     host_mounts[i] = None
                 else:
                     host_mounts[i] = m.replace(k8s_pod_mnt, k8s_node_mnt, 1)
-            host_apt_cache, host_pip_cache, host_pip_dl, host_cache, host_vcs_cache = host_mounts
+            host_apt_cache, host_pip_cache, host_pip_dl, host_cache, host_vcs_cache, host_venvs_cache = host_mounts
 
             # copy the configuration file into the mounted folder
             new_conf_file = os.path.join(k8s_pod_mnt, '.clearml_agent.{}.cfg'.format(quote(worker_id, safe="")))
@@ -2472,6 +2527,7 @@ class Worker(ServiceCommandSection):
             (['-v', host_pip_dl+':'+mounted_pip_dl] if host_pip_dl else []) +
             (['-v', host_cache+':'+mounted_cache] if host_cache else []) +
             (['-v', host_vcs_cache+':'+mounted_vcs_cache] if host_vcs_cache else []) +
+            (['-v', host_venvs_cache + ':' + mounted_venvs_cache] if host_venvs_cache else []) +
             ['--rm', docker_image, 'bash', '-c',
                 update_scheme +
                 extra_shell_script +

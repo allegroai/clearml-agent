@@ -69,6 +69,7 @@ class CondaAPI(PackageManager):
         :param python: base python version to use (e.g python3.6)
         :param path: path of env
         """
+        super(CondaAPI, self).__init__()
         self.session = session
         self.python = python
         self.source = None

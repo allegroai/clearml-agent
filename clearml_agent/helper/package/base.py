@@ -1,11 +1,16 @@
 from __future__ import unicode_literals
 
 import abc
+from collections import OrderedDict
 from contextlib import contextmanager
-from typing import Text, Iterable, Union
+from typing import Text, Iterable, Union, Optional, Dict, List
+from pathlib2 import Path
+from hashlib import md5
 
 import six
 from clearml_agent.helper.base import mkstemp, safe_remove_file, join_lines, select_for_platform
+from clearml_agent.helper.console import ensure_binary
+from clearml_agent.helper.os.folder_cache import FolderCache
 from clearml_agent.helper.process import Executable, Argv, PathLike
 
 
@@ -18,6 +23,12 @@ class PackageManager(object):
     _selected_manager = None
     _cwd = None
     _pip_version = None
+    _config_cache_folder = 'agent.venvs_cache.path'
+    _config_cache_max_entries = 'agent.venvs_cache.max_entries'
+    _config_cache_free_space_threshold = 'agent.venvs_cache.free_space_threshold_gb'
+
+    def __init__(self):
+        self._cache_manager = None
 
     @abc.abstractproperty
     def bin(self):
@@ -153,3 +164,91 @@ class PackageManager(object):
     @classmethod
     def get_pip_version(cls):
         return cls._pip_version or ''
+
+    def get_cached_venv(self, requirements, docker_cmd, python_version, destination_folder):
+        # type: (Dict, Optional[Union[dict, str]], Optional[str], Path) -> Optional[Path]
+        """
+        Copy a cached copy of the venv (based on the requirements) into destination_folder.
+        Return None if failed or cached entry does not exist
+        """
+        if not self._get_cache_manager():
+            return None
+
+        keys = self._generate_reqs_hash_keys(requirements, docker_cmd, python_version)
+        return self._get_cache_manager().copy_cached_entry(keys, destination_folder)
+
+    def add_cached_venv(self, requirements, docker_cmd, python_version, source_folder, exclude_sub_folders=None):
+        # type: (Union[Dict, List[Dict]], Optional[Union[dict, str]], Optional[str], Path, Optional[List[str]]) -> ()
+        """
+        Copy the local venv folder into the venv cache (keys are based on the requirements+python+docker).
+        """
+        if not self._get_cache_manager():
+            return
+        keys = self._generate_reqs_hash_keys(requirements, docker_cmd, python_version)
+        return self._get_cache_manager().add_entry(
+            keys=keys, source_folder=source_folder, exclude_sub_folders=exclude_sub_folders)
+
+    def get_cache_folder(self):
+        # type: () -> Optional[Path]
+        if not self._get_cache_manager():
+            return
+        return self._get_cache_manager().get_cache_folder()
+
+    def get_last_used_entry_cache(self):
+        # type: () -> Optional[Path]
+        """
+        :return: the last used cached folder entry
+        """
+        if not self._get_cache_manager():
+            return
+        return self._get_cache_manager().get_last_copied_entry()
+
+    @classmethod
+    def _generate_reqs_hash_keys(cls, requirements_list, docker_cmd, python_version):
+        # type: (Union[Dict, List[Dict]], Optional[Union[dict, str]], Optional[str]) -> List[str]
+        requirements_list = requirements_list or dict()
+        if not isinstance(requirements_list, (list, tuple)):
+            requirements_list = [requirements_list]
+        docker_cmd = dict(docker_cmd=docker_cmd) if isinstance(docker_cmd, str) else docker_cmd or dict()
+        docker_cmd = OrderedDict(sorted(docker_cmd.items(), key=lambda t: t[0]))
+        if 'docker_cmd' in docker_cmd:
+            # we only take the first part of the docker_cmd which is the docker image name
+            docker_cmd['docker_cmd'] = docker_cmd['docker_cmd'].strip('\r\n\t ').split(' ')[0]
+
+        keys = []
+        strip_chars = '\n\r\t '
+        for requirements in requirements_list:
+            pip, conda = ('pip', 'conda')
+            pip_reqs = requirements.get(pip, '')
+            conda_reqs = requirements.get(conda, '')
+            if isinstance(pip_reqs, str):
+                pip_reqs = pip_reqs.split('\n')
+            if isinstance(conda_reqs, str):
+                conda_reqs = conda_reqs.split('\n')
+            pip_reqs = sorted([p.strip(strip_chars) for p in pip_reqs
+                               if p.strip(strip_chars) and not p.strip(strip_chars).startswith('#')])
+            conda_reqs = sorted([p.strip(strip_chars) for p in conda_reqs
+                                 if p.strip(strip_chars) and not p.strip(strip_chars).startswith('#')])
+            if not pip_reqs and not conda_reqs:
+                continue
+            hash_text = '{class_type}\n{docker_cmd}\n{python_version}\n{pip_reqs}\n{conda_reqs}'.format(
+                class_type=str(cls),
+                docker_cmd=str(docker_cmd or ''),
+                python_version=str(python_version or ''),
+                pip_reqs=str(pip_reqs or ''),
+                conda_reqs=str(conda_reqs or ''),
+            )
+            keys.append(md5(ensure_binary(hash_text)).hexdigest())
+        return sorted(list(set(keys)))
+
+    def _get_cache_manager(self):
+        if not self._cache_manager:
+            cache_folder = self.session.config.get(self._config_cache_folder, None)
+            if not cache_folder:
+                return None
+
+            max_entries = int(self.session.config.get(self._config_cache_max_entries, 10))
+            free_space_threshold = float(self.session.config.get(self._config_cache_free_space_threshold, 0))
+            self._cache_manager = FolderCache(
+                cache_folder, max_cache_entries=max_entries, min_free_space_gb=free_space_threshold)
+        return self._cache_manager
