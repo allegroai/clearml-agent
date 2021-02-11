@@ -420,7 +420,7 @@ SOURCE_COMMAND = select_for_platform(linux="source", windows="call")
 class ExitStatus(object):
     success = 0
     failure = 1
-    interrupted = 2
+    interrupted = -2
 
 
 COMMAND_SUCCESS = 0
