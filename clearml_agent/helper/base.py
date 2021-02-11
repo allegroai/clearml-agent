@@ -24,7 +24,6 @@ import pyhocon
 import yaml
 from attr import fields_dict
 from pathlib2 import Path
-from tqdm import tqdm
 
 import six
 from six.moves import reduce
@@ -397,12 +396,6 @@ class TqdmStream(object):
 
     def flush(self):
         self.buffer.write('\n')
-
-
-class TqdmLog(tqdm):
-
-    def __init__(self, iterable=None, file=None, **kwargs):
-        super(TqdmLog, self).__init__(iterable, file=TqdmStream(file or sys.stderr), **kwargs)
 
 
 def url_join(first, *rest):
