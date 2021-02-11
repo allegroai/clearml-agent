@@ -129,8 +129,9 @@ def get_uptime_string(entry):
 
 
 def get_runtime_properties_string(runtime_properties):
-    # type: (List[dict]) -> Tuple[Optional[str], str]
+    # type: (Optional[List[dict]]) -> Tuple[Optional[str], str]
     server_string = []
+    runtime_properties = runtime_properties or []
     force_flag = next(
         (prop for prop in runtime_properties if prop["key"] == UptimeConf.worker_key),
         None,

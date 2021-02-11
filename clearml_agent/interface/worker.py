@@ -78,7 +78,10 @@ DAEMON_ARGS = dict({
     },
     '--services-mode': {
         'help': 'Launch multiple long-term docker services. Implies docker & cpu-only flags.',
-        'action': 'store_true',
+        'nargs': '?',
+        'const': -1,
+        'type': int,
+        'default': None,
     },
     '--create-queue': {
         'help': 'Create requested queue if it does not exist already.',
@@ -92,6 +95,12 @@ DAEMON_ARGS = dict({
     '--stop': {
         'help': 'Stop the running agent (based on the same set of arguments)',
         'action': 'store_true',
+    },
+    '--dynamic-gpus': {
+        'help': 'Allow to dynamically allocate gpus based on queue properties, pass \'<queue_name>=<num_gpus>\'.'
+                ' Example: \'dual_gpus=2 single_gpu=1\'',
+        'nargs': '*',
+        'default': None,
     },
     '--uptime': {
         'help': 'Specify uptime for clearml-agent in "<hours> <days>" format. for example, use "17-20 TUE" to set '
