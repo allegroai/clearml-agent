@@ -2057,6 +2057,7 @@ class Worker(ServiceCommandSection):
                 requirements=[freeze, previous_reqs],
                 docker_cmd=execution_info.docker_cmd if execution_info else None,
                 python_version=getattr(self.package_api, 'python', ''),
+                cuda_version=self._session.config.get("agent.cuda_version"),
                 source_folder=add_venv_folder_cache,
                 exclude_sub_folders=['task_repository', 'code'])
 
@@ -2402,6 +2403,7 @@ class Worker(ServiceCommandSection):
             requirements=cached_requirements,
             docker_cmd=execution_info.docker_cmd if execution_info else None,
             python_version=package_manager_params['python'],
+            cuda_version=self._session.config.get("agent.cuda_version"),
             destination_folder=Path(venv_dir)
         ):
             print('::: Using Cached environment {} :::'.format(self.package_api.get_last_used_entry_cache()))
