@@ -638,3 +638,70 @@ def clone_repository_cached(session, execution, destination):
     repo_info = attr.evolve(repo_info, url=no_password_url)
 
     return vcs, repo_info
+
+
+def fix_package_import_diff_patch(entry_script_file):
+    # noinspection PyBroadException
+    try:
+        with open(entry_script_file, 'rt') as f:
+            lines = f.readlines()
+    except Exception:
+        return
+    # make sre we are the first import (i.e. we patched the source code)
+    if not lines or not lines[0].strip().startswith('from clearml ') or 'Task.init' not in lines[1]:
+        return
+
+    original_lines = lines
+    # skip over the first two lines, they are ours
+    # then skip over empty or comment lines
+    lines = [(i, line.split('#', 1)[0].rstrip()) for i, line in enumerate(lines)
+             if i >= 2 and line.strip('\r\n\t ') and not line.strip().startswith('#')]
+
+    # remove triple quotes ' """ '
+    nested_c = -1
+    skip_lines = []
+    for i, line_pair in enumerate(lines):
+        for _ in line_pair[1].split('"""')[1:]:
+            if nested_c >= 0:
+                skip_lines.extend(list(range(nested_c, i+1)))
+                nested_c = -1
+            else:
+                nested_c = i
+    # now select all the
+    lines = [pair for i, pair in enumerate(lines) if i not in skip_lines]
+
+    from_future = re.compile(r"^from[\s]*__future__[\s]*")
+    import_future = re.compile(r"^import[\s]*__future__[\s]*")
+    # test if we have __future__ import
+    found_index = -1
+    for a_i, (_, a_line) in enumerate(lines):
+        if found_index >= a_i:
+            continue
+        if from_future.match(a_line) or import_future.match(a_line):
+            found_index = a_i
+            # check the last import block
+            i, line = lines[found_index]
+            # wither we have \\ character at the end of the line or the line is indented
+            parenthesized_lines = '(' in line and ')' not in line
+            while line.endswith('\\') or parenthesized_lines:
+                found_index += 1
+                i, line = lines[found_index]
+                if ')' in line:
+                    break
+
+        else:
+            break
+
+    # no imports found
+    if found_index < 0:
+        return
+
+    # now we need to move back the patched two lines
+    entry_line = lines[found_index][0]
+    new_lines = original_lines[2:entry_line + 1] + original_lines[0:2] + original_lines[entry_line + 1:]
+    # noinspection PyBroadException
+    try:
+        with open(entry_script_file, 'wt') as f:
+            f.writelines(new_lines)
+    except Exception:
+        return

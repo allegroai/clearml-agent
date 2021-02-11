@@ -92,7 +92,7 @@ from clearml_agent.helper.process import (
     commit_docker, terminate_process,
 )
 from clearml_agent.helper.package.priority_req import PriorityPackageRequirement, PackageCollectorRequirement
-from clearml_agent.helper.repo import clone_repository_cached, RepoInfo, VCS
+from clearml_agent.helper.repo import clone_repository_cached, RepoInfo, VCS, fix_package_import_diff_patch
 from clearml_agent.helper.resource_monitor import ResourceMonitor
 from clearml_agent.helper.runtime_verification import check_runtime, print_uptime_properties
 from clearml_agent.session import Session
@@ -1688,6 +1688,7 @@ class Worker(ServiceCommandSection):
         repo_info = None
         directory = None
         vcs = None
+        script_file = None
         if has_repository:
             vcs, repo_info = self._get_repo_info(execution, task, venv_folder)
             directory = Path(repo_info.root, execution.working_dir or ".")
@@ -1698,17 +1699,26 @@ class Worker(ServiceCommandSection):
                 self.apply_diff(
                     task=task, vcs=vcs, execution_info=execution, repo_info=repo_info
                 )
+            script_file = Path(directory) / execution.entry_point
+
         if is_literal_script:
             self.log.info("found literal script in `script.diff`")
             directory, script = literal_script.create_notebook_file(
                 task, execution, repo_info
             )
             execution.entry_point = script
-            if not has_repository:
-                return directory, None, None
+            script_file = Path(execution.entry_point)
         else:
             # in case of no literal script, there is not difference between empty working dir and `.`
             execution.working_dir = execution.working_dir or "."
+
+        # fix our import patch (in case we have __future__)
+        if script_file and script_file.is_file():
+            fix_package_import_diff_patch(script_file.as_posix())
+
+        if is_literal_script and not has_repository:
+            return directory, None, None
+
         if not directory:
             assert False, "unreachable code"
         return directory, vcs, repo_info
