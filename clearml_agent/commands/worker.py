@@ -412,6 +412,7 @@ class Worker(ServiceCommandSection):
         self._daemon_foreground = None
         self._standalone_mode = None
         self._services_mode = None
+        self._dynamic_gpus = None
         self._force_current_version = None
         self._redirected_stdout_file_no = None
         self._uptime_config = self._session.config.get("agent.uptime", None)
@@ -499,6 +500,9 @@ class Worker(ServiceCommandSection):
         )
 
         docker_image = None
+        worker_id = '{}:service:{}'.format(self.worker_id, task_id) \
+            if self._services_mode and not self._dynamic_gpus else self.worker_id
+
         if self.docker_image_func:
             try:
                 response = get_task(self._session, task_id, only_fields=["execution.docker_cmd"])
@@ -526,7 +530,7 @@ class Worker(ServiceCommandSection):
             if self._services_mode:
                 # if this is services mode, give the docker a unique worker id, as it will register itself.
                 full_docker_cmd = self.docker_image_func(
-                    worker_id='{}:service:{}'.format(self.worker_id, task_id),
+                    worker_id=worker_id,
                     docker_image=docker_image, docker_arguments=docker_arguments)
             else:
                 full_docker_cmd = self.docker_image_func(docker_image=docker_image, docker_arguments=docker_arguments)
@@ -568,7 +572,7 @@ class Worker(ServiceCommandSection):
         status = ExitStatus.failure
         try:
             # set WORKER ID
-            ENV_WORKER_ID.set(self.worker_id)
+            ENV_WORKER_ID.set(worker_id)
 
             if self._docker_force_pull and docker_image:
                 full_pull_cmd = ['docker', 'pull', docker_image]
@@ -958,16 +962,12 @@ class Worker(ServiceCommandSection):
         self._session.print_configuration()
 
     def daemon(self, queues, log_level, foreground=False, docker=False, detached=False, order_fairness=False, **kwargs):
-        # if we do not need to create queues, make sure they are valid
-        # match previous behaviour when we validated queue names before everything else
-        queues = self._resolve_queue_names(queues, create_if_missing=kwargs.get('create_queue', False))
 
         self._standalone_mode = kwargs.get('standalone_mode', False)
         self._services_mode = kwargs.get('services_mode', False)
         # must have docker in services_mode
         if self._services_mode:
             kwargs = self._verify_command_states(kwargs)
-            docker = docker or kwargs.get('docker')
         self._uptime_config = kwargs.get('uptime', None) or self._uptime_config
         self._downtime_config = kwargs.get('downtime', None) or self._downtime_config
         if self._uptime_config and self._downtime_config:
@@ -979,6 +979,13 @@ class Worker(ServiceCommandSection):
 
         # support --dynamic-gpus
         dynamic_gpus, gpu_indexes, queues = self._parse_dynamic_gpus(kwargs, queues)
+
+        if self._services_mode and dynamic_gpus:
+            raise ValueError("Combining --dynamic-gpus and --services-mode is not supported")
+
+        # if we do not need to create queues, make sure they are valid
+        # match previous behaviour when we validated queue names before everything else
+        queues = self._resolve_queue_names(queues, create_if_missing=kwargs.get('create_queue', False))
 
         # We are not running a daemon we are killing one.
         # find the pid send termination signal and leave
@@ -1002,7 +1009,7 @@ class Worker(ServiceCommandSection):
 
         # make sure we only have a single instance,
         # also make sure we set worker_id properly and cache folders
-        self._singleton()
+        self._singleton(dynamic=bool(dynamic_gpus))
 
         # check if we have the latest version
         start_check_update_daemon()
@@ -1123,6 +1130,11 @@ class Worker(ServiceCommandSection):
         if not dynamic_gpus:
             return None, None, queues
 
+        queue_names = [q.name for q in queues]
+        if not all('=' in q for q in queue_names):
+            raise ValueError("using --dynamic-gpus, --queues [{}], "
+                             "queue must be in format <queue_name>=<num_gpus>".format(queue_names))
+
         gpu_indexes = kwargs.get('gpus')
 
         # test gpus were passed correctly
@@ -1137,17 +1149,16 @@ class Worker(ServiceCommandSection):
         except Exception:
             raise ValueError('Failed parsing --gpus {}'.format(kwargs.get('gpus')))
 
-        dynamic_gpus = [(s[:-1 - len(s.split('=')[-1])], int(s.split('=')[-1])) for s in dynamic_gpus]
+        dynamic_gpus = [(s[:-1 - len(s.split('=')[-1])], int(s.split('=')[-1])) for s in queue_names]
+        queue_names = [q for q, _ in dynamic_gpus]
         # resolve queue ids
-        dynamic_gpus_q = self._resolve_queue_names([q for q, _ in dynamic_gpus], create_if_missing=False)
+        dynamic_gpus_q = self._resolve_queue_names(
+            queue_names, create_if_missing=kwargs.get('create_queue', False))
         dynamic_gpus = list(zip(dynamic_gpus_q, [i for _, i in dynamic_gpus]))
-        if set(dynamic_gpus_q) != set(queues):
-            raise ValueError(
-                "--dynamic-gpus [{}] and --queues [{}] must contain the same queues".format(
-                    dynamic_gpus, queues))
         dynamic_gpus = sorted(
             dynamic_gpus, reverse=True, key=cmp_to_key(
-                lambda x, y: -1 if x[1] < y[1] or x[1] == y[1] and queues.index(x[0]) > queues.index(y[0])
+                lambda x, y: -1 if x[1] < y[1] or x[1] == y[1] and
+                                   dynamic_gpus_q.index(x[0]) > dynamic_gpus_q.index(y[0])
                 else +1))
         # order queue priority based on the combination we have
         queues = [q for q, _ in dynamic_gpus]
@@ -1157,6 +1168,8 @@ class Worker(ServiceCommandSection):
         if not self.set_runtime_properties(
                 key='available_gpus', value=','.join(str(g) for g in available_gpus)):
             raise ValueError("Dynamic GPU allocation is not supported by the ClearML-server")
+
+        self._dynamic_gpus = True
 
         return dynamic_gpus, gpu_indexes, queues
 
@@ -1631,10 +1644,16 @@ class Worker(ServiceCommandSection):
 
         # We expect the same behaviour in case full_monitoring was set, and in case docker mode is used
         if full_monitoring or docker is not False:
-            if full_monitoring and not (ENV_WORKER_ID.get() or '').strip():
-                self._session.config["agent"]["worker_id"] = ''
+            if full_monitoring:
+                if not (ENV_WORKER_ID.get() or '').strip():
+                    self._session.config["agent"]["worker_id"] = ''
                 # make sure we support multiple instances if we need to
                 self._singleton()
+                self.temp_config_path = self.temp_config_path or safe_mkstemp(
+                    suffix=".cfg", prefix=".clearml_agent.", text=True, name_only=True
+                )
+                self.dump_config(self.temp_config_path)
+                self._session._config_file = self.temp_config_path
 
             worker_params = WorkerParams(
                 log_level=log_level,
@@ -1647,6 +1666,10 @@ class Worker(ServiceCommandSection):
 
             self.stop_monitor()
             self._unregister()
+
+            if full_monitoring and self.temp_config_path:
+                safe_remove_file(self._session.config_file)
+                Singleton.close_pid_file()
             return
 
         self._session.print_configuration()
@@ -2852,9 +2875,9 @@ class Worker(ServiceCommandSection):
             worker_name, worker_id))
         return False
 
-    def _singleton(self):
+    def _singleton(self, dynamic=False):
         # ensure singleton
-        worker_id, worker_name = self._generate_worker_id_name()
+        worker_id, worker_name = self._generate_worker_id_name(dynamic=dynamic)
 
         # if we are running in services mode, we allow double register since
         # docker-compose will kill instances before they cleanup
@@ -2869,13 +2892,14 @@ class Worker(ServiceCommandSection):
         # update folders based on free slot
         self._session.create_cache_folders(slot_index=worker_slot)
 
-    def _generate_worker_id_name(self):
+    def _generate_worker_id_name(self, dynamic=False):
         worker_id = self._session.config["agent.worker_id"]
         worker_name = self._session.config["agent.worker_name"]
         if not worker_id and os.environ.get('NVIDIA_VISIBLE_DEVICES') is not None:
             nvidia_visible_devices = os.environ.get('NVIDIA_VISIBLE_DEVICES')
             if nvidia_visible_devices and nvidia_visible_devices.lower() != 'none':
-                worker_id = '{}:gpu{}'.format(worker_name, nvidia_visible_devices)
+                worker_id = '{}:{}gpu{}'.format(
+                    worker_name, 'd' if dynamic else '', nvidia_visible_devices)
             elif nvidia_visible_devices == '':
                 pass
             else:

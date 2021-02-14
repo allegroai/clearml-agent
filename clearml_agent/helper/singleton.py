@@ -7,7 +7,7 @@ from tempfile import gettempdir, NamedTemporaryFile
 from typing import List, Tuple, Optional
 
 from clearml_agent.definitions import ENV_DOCKER_HOST_MOUNT
-from clearml_agent.helper.base import warning, is_windows_platform
+from clearml_agent.helper.base import warning, is_windows_platform, safe_remove_file
 
 
 class Singleton(object):
@@ -21,6 +21,13 @@ class Singleton(object):
     _lock_file_name = sep+prefix+sep+'global.lock'
     _lock_timeout = 10
     _pid = None
+
+    @classmethod
+    def close_pid_file(cls):
+        if cls._pid_file:
+            cls._pid_file.close()
+            safe_remove_file(cls._pid_file.name)
+        cls._pid_file = None
 
     @classmethod
     def update_pid_file(cls):
@@ -115,7 +122,7 @@ class Singleton(object):
 
     @classmethod
     def _register_instance(cls, unique_worker_id=None, worker_name=None, api_client=None, allow_double=False):
-        if cls.worker_id:
+        if cls.worker_id and cls.instance_slot is not None:
             return cls.worker_id, cls.instance_slot
         # make sure we have a unique name
         instance_num = 0

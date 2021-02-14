@@ -97,10 +97,10 @@ DAEMON_ARGS = dict({
         'action': 'store_true',
     },
     '--dynamic-gpus': {
-        'help': 'Allow to dynamically allocate gpus based on queue properties, pass \'<queue_name>=<num_gpus>\'.'
-                ' Example: \'dual_gpus=2 single_gpu=1\'',
-        'nargs': '*',
-        'default': None,
+        'help': 'Allow to dynamically allocate gpus based on queue properties, '
+                'configure with \'--queues <queue_name>=<num_gpus>\'.'
+                ' Example: \'--dynamic-gpus --queue dual_gpus=2 single_gpu=1\'',
+        'action': 'store_true',
     },
     '--uptime': {
         'help': 'Specify uptime for clearml-agent in "<hours> <days>" format. for example, use "17-20 TUE" to set '

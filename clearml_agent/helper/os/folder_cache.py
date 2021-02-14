@@ -135,7 +135,8 @@ class FolderCache(object):
         # if we do not have enough free space, do nothing.
         if not self._check_min_free_space():
             warning('Could not add cache entry, not enough free space on drive, '
-                    'free space threshold {} GB'.format(self._min_free_space_gb))
+                    'free space threshold {} GB. Clearing all cache entries!'.format(self._min_free_space_gb))
+            self._remove_old_entries(max_cache_entries=0)
             return False
 
         # create the new entry for us
@@ -175,10 +176,11 @@ class FolderCache(object):
         """
         return self._last_copied_entry_folder
 
-    def _remove_old_entries(self):
-        # type: () -> ()
+    def _remove_old_entries(self, max_cache_entries=None):
+        # type: (Optional[int]) -> ()
         """
         Notice we only keep self._max_cache_entries-1, assuming we will be adding a new entry soon
+        :param int max_cache_entries: if not None use instead of self._max_cache_entries
         """
         folder_entries = [(cache_folder, cache_folder.stat().st_mtime)
                           for cache_folder in self._cache_folder.glob('*')
@@ -193,7 +195,8 @@ class FolderCache(object):
             warning('Could not lock cache folder {}: {}'.format(self._cache_folder, ex))
             return
 
-        number_of_entries_to_keep = self._max_cache_entries-1
+        number_of_entries_to_keep = self._max_cache_entries - 1 \
+            if max_cache_entries is None else max(0, int(max_cache_entries))
         for folder, ts in folder_entries[number_of_entries_to_keep:]:
             try:
                 shutil.rmtree(folder.as_posix(), ignore_errors=True)
