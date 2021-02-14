@@ -7,7 +7,7 @@ from tempfile import gettempdir, NamedTemporaryFile
 from typing import List, Tuple, Optional
 
 from clearml_agent.definitions import ENV_DOCKER_HOST_MOUNT
-from clearml_agent.helper.base import warning
+from clearml_agent.helper.base import warning, is_windows_platform
 
 
 class Singleton(object):
@@ -167,7 +167,9 @@ class Singleton(object):
         # create lock
         cls._pid = str(os.getpid())
         cls._pid_file = NamedTemporaryFile(
-            dir=cls._get_temp_folder(), prefix=cls.prefix + cls.sep + cls._pid + cls.sep, suffix=cls.ext)
+            dir=cls._get_temp_folder(), prefix=cls.prefix + cls.sep + cls._pid + cls.sep, suffix=cls.ext,
+            delete=False if is_windows_platform() else True
+        )
         cls._pid_file.write(('{}\n{}'.format(unique_worker_id, cls.instance_slot)).encode())
         cls._pid_file.flush()
         cls.worker_id = unique_worker_id
