@@ -204,7 +204,7 @@ class Session(_Session):
         folder_keys = ('agent.venvs_dir', 'agent.vcs_cache.path',
                        'agent.pip_download_cache.path',
                        'agent.docker_pip_cache', 'agent.docker_apt_cache')
-        singleton_folders = ('agent.venvs_dir', 'agent.vcs_cache.path', 'agent.docker_apt_cache')
+        singleton_folders = ('agent.venvs_dir', 'agent.docker_apt_cache')
 
         if ENV_TASK_EXECUTE_AS_USER.get():
             folder_keys = tuple(list(folder_keys) + ['sdk.storage.cache.default_base_dir'])

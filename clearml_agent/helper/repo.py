@@ -5,6 +5,8 @@ import subprocess
 from distutils.spawn import find_executable
 from hashlib import md5
 from os import environ
+from random import random
+from threading import Lock
 from typing import Text, Sequence, Mapping, Iterable, TypeVar, Callable, Tuple, Optional
 
 import attr
@@ -23,6 +25,7 @@ from clearml_agent.helper.base import (
     normalize_path,
     create_file_if_not_exists,
 )
+from clearml_agent.helper.os.locks import FileLock
 from clearml_agent.helper.process import DEVNULL, Argv, PathLike, COMMAND_SUCCESS
 from clearml_agent.session import Session
 
@@ -585,6 +588,9 @@ def clone_repository_cached(session, execution, destination):
     :return: repository information
     :raises: CommandFailedError if git/hg is not installed
     """
+    # mock lock
+    repo_lock = Lock()
+    repo_lock_timeout_sec = 300
     repo_url = execution.repository  # type: str
     parsed_url = furl(repo_url)
     no_password_url = parsed_url.copy().remove(password=True).url
@@ -596,37 +602,48 @@ def clone_repository_cached(session, execution, destination):
     if standalone_mode:
         cached_repo_path = clone_folder
     else:
-        cached_repo_path = (
-            Path(session.config["agent.vcs_cache.path"]).expanduser()
-            / "{}.{}".format(clone_folder_name, md5(ensure_binary(repo_url)).hexdigest())
-            / clone_folder_name
-        )  # type: Path
+        vcs_cache_path = Path(session.config["agent.vcs_cache.path"]).expanduser()
+        repo_hash = md5(ensure_binary(repo_url)).hexdigest()
+        # create lock
+        repo_lock = FileLock(filename=(vcs_cache_path / '{}.lock'.format(repo_hash)).as_posix())
+        # noinspection PyBroadException
+        try:
+            repo_lock.acquire(timeout=repo_lock_timeout_sec)
+        except BaseException:
+            print('Could not lock cache folder "{}" (timeout {} sec), using temp vcs cache.'.format(
+                clone_folder_name, repo_lock_timeout_sec))
+            repo_hash = '{}_{}'.format(repo_hash, str(random()).replace('.', ''))
+            # use mock lock for the context
+            repo_lock = Lock()
+        # select vcs cache folder
+        cached_repo_path = vcs_cache_path / "{}.{}".format(clone_folder_name, repo_hash) / clone_folder_name
 
-    vcs = VcsFactory.create(
-        session, execution_info=execution, location=cached_repo_path
-    )
-    if not find_executable(vcs.executable_name):
-        raise CommandFailedError(vcs.executable_not_found_error_help())
+    with repo_lock:
+        vcs = VcsFactory.create(
+            session, execution_info=execution, location=cached_repo_path
+        )
+        if not find_executable(vcs.executable_name):
+            raise CommandFailedError(vcs.executable_not_found_error_help())
 
-    if not standalone_mode:
-        if session.config["agent.vcs_cache.enabled"] and cached_repo_path.exists():
-            print('Using cached repository in "{}"'.format(cached_repo_path))
+        if not standalone_mode:
+            if session.config["agent.vcs_cache.enabled"] and cached_repo_path.exists():
+                print('Using cached repository in "{}"'.format(cached_repo_path))
 
-        else:
-            print("cloning: {}".format(no_password_url))
-            rm_tree(cached_repo_path)
-            # We clone the entire repository, not a specific branch
-            vcs.clone()  # branch=execution.branch)
+            else:
+                print("cloning: {}".format(no_password_url))
+                rm_tree(cached_repo_path)
+                # We clone the entire repository, not a specific branch
+                vcs.clone()  # branch=execution.branch)
 
-        vcs.pull()
-        rm_tree(destination)
-        shutil.copytree(Text(cached_repo_path), Text(clone_folder))
-        if not clone_folder.is_dir():
-            raise CommandFailedError(
-                "copying of repository failed: from {} to {}".format(
-                    cached_repo_path, clone_folder
+            vcs.pull()
+            rm_tree(destination)
+            shutil.copytree(Text(cached_repo_path), Text(clone_folder))
+            if not clone_folder.is_dir():
+                raise CommandFailedError(
+                    "copying of repository failed: from {} to {}".format(
+                        cached_repo_path, clone_folder
+                    )
                 )
-            )
 
     # checkout in the newly copy destination
     vcs.location = Text(clone_folder)
