@@ -1119,35 +1119,38 @@ class Worker(ServiceCommandSection):
             safe_remove_file(self.temp_config_path)
 
     def _parse_dynamic_gpus(self, kwargs, queues):
-        gpu_indexes = kwargs.get('gpus')
         dynamic_gpus = kwargs.get('dynamic_gpus', None)
-        if dynamic_gpus:
-            # test gpus were passed correctly
-            if not gpu_indexes or len(gpu_indexes.split('-')) > 2 or (',' in gpu_indexes and '-' in gpu_indexes):
-                raise ValueError('--gpus must be provided, in one of two ways: '
-                                 'comma separated \'0,1,2,3\' or range \'0-3\'')
-            try:
-                if '-' in gpu_indexes:
-                    gpu_indexes = list(range(int(gpu_indexes.split('-')[0]), 1 + int(gpu_indexes.split('-')[1])))
-                else:
-                    gpu_indexes = [int(g) for g in gpu_indexes.split(',')]
-            except Exception:
-                raise ValueError('Failed parsing --gpus {}'.format(kwargs.get('gpus')))
+        if not dynamic_gpus:
+            return None, None, queues
 
-            dynamic_gpus = [(s[:-1 - len(s.split('=')[-1])], int(s.split('=')[-1])) for s in dynamic_gpus]
-            # resolve queue ids
-            dynamic_gpus_q = self._resolve_queue_names([q for q, _ in dynamic_gpus], create_if_missing=False)
-            dynamic_gpus = list(zip(dynamic_gpus_q, [i for _, i in dynamic_gpus]))
-            if set(dynamic_gpus_q) != set(queues):
-                raise ValueError(
-                    "--dynamic-gpus [{}] and --queues [{}] must contain the same queues".format(
-                        dynamic_gpus, queues))
-            dynamic_gpus = sorted(
-                dynamic_gpus, reverse=True, key=cmp_to_key(
-                    lambda x, y: -1 if x[1] < y[1] or x[1] == y[1] and queues.index(x[0]) > queues.index(y[0])
-                    else +1))
-            # order queue priority based on the combination we have
-            queues = [q for q, _ in dynamic_gpus]
+        gpu_indexes = kwargs.get('gpus')
+
+        # test gpus were passed correctly
+        if not gpu_indexes or len(gpu_indexes.split('-')) > 2 or (',' in gpu_indexes and '-' in gpu_indexes):
+            raise ValueError('--gpus must be provided, in one of two ways: '
+                             'comma separated \'0,1,2,3\' or range \'0-3\'')
+        try:
+            if '-' in gpu_indexes:
+                gpu_indexes = list(range(int(gpu_indexes.split('-')[0]), 1 + int(gpu_indexes.split('-')[1])))
+            else:
+                gpu_indexes = [int(g) for g in gpu_indexes.split(',')]
+        except Exception:
+            raise ValueError('Failed parsing --gpus {}'.format(kwargs.get('gpus')))
+
+        dynamic_gpus = [(s[:-1 - len(s.split('=')[-1])], int(s.split('=')[-1])) for s in dynamic_gpus]
+        # resolve queue ids
+        dynamic_gpus_q = self._resolve_queue_names([q for q, _ in dynamic_gpus], create_if_missing=False)
+        dynamic_gpus = list(zip(dynamic_gpus_q, [i for _, i in dynamic_gpus]))
+        if set(dynamic_gpus_q) != set(queues):
+            raise ValueError(
+                "--dynamic-gpus [{}] and --queues [{}] must contain the same queues".format(
+                    dynamic_gpus, queues))
+        dynamic_gpus = sorted(
+            dynamic_gpus, reverse=True, key=cmp_to_key(
+                lambda x, y: -1 if x[1] < y[1] or x[1] == y[1] and queues.index(x[0]) > queues.index(y[0])
+                else +1))
+        # order queue priority based on the combination we have
+        queues = [q for q, _ in dynamic_gpus]
 
         # test server support
         available_gpus = self._dynamic_gpu_get_available(gpu_indexes)
