@@ -20,6 +20,7 @@ import platform
 import sys
 import time
 from datetime import datetime
+from typing import Optional
 
 import psutil
 from ..gpu import pynvml as N
@@ -390,3 +391,34 @@ def new_query(shutdown=False, per_process_stats=False, get_driver_info=False):
     '''
     return GPUStatCollection.new_query(shutdown=shutdown, per_process_stats=per_process_stats,
                                        get_driver_info=get_driver_info)
+
+
+def get_driver_cuda_version():
+    # type: () -> Optional[str]
+    """
+    :return: Return detected CUDA version from driver. On fail return value is None.
+        Example: `110` is cuda version 11.0
+    """
+    # noinspection PyBroadException
+    try:
+        N.nvmlInit()
+    except BaseException:
+        return None
+
+    # noinspection PyBroadException
+    try:
+        cuda_version = str(N.nvmlSystemGetCudaDriverVersion())
+    except BaseException:
+        # noinspection PyBroadException
+        try:
+            cuda_version = str(N.nvmlSystemGetCudaDriverVersion_v2())
+        except BaseException:
+            cuda_version = ''
+
+    # noinspection PyBroadException
+    try:
+        N.nvmlShutdown()
+    except BaseException:
+        return None
+
+    return cuda_version[:3] if cuda_version else None

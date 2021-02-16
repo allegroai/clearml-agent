@@ -17,6 +17,7 @@ import six
 from clearml_agent.definitions import PIP_EXTRA_INDICES
 from clearml_agent.helper.base import warning, is_conda, which, join_lines, is_windows_platform
 from clearml_agent.helper.process import Argv, PathLike
+from clearml_agent.helper.gpu.gpustat import get_driver_cuda_version
 from clearml_agent.session import Session, normalize_cuda_version
 from clearml_agent.external.requirements_parser import parse
 from clearml_agent.external.requirements_parser.requirement import Requirement
@@ -536,6 +537,9 @@ class RequirementsManager(object):
         cudnn_version = config['agent.cudnn_version']
         if cuda_version and cudnn_version:
             return normalize_cuda_version(cuda_version), normalize_cuda_version(cudnn_version)
+
+        if not cuda_version:
+            cuda_version = get_driver_cuda_version()
 
         if not cuda_version and is_windows_platform():
             try:
