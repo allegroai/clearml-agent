@@ -2501,7 +2501,7 @@ class Worker(ServiceCommandSection):
         temp_config.put("agent.git_pass", (ENV_AGENT_GIT_PASS.get() or
                                            self._session.config.get("agent.git_pass", None)))
 
-        if temp_config.get("agent.venvs_cache.path"):
+        if temp_config.get("agent.venvs_cache.path", None):
             temp_config.put("agent.venvs_cache.path", '/root/.clearml/venvs-cache')
 
         self._host_ssh_cache = mkdtemp(prefix='clearml_agent.ssh.')
@@ -2518,7 +2518,7 @@ class Worker(ServiceCommandSection):
             self._session.config["agent.vcs_cache.path"])).expanduser().as_posix()
         host_venvs_cache = Path(os.path.expandvars(
             self._session.config["agent.venvs_cache.path"])).expanduser().as_posix() \
-            if self._session.config.get("agent.venvs_cache.path") else None
+            if self._session.config.get("agent.venvs_cache.path", None) else None
         host_ssh_cache = self._host_ssh_cache
 
         host_apt_cache = Path(os.path.expandvars(self._session.config.get(
@@ -2571,7 +2571,7 @@ class Worker(ServiceCommandSection):
         mounted_cache_dir = temp_config.get("sdk.storage.cache.default_base_dir")
         mounted_pip_dl_dir = temp_config.get("agent.pip_download_cache.path")
         mounted_vcs_cache = temp_config.get("agent.vcs_cache.path")
-        mounted_venvs_cache = temp_config.get("agent.venvs_cache.path")
+        mounted_venvs_cache = temp_config.get("agent.venvs_cache.path", "")
 
         # Make sure we have created the configuration file for the executor
         if not self.dump_config(self.temp_config_path, config=temp_config):
