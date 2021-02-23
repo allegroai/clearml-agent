@@ -2334,9 +2334,14 @@ class Worker(ServiceCommandSection):
         Install a new python virtual environment, removing the old one if exists
         :return: virtualenv directory, requirements manager to use with task, True if there is a cached venv entry
         """
-        requested_python_version = requested_python_version or \
-                                   Text(self._session.config.get("agent.python_binary", None)) or \
-                                   Text(self._session.config.get("agent.default_python", None))
+        if self._session.config.get("agent.ignore_requested_python_version", None):
+            requested_python_version = ''
+
+        requested_python_version = \
+            requested_python_version or \
+            Text(self._session.config.get("agent.python_binary", None)) or \
+            Text(self._session.config.get("agent.default_python", None))
+
         if self.is_conda:
             executable_version_suffix = \
                 requested_python_version[max(requested_python_version.find('python'), 0):].replace('python', '')
