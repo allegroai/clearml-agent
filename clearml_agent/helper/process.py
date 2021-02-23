@@ -7,7 +7,7 @@ import re
 import subprocess
 import sys
 from contextlib import contextmanager
-from copy import deepcopy
+from copy import copy
 from distutils.spawn import find_executable
 from itertools import chain, repeat, islice
 from os.path import devnull
@@ -276,9 +276,9 @@ class CommandSequence(Executable):
         self.commands = []
         for c in commands:
             if isinstance(c, CommandSequence):
-                self.commands.extend(deepcopy(c.commands))
+                self.commands.extend([copy(p) for p in c.commands])
             elif isinstance(c, Argv):
-                self.commands.append(deepcopy(c))
+                self.commands.append(copy(c))
             else:
                 self.commands.append(Argv(*c, log=self._log))
 

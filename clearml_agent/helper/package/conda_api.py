@@ -505,6 +505,8 @@ class CondaAPI(PackageManager):
             reqs.append(m)
 
         # if we have a conda list, the rest should be installed with pip,
+        # this means  any experiment that was executed with pip environment,
+        # will be installed using pip
         if requirements.get('conda', None) is not None:
             for r in requirements['pip']:
                 try:
@@ -518,7 +520,7 @@ class CondaAPI(PackageManager):
                 # skip over local files (we cannot change the version to a local file)
                 if m.local_file:
                     continue
-                m_name = m.name.lower()
+                m_name = (m.name or '').lower()
                 if m_name in conda_supported_req_names:
                     # this package is in the conda list,
                     # make sure that if we changed version and we match it in conda
@@ -555,7 +557,7 @@ class CondaAPI(PackageManager):
         # conform conda packages (version/name)
         for r in reqs:
             # change _ to - in name but not the prefix _ (as this is conda prefix)
-            if not r.name.startswith('_') and not requirements.get('conda', None):
+            if r.name and not r.name.startswith('_') and not requirements.get('conda', None):
                 r.name = r.name.replace('_', '-')
             # remove .post from version numbers, it fails ~= version, and change == to ~=
             if r.specs and r.specs[0]:
