@@ -1742,11 +1742,14 @@ class Worker(ServiceCommandSection):
                 base_interpreter=package_api.requirements_manager.get_interpreter(),
                 requirement_substitutions=[OnlyExternalRequirements]
             )
+            package_api.cwd = vcs.location if vcs and vcs.location else directory
             # make sure we run the handlers
             cached_requirements = \
                 {k: package_api.requirements_manager.replace(requirements[k] or '')
                  for k in requirements}
-            package_api.load_requirements(cached_requirements)
+            if str(cached_requirements.get('pip', '')).strip() \
+                    or str(cached_requirements.get('conda', '')).strip():
+                package_api.load_requirements(cached_requirements)
 
         elif not is_cached and not standalone_mode:
             self.install_requirements(
