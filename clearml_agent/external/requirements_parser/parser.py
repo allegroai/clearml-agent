@@ -16,7 +16,7 @@ def parse(reqstr):
     filename = getattr(reqstr, 'name', None)
     try:
         # Python 2.x compatibility
-        if not isinstance(reqstr, basestring):
+        if not isinstance(reqstr, basestring):  # noqa
             reqstr = reqstr.read()
     except NameError:
         # Python 3.x only
