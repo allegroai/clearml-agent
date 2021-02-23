@@ -12,7 +12,7 @@ import sys
 import shutil
 import traceback
 from collections import defaultdict
-from copy import deepcopy
+from copy import deepcopy, copy
 from datetime import datetime
 from distutils.spawn import find_executable
 from functools import partial, cmp_to_key
@@ -73,7 +73,7 @@ from clearml_agent.helper.os.daemonize import daemonize_process
 from clearml_agent.helper.package.base import PackageManager
 from clearml_agent.helper.package.conda_api import CondaAPI
 from clearml_agent.helper.package.post_req import PostRequirement
-from clearml_agent.helper.package.external_req import ExternalRequirements
+from clearml_agent.helper.package.external_req import ExternalRequirements, OnlyExternalRequirements
 from clearml_agent.helper.package.pip_api.system import SystemPip
 from clearml_agent.helper.package.pip_api.venv import VirtualenvPip
 from clearml_agent.helper.package.poetry_api import PoetryConfig, PoetryAPI
@@ -440,11 +440,12 @@ class Worker(ServiceCommandSection):
 
         return kwargs
 
-    def _get_requirements_manager(self, os_override=None, base_interpreter=None):
+    def _get_requirements_manager(self, os_override=None, base_interpreter=None, requirement_substitutions=None):
         requirements_manager = RequirementsManager(
             self._session, base_interpreter=base_interpreter
         )
-        for requirement_cls in self._requirement_substitutions:
+        requirement_substitutions = requirement_substitutions or self._requirement_substitutions
+        for requirement_cls in requirement_substitutions:
             if os_override and issubclass(requirement_cls, PytorchRequirement):
                 requirement_cls = partial(requirement_cls, os_override=os_override)
             requirements_manager.register(requirement_cls)
@@ -1468,7 +1469,19 @@ class Worker(ServiceCommandSection):
 
         directory, vcs, repo_info = self.get_repo_info(execution, current_task, venv_folder.as_posix())
 
-        if not is_cached:
+        if is_cached:
+            # reinstalling git / local packages
+            package_api = copy(self.package_api)
+            package_api.requirements_manager = self._get_requirements_manager(
+                base_interpreter=package_api.requirements_manager.get_interpreter(),
+                requirement_substitutions=[OnlyExternalRequirements]
+            )
+            # make sure we run the handlers
+            cached_requirements = \
+                {k: package_api.requirements_manager.replace(requirements[k] or '')
+                 for k in requirements}
+            package_api.load_requirements(cached_requirements)
+        else:
             self.install_requirements(
                 execution,
                 repo_info,
@@ -1477,6 +1490,7 @@ class Worker(ServiceCommandSection):
                 cwd=vcs.location if vcs and vcs.location else directory,
                 package_api=self.global_package_api if install_globally else None,
             )
+
         freeze = self.freeze_task_environment(
             task_id=task_id, requirements_manager=requirements_manager, update_requirements=False)
         script_dir = directory
@@ -1721,7 +1735,20 @@ class Worker(ServiceCommandSection):
 
         print("\n")
 
-        if not is_cached and not standalone_mode:
+        if is_cached and not standalone_mode:
+            # reinstalling git / local packages
+            package_api = copy(self.package_api)
+            package_api.requirements_manager = self._get_requirements_manager(
+                base_interpreter=package_api.requirements_manager.get_interpreter(),
+                requirement_substitutions=[OnlyExternalRequirements]
+            )
+            # make sure we run the handlers
+            cached_requirements = \
+                {k: package_api.requirements_manager.replace(requirements[k] or '')
+                 for k in requirements}
+            package_api.load_requirements(cached_requirements)
+
+        elif not is_cached and not standalone_mode:
             self.install_requirements(
                 execution,
                 repo_info,
@@ -2376,6 +2403,7 @@ class Worker(ServiceCommandSection):
 
         if not standalone_mode:
             rm_tree(normalize_path(venv_dir, WORKING_REPOSITORY_DIR))
+
         package_manager_params = dict(
             session=self._session,
             python=executable_version_suffix if self.is_conda else executable_name,

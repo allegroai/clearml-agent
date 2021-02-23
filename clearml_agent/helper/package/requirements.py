@@ -447,6 +447,7 @@ class RequirementsManager(object):
             'cu'+agent['cuda_version'] if self.found_cuda else 'cpu')
         self.translator = RequirementsTranslator(session, interpreter=base_interpreter,
                                                  cache_dir=pip_cache_dir.as_posix())
+        self._base_interpreter = base_interpreter
 
     def register(self, cls):  # type: (Type[RequirementSubstitution]) -> None
         self.handlers.append(cls(self._session))
@@ -530,6 +531,9 @@ class RequirementsManager(object):
                 pass
         return requirements
 
+    def get_interpreter(self):
+        return self._base_interpreter
+
     @staticmethod
     def get_cuda_version(config):  # type: (ConfigTree) -> (Text, Text)
         # we assume os.environ already updated the config['agent.cuda_version'] & config['agent.cudnn_version']
@@ -605,4 +609,3 @@ class RequirementsManager(object):
 
         return (normalize_cuda_version(cuda_version or 0),
                 normalize_cuda_version(cudnn_version or 0))
-

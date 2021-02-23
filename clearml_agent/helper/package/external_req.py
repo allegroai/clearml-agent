@@ -17,6 +17,15 @@ class ExternalRequirements(SimpleSubstitution):
         self.post_install_req_lookup = OrderedDict()
 
     def match(self, req):
+        # match local folder building:
+        # noinspection PyBroadException
+        try:
+            if not req.name and req.req and not req.req.editable and not req.req.vcs and \
+                    req.req.line and not req.req.line.strip().split('#')[0].lower().endswith('.whl'):
+                return True
+        except Exception:
+            pass
+
         # match both editable or code or unparsed
         if not (not req.name or req.req and (req.req.editable or req.req.vcs)):
             return False
@@ -104,3 +113,20 @@ class ExternalRequirements(SimpleSubstitution):
             list_of_requirements[k] += [self.post_install_req_lookup.get(r, '')
                                         for r in self.post_install_req_lookup.keys() if r in original_requirements]
         return list_of_requirements
+
+
+class OnlyExternalRequirements(ExternalRequirements):
+    def __init__(self, *args, **kwargs):
+        super(OnlyExternalRequirements, self).__init__(*args, **kwargs)
+
+    def match(self, req):
+        return not super(OnlyExternalRequirements, self).match(req)
+
+    def replace(self, req):
+        """
+        Replace a requirement
+        :raises: ValueError if version is pre-release
+        """
+        # Do not store the skipped requirements
+        # mark skip package
+        return Text('')
