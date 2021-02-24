@@ -2663,9 +2663,8 @@ class Worker(ServiceCommandSection):
             else:
                 base_cmd += ['--gpus', 'all', ]
         elif gpu_devices.strip() and gpu_devices.strip() != 'none':
-            if ENV_DOCKER_SKIP_GPUS_FLAG.get():
-                dockers_nvidia_visible_devices = gpu_devices
-            else:
+            dockers_nvidia_visible_devices = gpu_devices
+            if not ENV_DOCKER_SKIP_GPUS_FLAG.get():
                 base_cmd += ['--gpus', '\"device={}\"'.format(gpu_devices), ]
             # We are using --gpu, so we should not pass NVIDIA_VISIBLE_DEVICES, I think.
             # base_cmd += ['-e', 'NVIDIA_VISIBLE_DEVICES=' + gpu_devices, ]
