@@ -21,7 +21,8 @@ class ExternalRequirements(SimpleSubstitution):
         # noinspection PyBroadException
         try:
             if not req.name and req.req and not req.req.editable and not req.req.vcs and \
-                    req.req.line and not req.req.line.strip().split('#')[0].lower().endswith('.whl'):
+                    req.req.line and req.req.line.strip().split('#')[0] and \
+                    not req.req.line.strip().split('#')[0].lower().endswith('.whl'):
                 return True
         except Exception:
             pass
