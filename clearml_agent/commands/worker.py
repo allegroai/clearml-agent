@@ -1823,6 +1823,12 @@ class Worker(ServiceCommandSection):
         if repo_info:
             self._update_commit_id(current_task.id, execution, repo_info)
 
+        # get Task Environments and update the process
+        if self._session.config.get('agent.enable_task_env', None):
+            hyper_params = self._get_task_os_env(current_task)
+            if hyper_params:
+                os.environ.update(hyper_params)
+
         # Add the script CWD to the python path
         python_path = get_python_path(script_dir, execution.entry_point, self.package_api, is_conda_env=self.is_conda)
         if ENV_TASK_EXTRA_PYTHON_PATH.get():
@@ -1899,6 +1905,20 @@ class Worker(ServiceCommandSection):
             self._unregister()
 
         return 1 if exit_code is None else exit_code
+
+    def _get_task_os_env(self, current_task):
+        if not self._session.check_min_api_version('2.9'):
+            return None
+        # noinspection PyBroadException
+        try:
+            hyper_params = self._session.get(
+                service="tasks", action="get_hyper_params", tasks=[current_task.id])
+            hyper_params = {
+                str(p['name']): str(p['value'])
+                for p in hyper_params['params'][0]['hyperparams'] if p['section'] == 'Environment'}
+            return hyper_params
+        except Exception:
+            return None
 
     def set_docker_variables(self, docker):
         temp_config, docker_image_func = self.get_docker_config_cmd(docker)
