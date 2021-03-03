@@ -36,8 +36,7 @@ class K8sIntegration(Worker):
 
     KUBECTL_RUN_CMD = "kubectl run clearml-{queue_name}-id-{task_id} " \
                       "--image {docker_image} " \
-                      "--restart=Never --replicas=1 " \
-                      "--generator=run-pod/v1 " \
+                      "--restart=Never " \
                       "--namespace={namespace}"
 
     KUBECTL_DELETE_CMD = "kubectl delete pods " \
@@ -273,13 +272,13 @@ class K8sIntegration(Worker):
             return
 
         if task_data.execution.docker_cmd:
-            docker_parts = task_data.execution.docker_cmd
+            docker_cmd = task_data.execution.docker_cmd
         else:
-            docker_parts = str(ENV_DOCKER_IMAGE.get() or
-                               self._session.config.get("agent.default_docker.image", "nvidia/cuda"))
+            docker_cmd = str(ENV_DOCKER_IMAGE.get() or
+                             self._session.config.get("agent.default_docker.image", "nvidia/cuda"))
 
         # take the first part, this is the docker image name (not arguments)
-        docker_parts = docker_parts.split()
+        docker_parts = docker_cmd.split()
         docker_image = docker_parts[0]
         docker_args = docker_parts[1:] if len(docker_parts) > 1 else []
 
@@ -355,7 +354,7 @@ class K8sIntegration(Worker):
         else:
             output, error = self._kubectl_run(
                 create_clearml_conf=create_clearml_conf,
-                labels=labels, docker_image=docker_image,
+                labels=labels, docker_image=docker_cmd,
                 task_data=task_data,
                 task_id=task_id, queue=queue, queue_name=safe_queue_name)
 
