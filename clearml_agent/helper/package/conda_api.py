@@ -573,6 +573,8 @@ class CondaAPI(PackageManager):
             conda_env['dependencies'] = [clean_ver(r) for r in reqs]
             with self.temp_file("conda_env", yaml.dump(conda_env), suffix=".yml") as name:
                 print('Conda: Trying to install requirements:\n{}'.format(conda_env['dependencies']))
+                if self.session.debug_mode:
+                    print('{}:\n{}'.format(name, yaml.dump(conda_env)))
                 result = self._run_command(
                     ("env", "update", "-p", self.path, "--file", name)
                 )
@@ -603,6 +605,8 @@ class CondaAPI(PackageManager):
                 pip_req_str = [r.tostr() for r in pip_requirements if r.name not in ('pip', 'virtualenv', )]
                 print('Conda: Installing requirements: step 2 - using pip:\n{}'.format(pip_req_str))
                 PackageManager._selected_manager = self.pip
+                if self.session.debug_mode:
+                    print('pip requirements.txt:\n{}'.format('\n'.join(pip_req_str)))
                 self.pip.load_requirements({'pip': '\n'.join(pip_req_str)})
             except Exception as e:
                 print(e)
