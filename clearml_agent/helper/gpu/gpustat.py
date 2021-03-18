@@ -421,4 +421,8 @@ def get_driver_cuda_version():
     except BaseException:
         return None
 
+    # for some reason we get CUDA version 11020 instead of 11200, so this is the fix
+    if cuda_version and len(cuda_version) >= 4 and cuda_version[2] == '0' and cuda_version[3] != '0':
+        return cuda_version[:2]+cuda_version[3]
+
     return cuda_version[:3] if cuda_version else None
