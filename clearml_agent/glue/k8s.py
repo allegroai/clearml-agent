@@ -392,16 +392,16 @@ class K8sIntegration(Worker):
 
     def _parse_docker_args(self, docker_args):
         # type: (list) -> dict
-        kube_args = {'env': []}
+        kube_args = []
         while docker_args:
-            cmd = docker_args.pop().strip()
+            cmd = docker_args.pop(0).strip()
             if cmd in ('-e', '--env',):
-                env = docker_args.pop().strip()
+                env = docker_args.pop(0).strip()
                 key, value = env.split('=', 1)
-                kube_args[key] += {key: value}
+                kube_args.append({'name': key, 'value': value})
             else:
                 self.log.warning('skipping docker argument {} (only -e --env supported)'.format(cmd))
-        return kube_args
+        return {'env': kube_args} if kube_args else {}
 
     def _kubectl_apply(self, create_clearml_conf, docker_image, docker_args, labels, queue, task_id, queue_name):
         template = deepcopy(self.template_dict)
