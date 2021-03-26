@@ -1,3 +1,4 @@
+import os
 import sys
 from itertools import chain
 from typing import Text, Optional
@@ -82,7 +83,10 @@ class SystemPip(PackageManager):
         :param kwargs: kwargs for get_output/check_output command
         """
         command = self._make_command(command)
-        return (command.get_output if output else command.check_call)(stdin=DEVNULL, **kwargs)
+        # make sure we are not running it with our own PYTHONPATH
+        env = dict(**os.environ)
+        env.pop('PYTHONPATH', None)
+        return (command.get_output if output else command.check_call)(stdin=DEVNULL, env=env, **kwargs)
 
     def _make_command(self, command):
         return Argv(self.bin, '-m', 'pip', '--disable-pip-version-check', *command)

@@ -1469,25 +1469,30 @@ class Worker(ServiceCommandSection):
 
         directory, vcs, repo_info = self.get_repo_info(execution, current_task, venv_folder.as_posix())
 
+        cwd = vcs.location if vcs and vcs.location else directory
+
         if is_cached:
             # reinstalling git / local packages
             package_api = copy(self.package_api)
+            OnlyExternalRequirements.cwd = package_api.cwd = cwd
             package_api.requirements_manager = self._get_requirements_manager(
                 base_interpreter=package_api.requirements_manager.get_interpreter(),
-                requirement_substitutions=[OnlyExternalRequirements]
+                requirement_substitutions=[OnlyExternalRequirements],
             )
             # make sure we run the handlers
             cached_requirements = \
                 {k: package_api.requirements_manager.replace(requirements[k] or '')
                  for k in requirements}
             package_api.load_requirements(cached_requirements)
+            # make sure we call the correct freeze
+            requirements_manager = package_api.requirements_manager
         else:
             self.install_requirements(
                 execution,
                 repo_info,
                 requirements_manager=requirements_manager,
                 cached_requirements=requirements,
-                cwd=vcs.location if vcs and vcs.location else directory,
+                cwd=cwd,
                 package_api=self.global_package_api if install_globally else None,
             )
 
@@ -1735,14 +1740,16 @@ class Worker(ServiceCommandSection):
 
         print("\n")
 
+        cwd = vcs.location if vcs and vcs.location else directory
+
         if is_cached and not standalone_mode:
             # reinstalling git / local packages
             package_api = copy(self.package_api)
+            OnlyExternalRequirements.cwd = package_api.cwd = cwd
             package_api.requirements_manager = self._get_requirements_manager(
                 base_interpreter=package_api.requirements_manager.get_interpreter(),
                 requirement_substitutions=[OnlyExternalRequirements]
             )
-            package_api.cwd = vcs.location if vcs and vcs.location else directory
             # make sure we run the handlers
             cached_requirements = \
                 {k: package_api.requirements_manager.replace(requirements[k] or '')
@@ -1750,6 +1757,8 @@ class Worker(ServiceCommandSection):
             if str(cached_requirements.get('pip', '')).strip() \
                     or str(cached_requirements.get('conda', '')).strip():
                 package_api.load_requirements(cached_requirements)
+            # make sure we call the correct freeze
+            requirements_manager = package_api.requirements_manager
 
         elif not is_cached and not standalone_mode:
             self.install_requirements(
@@ -1757,7 +1766,7 @@ class Worker(ServiceCommandSection):
                 repo_info,
                 requirements_manager=requirements_manager,
                 cached_requirements=requirements,
-                cwd=vcs.location if vcs and vcs.location else directory,
+                cwd=cwd,
             )
 
         # do not update the task packages if we are using conda,
@@ -2169,6 +2178,7 @@ class Worker(ServiceCommandSection):
     def install_requirements(
         self, execution, repo_info, requirements_manager, cached_requirements=None, cwd=None, package_api=None
     ):
+        ExternalRequirements.cwd = cwd
         return self.install_requirements_for_package_api(execution, repo_info, requirements_manager,
                                                          cached_requirements=cached_requirements, cwd=cwd,
                                                          package_api=package_api if package_api else self.package_api)

@@ -650,12 +650,16 @@ class CondaAPI(PackageManager):
             ansi_escape = re.compile(r'(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]')
             return ansi_escape.sub('', line)
 
+        # make sure we are not running it with our own PYTHONPATH
+        env = dict(**os.environ)
+        env.pop('PYTHONPATH', None)
+
         command = Argv(*command)  # type: Executable
         if not raw:
             command = (self.conda,) + command + ("--quiet", "--json")
         try:
             print('Executing Conda: {}'.format(command.serialize()))
-            result = command.get_output(stdin=DEVNULL, **kwargs)
+            result = command.get_output(stdin=DEVNULL, env=env, **kwargs)
             if self.session.debug_mode:
                 print(result)
         except Exception as e:

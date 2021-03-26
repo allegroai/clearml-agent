@@ -2,6 +2,8 @@ import re
 from collections import OrderedDict
 from typing import Text
 
+from pathlib2 import Path
+
 from .base import PackageManager
 from .requirements import SimpleSubstitution
 from ..base import safe_furl as furl
@@ -10,22 +12,26 @@ from ..base import safe_furl as furl
 class ExternalRequirements(SimpleSubstitution):
 
     name = "external_link"
+    cwd = None
 
     def __init__(self, *args, **kwargs):
         super(ExternalRequirements, self).__init__(*args, **kwargs)
         self.post_install_req = []
         self.post_install_req_lookup = OrderedDict()
+        self.post_install_local_req_lookup = OrderedDict()
 
     def match(self, req):
         # match local folder building:
-        # noinspection PyBroadException
-        try:
-            if not req.name and req.req and not req.req.editable and not req.req.vcs and \
-                    req.req.line and req.req.line.strip().split('#')[0] and \
-                    not req.req.line.strip().split('#')[0].lower().endswith('.whl'):
-                return True
-        except Exception:
-            pass
+        if self.is_local_folder_package(req):
+            # noinspection PyBroadException
+            try:
+                folder_path = req.req.line.strip().split('#')[0].strip()
+                if self.cwd and not Path(folder_path).is_absolute():
+                    folder_path = (Path(self.cwd) / Path(folder_path)).absolute().as_posix()
+                self.post_install_local_req_lookup['file://{}'.format(folder_path)] = req.req.line
+            except Exception:
+                pass
+            return True
 
         # match both editable or code or unparsed
         if not (not req.name or req.req and (req.req.editable or req.req.vcs)):
@@ -113,7 +119,31 @@ class ExternalRequirements(SimpleSubstitution):
                                        if r not in self.post_install_req_lookup]
             list_of_requirements[k] += [self.post_install_req_lookup.get(r, '')
                                         for r in self.post_install_req_lookup.keys() if r in original_requirements]
+
+            if self.post_install_local_req_lookup:
+                original_requirements = list_of_requirements[k]
+                list_of_requirements[k] = [
+                    r for r in original_requirements
+                    if len(r.split('@', 1)) != 2 or r.split('@', 1)[1].strip() not in self.post_install_local_req_lookup]
+
+                list_of_requirements[k] += [
+                    self.post_install_local_req_lookup.get(r.split('@', 1)[1].strip(), '')
+                    for r in original_requirements
+                    if len(r.split('@', 1)) == 2 and r.split('@', 1)[1].strip() in self.post_install_local_req_lookup]
+
         return list_of_requirements
+
+    @classmethod
+    def is_local_folder_package(cls, req):
+        # noinspection PyBroadException
+        try:
+            if not req.name and req.req and not req.req.editable and not req.req.vcs and \
+                    req.req.line and req.req.line.strip().split('#')[0] and \
+                    not req.req.line.strip().split('#')[0].lower().endswith('.whl'):
+                return True
+        except Exception:
+            pass
+        return False
 
 
 class OnlyExternalRequirements(ExternalRequirements):
