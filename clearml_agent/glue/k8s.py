@@ -433,7 +433,7 @@ class K8sIntegration(Worker):
                     script_encoded.encode('ascii')
                 ).decode('ascii'))
 
-        container = merge_dicts(
+        container = self._merge_containers(
             container,
             dict(name=name, image=docker_image,
                  command=['/bin/bash'],
@@ -441,7 +441,7 @@ class K8sIntegration(Worker):
         )
 
         if template['spec']['containers']:
-            template['spec']['containers'][0] = merge_dicts(template['spec']['containers'][0], container)
+            template['spec']['containers'][0] = self._merge_containers(template['spec']['containers'][0], container)
         else:
             template['spec']['containers'].append(container)
 
@@ -591,3 +591,17 @@ class K8sIntegration(Worker):
     @classmethod
     def get_ssh_server_bash(cls, ssh_port_number):
         return ' ; '.join(line.format(port=ssh_port_number) for line in cls.BASH_INSTALL_SSH_CMD)
+
+    @staticmethod
+    def _merge_containers(c1, c2):
+        def merge_env(k, d1, d2, not_set):
+            if k != "env":
+                return not_set
+            # Merge environment lists, second list overrides first
+            return list({
+                item['name']: item for envs in (d1, d2) for item in envs
+            }.values())
+
+        return merge_dicts(
+            c1, c2, custom_merge_func=merge_env
+        )
