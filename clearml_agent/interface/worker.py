@@ -99,7 +99,7 @@ DAEMON_ARGS = dict({
     '--dynamic-gpus': {
         'help': 'Allow to dynamically allocate gpus based on queue properties, '
                 'configure with \'--queues <queue_name>=<num_gpus>\'.'
-                ' Example: \'--dynamic-gpus --queue dual_gpus=2 single_gpu=1\'',
+                ' Example: \'--dynamic-gpus --gpus 0-3 --queue dual_gpus=2 single_gpu=1\'',
         'action': 'store_true',
     },
     '--uptime': {
