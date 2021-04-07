@@ -103,9 +103,10 @@ def shutdown_docker_process(docker_cmd_contains=None, docker_id=None):
             docker_id = get_docker_id(docker_cmd_contains=docker_cmd_contains)
         if docker_id:
             # we found our docker, stop it
-            get_bash_output(cmd='docker stop -t 1 {}'.format(docker_id))
+            return get_bash_output(cmd='docker stop -t 1 {}'.format(docker_id))
     except Exception:
         pass
+    return None
 
 
 def commit_docker(container_name, docker_cmd_contains=None, docker_id=None, apply_change=None):
