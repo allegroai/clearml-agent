@@ -90,7 +90,7 @@ from clearml_agent.helper.process import (
     get_bash_output,
     shutdown_docker_process,
     get_docker_id,
-    commit_docker, terminate_process,
+    commit_docker, terminate_process, check_if_command_exists,
 )
 from clearml_agent.helper.package.priority_req import PriorityPackageRequirement, PackageCollectorRequirement
 from clearml_agent.helper.repo import clone_repository_cached, RepoInfo, VCS, fix_package_import_diff_patch
@@ -962,6 +962,10 @@ class Worker(ServiceCommandSection):
         self._session.print_configuration()
 
     def daemon(self, queues, log_level, foreground=False, docker=False, detached=False, order_fairness=False, **kwargs):
+
+        # check that we have docker command if we need it
+        if docker is not False and not check_if_command_exists("docker"):
+            raise ValueError("Running in Docker mode, 'docker' command was not found")
 
         self._standalone_mode = kwargs.get('standalone_mode', False)
         self._services_mode = kwargs.get('services_mode', False)
