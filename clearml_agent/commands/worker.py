@@ -232,7 +232,8 @@ def get_task_container(session, task_id):
         )
         try:
             container = result.json()['data']['tasks'][0]['container'] if result.ok else {}
-            container['arguments'] = str(container.get('arguments') or '').split(' ')
+            if container.get('arguments'):
+                container['arguments'] = str(container.get('arguments')).split(' ')
         except (ValueError, TypeError):
             container = {}
     else:
@@ -241,7 +242,7 @@ def get_task_container(session, task_id):
         try:
             container = dict(
                 container=task_docker_cmd_parts[0],
-                arguments=task_docker_cmd_parts[1:] if len (task_docker_cmd_parts[0])>1 else ''
+                arguments=task_docker_cmd_parts[1:] if len(task_docker_cmd_parts[0]) > 1 else ''
             )
         except (ValueError, TypeError):
             container = {}
@@ -564,17 +565,19 @@ class Worker(ServiceCommandSection):
             except Exception:
                 task_container = {}
 
+            default_docker = not bool(task_container.get('image'))
             docker_image = task_container.get('image') or self._docker_image
-            docker_arguments = task_container.get('arguments') or self._docker_arguments
+            docker_arguments = task_container.get(
+                'arguments', self._docker_arguments if default_docker else None)
             docker_setup_script = task_container.get('setup_shell_script')
 
             self.send_logs(
                 task_id=task_id,
                 lines=
                 ['Running Task {} inside {}docker: {} arguments: {}\n'.format(
-                    task_id, "default " if not task_container.get('image') else '',
-                    docker_image, docker_arguments)]
-                + ['custom_setup_bash_script:\n{}'.format(docker_setup_script)] if docker_setup_script else [],
+                    task_id, "default " if default_docker else '',
+                    docker_image, docker_arguments or [])]
+                + (['custom_setup_bash_script:\n{}'.format(docker_setup_script)] if docker_setup_script else []),
                 level="INFO")
 
             # Update docker command
@@ -592,7 +595,7 @@ class Worker(ServiceCommandSection):
                     docker_bash_setup_script=docker_setup_script)
 
             # if we are using the default docker, update back the Task:
-            if not task_container.get('image') or not task_container.get('arguments'):
+            if default_docker:
                 # noinspection PyBroadException
                 try:
                     set_task_container(
@@ -1621,12 +1624,13 @@ class Worker(ServiceCommandSection):
         temp_config, docker_image_func = self.get_docker_config_cmd(docker)
         self.dump_config(self.temp_config_path, config=temp_config)
         self.docker_image_func = docker_image_func
+        # noinspection PyBroadException
         try:
             task_container = get_task_container(self._session, task_id)
         except Exception:
             task_container = {}
 
-        if task_container:
+        if task_container.get('image'):
             docker_image = task_container.get('image')
             docker_arguments = task_container.get('arguments')
             docker_setup_script = task_container.get('setup_shell_script')
@@ -2876,7 +2880,7 @@ class Worker(ServiceCommandSection):
 
         base_cmd += ['-e', 'CLEARML_WORKER_ID='+worker_id, ]
         # update the docker image, so the system knows where it runs
-        base_cmd += ['-e', 'CLEARML_DOCKER_IMAGE={} {}'.format(docker_image, ' '.join(docker_arguments)).strip()]
+        base_cmd += ['-e', 'CLEARML_DOCKER_IMAGE={} {}'.format(docker_image, ' '.join(docker_arguments or [])).strip()]
 
         # if we are running a RC version, install the same version in the docker
         # because the default latest, will be a release version (not RC)
