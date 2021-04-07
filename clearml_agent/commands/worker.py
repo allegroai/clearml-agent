@@ -249,6 +249,29 @@ def get_task_container(session, task_id):
     return container
 
 
+def set_task_container(session, task_id, docker_image=None, docker_arguments=None, docker_bash_script=None):
+    if session.check_min_api_version("2.13"):
+        container = dict(
+            image=docker_image or None,
+            arguments=' '.join(docker_arguments) if docker_arguments else None,
+            setup_shell_script=docker_bash_script or None,
+        )
+        result = session.send_request(
+            service='tasks',
+            action='edit',
+            version='2.13',
+            json={'task': task_id, 'container': container, 'force': True},
+            method='get',
+            async_enable=False,
+        )
+        return result.ok
+    else:
+        return session.send_api(
+            tasks_api.EditRequest(task_id, force=True, execution=dict(  # noqa
+                docker_cmd=' '.join([docker_image] + docker_arguments)
+                if docker_arguments else str(docker_image or ''))))
+
+
 class TaskStopSignal(object):
     """
     Follow task status and signals when it should be stopped
@@ -541,21 +564,18 @@ class Worker(ServiceCommandSection):
             except Exception:
                 task_container = {}
 
-            if task_container:
-                self.send_logs(task_id=task_id,
-                               lines=['Running Task {} inside docker: {}\n'.format(task_id, str(task_container))],
-                               level="INFO")
-                docker_image = task_container.get('image')
-                docker_arguments = task_container.get('arguments')
-                docker_setup_script = task_container.get('setup_shell_script')
-            else:
-                self.send_logs(task_id=task_id,
-                               lines=['running Task {} inside default docker image: {} {}\n'.format(
-                                   task_id, self._docker_image, self._docker_arguments or '')],
-                               level="INFO")
-                docker_image = self._docker_image
-                docker_arguments = self._docker_arguments
-                docker_setup_script = None
+            docker_image = task_container.get('image') or self._docker_image
+            docker_arguments = task_container.get('arguments') or self._docker_arguments
+            docker_setup_script = task_container.get('setup_shell_script')
+
+            self.send_logs(
+                task_id=task_id,
+                lines=
+                ['Running Task {} inside {}docker: {} arguments: {}\n'.format(
+                    task_id, "default " if not task_container.get('image') else '',
+                    docker_image, docker_arguments)]
+                + ['custom_setup_bash_script:\n{}'.format(docker_setup_script)] if docker_setup_script else [],
+                level="INFO")
 
             # Update docker command
             if self._services_mode:
@@ -572,13 +592,14 @@ class Worker(ServiceCommandSection):
                     docker_bash_setup_script=docker_setup_script)
 
             # if we are using the default docker, update back the Task:
-            if not task_container:
+            if not task_container.get('image') or not task_container.get('arguments'):
                 # noinspection PyBroadException
                 try:
-                    self._session.send_api(
-                        tasks_api.EditRequest(task_id, force=True, execution=dict(  # noqa
-                            docker_cmd=' '.join([docker_image] + docker_arguments)
-                            if docker_arguments else str(docker_image))))
+                    set_task_container(
+                        self._session, task_id,
+                        docker_image=docker_image,
+                        docker_arguments=docker_arguments,
+                        docker_bash_script=docker_setup_script)
                 except Exception:
                     pass
 
