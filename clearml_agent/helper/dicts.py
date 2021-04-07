@@ -17,7 +17,7 @@ def merge_dicts(dict1, dict2, custom_merge_func=None):
             res = None
             if custom_merge_func:
                 res = custom_merge_func(k, dict1[k], dict2[k], _not_set)
-            dict1[k] = merge_dicts(dict1[k], dict2[k], custom_merge_func) if res is None else res
+            dict1[k] = merge_dicts(dict1[k], dict2[k], custom_merge_func) if res is _not_set else res
         else:
             dict1[k] = dict2[k]
     return dict1
