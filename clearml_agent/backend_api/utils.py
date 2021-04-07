@@ -6,15 +6,8 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 from urllib3 import PoolManager
-import six
 
 from .session.defs import ENV_HOST_VERIFY_CERT
-
-if six.PY3:
-    from functools import lru_cache
-elif six.PY2:
-    # python 2 support
-    from backports.functools_lru_cache import lru_cache
 
 
 __disable_certificate_verification_warning = 0
