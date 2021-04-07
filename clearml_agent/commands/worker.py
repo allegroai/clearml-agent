@@ -2669,6 +2669,7 @@ class Worker(ServiceCommandSection):
 
         bash_script = self._session.config.get("agent.docker_init_bash_script", None)
         preprocess_bash_script = self._session.config.get("agent.docker_preprocess_bash_script", None)
+        install_opencv_libs = self._session.config.get("agent.docker_install_opencv_libs", True)
 
         self.temp_config_path = self.temp_config_path or safe_mkstemp(
             suffix=".cfg", prefix=".clearml_agent.", text=True, name_only=True
@@ -2702,24 +2703,32 @@ class Worker(ServiceCommandSection):
             force_current_version=self._force_current_version,
             bash_script=bash_script,
             preprocess_bash_script=preprocess_bash_script,
+            install_opencv_libs=install_opencv_libs,
         )
 
         docker_cmd.update(kwargs)
         return self._get_docker_cmd(**docker_cmd)
 
     @staticmethod
-    def _get_docker_cmd(worker_id, docker_image, docker_arguments,
-                        python_version, conf_file,
-                        host_apt_cache,
-                        host_pip_cache,
-                        host_ssh_cache,
-                        host_cache, mounted_cache,
-                        host_pip_dl, mounted_pip_dl,
-                        host_vcs_cache, mounted_vcs_cache,
-                        host_venvs_cache, mounted_venvs_cache,
-                        standalone_mode=False, extra_docker_arguments=None, extra_shell_script=None,
-                        force_current_version=None, host_git_credentials=None,
-                        bash_script=None, preprocess_bash_script=None):
+    def _get_docker_cmd(
+            worker_id,
+            docker_image, docker_arguments,
+            python_version,
+            conf_file,
+            host_apt_cache,
+            host_pip_cache,
+            host_ssh_cache,
+            host_cache, mounted_cache,
+            host_pip_dl, mounted_pip_dl,
+            host_vcs_cache, mounted_vcs_cache,
+            host_venvs_cache, mounted_venvs_cache,
+            standalone_mode=False, extra_docker_arguments=None, extra_shell_script=None,
+            force_current_version=None, host_git_credentials=None,
+            bash_script=None,
+            preprocess_bash_script=None,
+            install_opencv_libs=None,
+            docker_bash_setup_script=None,
+    ):
         docker = 'docker'
 
         base_cmd = [docker, 'run', '-t']
@@ -2834,19 +2843,22 @@ class Worker(ServiceCommandSection):
                     "echo 'Binary::apt::APT::Keep-Downloaded-Packages \"true\";' > /etc/apt/apt.conf.d/docker-clean",
                     "chown -R root /root/.cache/pip",
                     "export DEBIAN_FRONTEND=noninteractive",
-                    "apt-get update",
-                    "apt-get install -y git libsm6 libxext6 libxrender-dev libglib2.0-0",
+                    "export CLEARML_APT_INSTALL=\"$CLEARML_APT_INSTALL{}\"".format(
+                        ' libsm6 libxext6 libxrender-dev libglib2.0-0' if install_opencv_libs else ""),
+                    "[ ! -z $(which git) ] || export CLEARML_APT_INSTALL=\"$CLEARML_APT_INSTALL git\"",
                     "declare LOCAL_PYTHON",
                     "for i in {{10..5}}; do which {python_single_digit}.$i && " +
                     "{python_single_digit}.$i -m pip --version && " +
                     "export LOCAL_PYTHON=$(which {python_single_digit}.$i) && break ; done",
-                    "[ ! -z $LOCAL_PYTHON ] || apt-get install -y {python_single_digit}-pip",
+                    "[ ! -z $LOCAL_PYTHON ] || export CLEARML_APT_INSTALL=\"$CLEARML_APT_INSTALL {python_single_digit}-pip\"",  # noqa
+                    "[ -z \"$CLEARML_APT_INSTALL\" ] || (apt-get update && apt-get install -y $CLEARML_APT_INSTALL)",
                 ]
 
             if preprocess_bash_script:
                 bash_script = preprocess_bash_script + bash_script
 
-            docker_bash_script = " ; ".join(bash_script) if not isinstance(bash_script, str) else bash_script
+            docker_bash_script = " ; ".join([line for line in bash_script if line]) \
+                if not isinstance(bash_script, str) else bash_script
 
             # make sure that if we do not have $LOCAL_PYTHON defined
             # we set it to python3

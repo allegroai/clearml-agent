@@ -45,6 +45,7 @@ class K8sIntegration(Worker):
                          "--namespace={namespace}"
 
     BASH_INSTALL_SSH_CMD = [
+        "apt-get update",
         "apt-get install -y openssh-server",
         "mkdir -p /var/run/sshd",
         "echo 'root:training' | chpasswd",
