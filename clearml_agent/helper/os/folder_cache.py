@@ -152,7 +152,14 @@ class FolderCache(object):
         for f in source_folder.glob('*'):
             if f.name in exclude_sub_folders:
                 continue
-            shutil.copytree(src=f.as_posix(), dst=(temp_folder / f.name).as_posix(), symlinks=True)
+            if f.is_dir():
+                shutil.copytree(
+                    src=f.as_posix(), dst=(temp_folder / f.name).as_posix(),
+                    symlinks=True, ignore_dangling_symlinks=True)
+            else:
+                shutil.copy(
+                    src=f.as_posix(), dst=(temp_folder / f.name).as_posix(),
+                    follow_symlinks=False)
 
         # rename the target folder
         target_cache_folder = self._cache_folder / '.'.join(keys)
