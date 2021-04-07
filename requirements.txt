@@ -14,4 +14,4 @@ requests>=2.20.0,<2.26.0
 six>=1.11.0,<1.16.0
 typing>=3.6.4,<3.8.0
 urllib3>=1.21.1,<1.27.0
-virtualenv>=16,<20
+virtualenv>=16,<21
