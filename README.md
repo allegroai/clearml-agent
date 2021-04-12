@@ -5,7 +5,7 @@
 **ClearML Agent - ML-Ops made easy  
 ML-Ops scheduler & orchestration solution supporting Linux, macOS and Windows**
 
-[![GitHub license](https://img.shields.io/github/license/allegroai/trains-agent.svg)](https://img.shields.io/github/license/allegroai/trains-agent.svg)
+[![GitHub license](https://img.shields.io/github/license/allegroai/clearml-agent.svg)](https://img.shields.io/github/license/allegroai/clearml-agent.svg)
 [![PyPI pyversions](https://img.shields.io/pypi/pyversions/clearml-agent.svg)](https://img.shields.io/pypi/pyversions/clearml-agent.svg)
 [![PyPI version shields.io](https://img.shields.io/pypi/v/clearml-agent.svg)](https://img.shields.io/pypi/v/clearml-agent.svg)
 
@@ -28,16 +28,16 @@ ML-Ops scheduler & orchestration solution supporting Linux, macOS and Windows**
 It is a zero configuration fire-and-forget execution agent, providing a full ML/DL cluster solution.
 
 **Full Automation in 5 steps**
-1. ClearML Server [self-hosted](https://github.com/allegroai/trains-server) or [free tier hosting](https://app.community.clear.ml)
+1. ClearML Server [self-hosted](https://github.com/allegroai/clearml-server) or [free tier hosting](https://app.community.clear.ml)
 2. `pip install clearml-agent` ([install](#installing-the-clearml-agent) the ClearML Agent on any GPU machine: on-premises / cloud / ...)
-3. Create a [job](https://github.com/allegroai/clearml/docs/clearml-task.md) or Add [ClearML](https://github.com/allegroai/trains) to your code with just 2 lines
+3. Create a [job](https://github.com/allegroai/clearml/docs/clearml-task.md) or Add [ClearML](https://github.com/allegroai/clearml) to your code with just 2 lines
 4. Change the [parameters](#using-the-clearml-agent) in the UI & schedule for [execution](#using-the-clearml-agent) (or automate with an [AutoML pipeline](#automl-and-orchestration-pipelines-))
 5. :chart_with_downwards_trend: :chart_with_upwards_trend: :eyes:  :beer:
 
 "All the Deep/Machine-Learning DevOps your research needs, and then some... Because ain't nobody got time for that"
 
-**Try ClearML now** [Self Hosted](https://github.com/allegroai/trains-server) or [Free tier Hosting](https://app.community.clear.ml)
-<a href="https://app.community.clear.ml"><img src="https://raw.githubusercontent.com/allegroai/trains-agent/9f1e86c1ca45c984ee13edc9353c7b10c55d7257/docs/screenshots.gif" width="100%"></a>
+**Try ClearML now** [Self Hosted](https://github.com/allegroai/clearml-server) or [Free tier Hosting](https://app.community.clear.ml)
+<a href="https://app.community.clear.ml"><img src="https://github.com/allegroai/clearml/blob/master/docs/webapp_screenshots.gif?raw=true" width="100%"></a>
 
 ### Simple, Flexible Experiment Orchestration
 **The ClearML Agent was built to address the DL/ML R&D DevOps needs:**
@@ -68,13 +68,13 @@ We designed `clearml-agent` so you can run bare-metal or inside a pod with any m
 
 **Two K8s integration flavours** 
 - Spin ClearML-Agent as a long-lasting service pod
-    - use [clearml-agent](https://hub.docker.com/r/allegroai/trains-agent) docker image
+    - use [clearml-agent](https://hub.docker.com/r/allegroai/clearml-agent) docker image
     - map docker socket into the pod (soon replaced by [podman](https://github.com/containers/podman))
     - allow the clearml-agent to manage sibling dockers
     - benefits: full use of the ClearML scheduling, no need to worry about wrong container images / lost pods etc.
     - downside: Sibling containers
 - Kubernetes Glue, map ClearML jobs directly to K8s jobs
-    - Run the [clearml-k8s glue](https://github.com/allegroai/trains-agent/blob/master/examples/k8s_glue_example.py) on a K8s cpu node
+    - Run the [clearml-k8s glue](https://github.com/allegroai/clearml-agent/blob/master/examples/k8s_glue_example.py) on a K8s cpu node
     - The clearml-k8s glue pulls jobs from the ClearML job execution queue and prepares a K8s job (based on provided yaml template)
     - Inside the pod itself the clearml-agent will install the job (experiment) environment and spin and monitor the experiment's process
     - benefits: Kubernetes full view of all running jobs in the system
@@ -229,7 +229,7 @@ clearml-agent daemon --detached --gpus 0 --queue default --docker nvidia/cuda:10
 ```
 
 ### How do I create an experiment on the ClearML Server? <a name="from-scratch"></a>
-* Integrate [ClearML](https://github.com/allegroai/trains) with your code
+* Integrate [ClearML](https://github.com/allegroai/clearml) with your code
 * Execute the code on your machine (Manually / PyCharm / Jupyter Notebook)
 * As your code is running, **ClearML** creates an experiment logging all the necessary execution information:
   - Git repository link and commit ID (or an entire jupyter notebook)
@@ -273,18 +273,18 @@ clearml-agent daemon --services-mode --detached --queue services --create-queue 
 ### AutoML and Orchestration Pipelines <a name="automl-pipes"></a>
 The ClearML Agent can also be used to implement AutoML orchestration and Experiment Pipelines in conjunction with the ClearML package.
 
-Sample AutoML & Orchestration examples can be found in the ClearML [example/automation](https://github.com/allegroai/trains/tree/master/examples/automation) folder.
+Sample AutoML & Orchestration examples can be found in the ClearML [example/automation](https://github.com/allegroai/clearml/tree/master/examples/automation) folder.
 
 AutoML examples
-  - [Toy Keras training experiment](https://github.com/allegroai/trains/blob/master/examples/optimization/hyper-parameter-optimization/base_template_keras_simple.py)
+  - [Toy Keras training experiment](https://github.com/allegroai/clearml/blob/master/examples/optimization/hyper-parameter-optimization/base_template_keras_simple.py)
     - In order to create an experiment-template in the system, this code must be executed once manually
-  - [Random Search over the above Keras experiment-template](https://github.com/allegroai/trains/blob/master/examples/automation/manual_random_param_search_example.py)
+  - [Random Search over the above Keras experiment-template](https://github.com/allegroai/clearml/blob/master/examples/automation/manual_random_param_search_example.py)
     - This example will create multiple copies of the Keras experiment-template, with different hyper-parameter combinations
 
 Experiment Pipeline examples
-  - [First step experiment](https://github.com/allegroai/trains/blob/master/examples/automation/task_piping_example.py)
+  - [First step experiment](https://github.com/allegroai/clearml/blob/master/examples/automation/task_piping_example.py)
     - This example will "process data", and once done, will launch a copy of the 'second step' experiment-template
-  - [Second step experiment](https://github.com/allegroai/trains/blob/master/examples/automation/toy_base_task.py)
+  - [Second step experiment](https://github.com/allegroai/clearml/blob/master/examples/automation/toy_base_task.py)
     - In order to create an experiment-template in the system, this code must be executed once manually
 
 ### License
