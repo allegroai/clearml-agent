@@ -434,11 +434,12 @@ class K8sIntegration(Worker):
                     script_encoded.encode('ascii')
                 ).decode('ascii'))
 
+        # Notice: we always leave with exit code 0, so pods are never restarted
         container = self._merge_containers(
             container,
             dict(name=name, image=docker_image,
                  command=['/bin/bash'],
-                 args=['-c', '{} ; {}'.format(create_clearml_conf, create_init_script)])
+                 args=['-c', '{} ; {} ; exit 0'.format(create_clearml_conf, create_init_script)])
         )
 
         if template['spec']['containers']:
