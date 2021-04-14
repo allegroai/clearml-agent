@@ -2242,16 +2242,19 @@ class Worker(ServiceCommandSection):
         except Exception:
             requirements = freeze
 
-        # add to cache
-        print('Adding venv into cache: {}'.format(add_venv_folder_cache))
-        if add_venv_folder_cache:
-            self.package_api.add_cached_venv(
-                requirements=[freeze, previous_reqs],
-                docker_cmd=execution_info.docker_cmd if execution_info else None,
-                python_version=getattr(self.package_api, 'python', ''),
-                cuda_version=self._session.config.get("agent.cuda_version"),
-                source_folder=add_venv_folder_cache,
-                exclude_sub_folders=['task_repository', 'code'])
+        # disable caching with poetry because we cannot make it install into a specific folder
+        # Todo: add support for poetry caching
+        if not self.poetry.enabled:
+            # add to cache
+            print('Adding venv into cache: {}'.format(add_venv_folder_cache))
+            if add_venv_folder_cache:
+                self.package_api.add_cached_venv(
+                    requirements=[freeze, previous_reqs],
+                    docker_cmd=execution_info.docker_cmd if execution_info else None,
+                    python_version=getattr(self.package_api, 'python', ''),
+                    cuda_version=self._session.config.get("agent.cuda_version"),
+                    source_folder=add_venv_folder_cache,
+                    exclude_sub_folders=['task_repository', 'code'])
 
         # If do not update back requirements
         if not update_requirements:
@@ -2310,7 +2313,11 @@ class Worker(ServiceCommandSection):
             package_api.cwd = cwd
         api = self._install_poetry_requirements(repo_info)
         if api:
-            package_api = api
+            # update back the package manager, this hack should be fixed
+            if package_api == self.package_api:
+                self.package_api = api
+            elif package_api == self.global_package_api:
+                self.global_package_api = api
             return
 
         package_api.upgrade_pip()
