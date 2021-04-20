@@ -774,9 +774,10 @@ class Worker(ServiceCommandSection):
                         if gpu_queues[queue][0] > len(available_gpus):
                             # not enough available_gpus, we should sleep and start over
                             if self._daemon_foreground or worker_params.debug:
-                                print("Not enough free GPUs for queue={} {}/{}".format(
-                                    queue, len(available_gpus), gpu_queues[queue][0]))
-                            continue
+                                print("Not enough free GPUs {}/{}, sleeping for {:.1f} seconds".format(
+                                    len(available_gpus), gpu_queues[queue][0], self._polling_interval))
+                            sleep(self._polling_interval)
+                            break
 
                     # get next task in queue
                     try:
