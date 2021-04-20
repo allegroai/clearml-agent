@@ -705,7 +705,10 @@ class Worker(ServiceCommandSection):
 
         _last_machine_update_ts = 0
         if self._services_mode:
-            max_num_instances = int(self._services_mode)
+            try:
+                max_num_instances = int(self._services_mode) if not isinstance(self._services_mode, bool) else -1
+            except (ValueError, TypeError):
+                max_num_instances = -1
         else:
             max_num_instances = None
 
