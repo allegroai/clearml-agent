@@ -111,7 +111,7 @@ DAEMON_ARGS = dict({
         'default': None,
     },
     '--downtime': {
-        'help': 'Specify uptime for clearml-agent in "<hours> <days>" format. for example, use "09-13 TUE" to set '
+        'help': 'Specify downtime for clearml-agent in "<hours> <days>" format. for example, use "09-13 TUE" to set '
                 'Tuesday\'s downtime to 09-13'
                 'Note: Make sure to have only on of uptime/downtime configuration and not both.',
         'nargs': '*',
