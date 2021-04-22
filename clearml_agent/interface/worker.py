@@ -50,7 +50,7 @@ DAEMON_ARGS = dict({
     },
     '--docker': {
         'help': 'Run execution task inside a docker (v19.03 and above). Optional args <image> <arguments> or '
-                'specify default docker image in agent.default_docker.image / agent.default_docker.arguments'
+                'specify default docker image in agent.default_docker.image / agent.default_docker.arguments '
                 'use --gpus/--cpu-only (or set NVIDIA_VISIBLE_DEVICES) to limit gpu visibility for docker',
         'nargs': '*',
         'default': False,
