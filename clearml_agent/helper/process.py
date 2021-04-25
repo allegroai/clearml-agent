@@ -42,18 +42,18 @@ def get_bash_output(cmd, strip=False, stderr=subprocess.STDOUT, stdin=False):
     return output if not strip or not output else output.strip()
 
 
-def terminate_process(pid, timeout=10.):
+def terminate_process(pid, timeout=10., ignore_zombie=True):
     # noinspection PyBroadException
     try:
         proc = psutil.Process(pid)
         proc.terminate()
         cnt = 0
-        while proc.is_running() and cnt < timeout:
+        while proc.is_running() and (ignore_zombie or proc.status() != 'zombie') and cnt < timeout:
             sleep(1.)
             cnt += 1
         proc.terminate()
         cnt = 0
-        while proc.is_running() and cnt < timeout:
+        while proc.is_running() and (ignore_zombie or proc.status() != 'zombie') and cnt < timeout:
             sleep(1.)
             cnt += 1
         proc.kill()
@@ -82,6 +82,23 @@ def kill_all_child_processes(pid=None):
         child.kill()
     if include_parent:
         parent.kill()
+
+
+def terminate_all_child_processes(pid=None, timeout=10., include_parent=True):
+    # get current process if pid not provided
+    if not pid:
+        pid = os.getpid()
+        include_parent = False
+    try:
+        parent = psutil.Process(pid)
+    except psutil.Error:
+        # could not find parent process id
+        return
+    for child in parent.children(recursive=False):
+        print('Terminating child process {}'.format(child.pid))
+        terminate_process(child.pid, timeout=timeout, ignore_zombie=False)
+    if include_parent:
+        terminate_process(parent.pid, timeout=timeout, ignore_zombie=False)
 
 
 def get_docker_id(docker_cmd_contains):
