@@ -446,6 +446,7 @@ class K8sIntegration(Worker):
         template['metadata']['name'] = name
         template.setdefault('spec', {})
         template['spec'].setdefault('containers', [])
+        template['spec'].setdefault('restartPolicy', 'Never')
         if labels:
             labels_dict = dict(pair.split('=', 1) for pair in labels)
             template['metadata'].setdefault('labels', {})
