@@ -591,7 +591,7 @@ def clone_repository_cached(session, execution, destination):
     # mock lock
     repo_lock = Lock()
     repo_lock_timeout_sec = 300
-    repo_url = execution.repository  # type: str
+    repo_url = execution.repository or ''  # type: str
     parsed_url = furl(repo_url)
     no_password_url = parsed_url.copy().remove(password=True).url
 
