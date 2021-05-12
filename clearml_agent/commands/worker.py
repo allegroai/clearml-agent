@@ -187,7 +187,7 @@ class LiteralScriptManager(object):
         location = location or (repo_info and repo_info.root)
         if not location:
             location = Path(self.venv_folder, "code")
-            location.mkdir(exist_ok=True)
+            location.mkdir(exist_ok=True, parents=True)
         log.debug("selected execution directory: %s", location)
         return Text(location), self.write(task, location, execution.entry_point)
 
