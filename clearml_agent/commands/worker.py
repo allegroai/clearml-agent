@@ -11,6 +11,7 @@ import subprocess
 import sys
 import shutil
 import traceback
+import shlex
 from collections import defaultdict
 from copy import deepcopy, copy
 from datetime import datetime
@@ -221,6 +222,9 @@ def get_task(session, task_id, *args, **kwargs):
 
 
 def get_task_container(session, task_id):
+    """
+    Returns dict with Task docker container setup {container: '', arguments: '', setup_shell_script: ''}
+    """
     if session.check_min_api_version("2.13"):
         result = session.send_request(
             service='tasks',
@@ -233,12 +237,12 @@ def get_task_container(session, task_id):
         try:
             container = result.json()['data']['tasks'][0]['container'] if result.ok else {}
             if container.get('arguments'):
-                container['arguments'] = str(container.get('arguments')).split(' ')
+                container['arguments'] = shlex.split(str(container.get('arguments')).strip())
         except (ValueError, TypeError):
             container = {}
     else:
         response = get_task(session, task_id, only_fields=["execution.docker_cmd"])
-        task_docker_cmd_parts = str(response.execution.docker_cmd or '').strip().split(' ')
+        task_docker_cmd_parts = shlex.split(str(response.execution.docker_cmd or '').strip())
         try:
             container = dict(
                 container=task_docker_cmd_parts[0],
@@ -251,11 +255,14 @@ def get_task_container(session, task_id):
 
 
 def set_task_container(session, task_id, docker_image=None, docker_arguments=None, docker_bash_script=None):
+    if docker_arguments and isinstance(docker_arguments, str):
+        docker_arguments = [docker_arguments]
+
     if session.check_min_api_version("2.13"):
         container = dict(
-            image=docker_image or None,
-            arguments=' '.join(docker_arguments) if docker_arguments else None,
-            setup_shell_script=docker_bash_script or None,
+            image=docker_image or '',
+            arguments=' '.join(docker_arguments) if docker_arguments else '',
+            setup_shell_script=docker_bash_script or '',
         )
         result = session.send_request(
             service='tasks',
@@ -1913,7 +1920,6 @@ class Worker(ServiceCommandSection):
             if current_task.script.binary and current_task.script.binary.startswith('python') and \
                     execution.entry_point and execution.entry_point.split()[0].strip() == '-m':
                 # we need to split it
-                import shlex
                 extra.extend(shlex.split(execution.entry_point))
             else:
                 extra.append(execution.entry_point)
