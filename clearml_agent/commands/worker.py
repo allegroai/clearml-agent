@@ -878,7 +878,7 @@ class Worker(ServiceCommandSection):
                 # if we are in dynamic gpus / services mode,
                 # we should send termination signal to all child processes
                 if self._services_mode:
-                    terminate_all_child_processes(timeout=120)
+                    terminate_all_child_processes(timeout=20, include_parent=False)
 
                 # if we are here, just kill all sub processes
                 kill_all_child_processes()
@@ -1371,6 +1371,7 @@ class Worker(ServiceCommandSection):
         service_mode_internal_agent_started = None
         stopping = False
         status = None
+        process = None
         try:
             _last_machine_update_ts = time()
             stop_reason = None
@@ -1427,6 +1428,8 @@ class Worker(ServiceCommandSection):
             status = ex.returncode
         except KeyboardInterrupt:
             # so someone else will catch us
+            if process:
+                kill_all_child_processes(process.pid)
             raise
         except Exception:
             # we should not get here, but better safe than sorry
@@ -1437,6 +1440,10 @@ class Worker(ServiceCommandSection):
                 stderr_line_count += self.send_logs(task_id, printed_lines)
             stop_reason = TaskStopReason.exception
             status = -1
+
+        # full cleanup (just in case)
+        if process:
+            kill_all_child_processes(process.pid)
 
         # if running in services mode, keep the file open
         # in case the docker was so quick it started and finished, check the stop reason
@@ -3091,7 +3098,7 @@ class Worker(ServiceCommandSection):
                     warning('Could not terminate process pid={}'.format(pid))
                 return True
 
-            # wither we have a match for the worker_id or we just pick the first one, and kill it.
+            # either we have a match for the worker_id or we just pick the first one, and kill it.
             if (worker_id and uid == worker_id) or (not worker_id and uid.startswith('{}:'.format(worker_name))):
                 # this is us kill it
                 print('Terminating clearml-agent worker_id={} pid={}'.format(uid, pid))
