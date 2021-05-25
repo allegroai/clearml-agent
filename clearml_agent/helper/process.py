@@ -221,6 +221,7 @@ class Argv(Executable):
         """
         self.argv = argv
         self._log = kwargs.pop("log", None)
+        self._display_argv = kwargs.pop("display_argv", argv)
         if not self._log:
             self._log = logging.getLogger(__name__)
             self._log.propagate = False
@@ -245,10 +246,10 @@ class Argv(Executable):
         return self.argv
 
     def __repr__(self):
-        return "<Argv{}>".format(self.argv)
+        return "<Argv{}>".format(self._display_argv)
 
     def __str__(self):
-        return "Executing: {}".format(self.argv)
+        return "Executing: {}".format(self._display_argv)
 
     def __iter__(self):
         if is_windows_platform():

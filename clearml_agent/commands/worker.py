@@ -20,7 +20,7 @@ from functools import partial, cmp_to_key
 from itertools import chain
 from tempfile import mkdtemp, NamedTemporaryFile
 from time import sleep, time
-from typing import Text, Optional, Any, Tuple
+from typing import Text, Optional, Any, Tuple, List
 
 import attr
 import psutil
@@ -44,7 +44,13 @@ from clearml_agent.definitions import (
     ENV_DOCKER_HOST_MOUNT,
     ENV_TASK_EXTRA_PYTHON_PATH,
     ENV_AGENT_GIT_USER,
-    ENV_AGENT_GIT_PASS, ENV_WORKER_ID, ENV_DOCKER_SKIP_GPUS_FLAG, )
+    ENV_AGENT_GIT_PASS,
+    ENV_WORKER_ID,
+    ENV_DOCKER_SKIP_GPUS_FLAG,
+    ENV_AGENT_SECRET_KEY,
+    ENV_AWS_SECRET_KEY,
+    ENV_AZURE_ACCOUNT_KEY,
+)
 from clearml_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
 from clearml_agent.errors import APIError, CommandFailedError, Sigterm
 from clearml_agent.helper.base import (
@@ -68,7 +74,9 @@ from clearml_agent.helper.base import (
     get_python_path,
     is_linux_platform,
     rm_file,
-    add_python_path, safe_remove_tree, )
+    add_python_path,
+    safe_remove_tree,
+)
 from clearml_agent.helper.console import ensure_text, print_text, decode_binary_lines
 from clearml_agent.helper.os.daemonize import daemonize_process
 from clearml_agent.helper.package.base import PackageManager
@@ -91,7 +99,10 @@ from clearml_agent.helper.process import (
     get_bash_output,
     shutdown_docker_process,
     get_docker_id,
-    commit_docker, terminate_process, check_if_command_exists, terminate_all_child_processes,
+    commit_docker,
+    terminate_process,
+    check_if_command_exists,
+    terminate_all_child_processes,
 )
 from clearml_agent.helper.package.priority_req import PriorityPackageRequirement, PackageCollectorRequirement
 from clearml_agent.helper.repo import clone_repository_cached, RepoInfo, VCS, fix_package_import_diff_patch
@@ -621,10 +632,13 @@ class Worker(ServiceCommandSection):
                 '--standalone-mode' if self._standalone_mode else '',
                 task_id)
 
-            # send the actual used command line to the backend
-            self.send_logs(task_id=task_id, lines=['Executing: {}\n'.format(full_docker_cmd)], level="INFO")
+            display_docker_command = self._sanitize_docker_command(full_docker_cmd)
 
-            cmd = Argv(*full_docker_cmd)
+            # send the actual used command line to the backend
+            self.send_logs(task_id=task_id, lines=['Executing: {}\n'.format(display_docker_command)], level="INFO")
+
+            cmd = Argv(*full_docker_cmd, display_argv=display_docker_command)
+
             print('Running Docker:\n{}\n'.format(str(cmd)))
         else:
             cmd = worker_args.get_argv_for_command("execute") + (
@@ -3160,6 +3174,33 @@ class Worker(ServiceCommandSection):
                 q_id = self._resolve_name(q if isinstance(q, str) else q.name, "queues")
             queue_ids.append(q_id)
         return queue_ids
+
+    def _sanitize_docker_command(self, docker_command):
+        # type: (List[str]) -> List[str]
+        if not self._session.config.get('agent.hide_docker_command_env_vars.enabled', False):
+            return docker_command
+
+        keys = set(self._session.config.get('agent.hide_docker_command_env_vars.extra_keys', []))
+        keys.update(
+            ENV_AGENT_GIT_PASS.vars,
+            ENV_AGENT_SECRET_KEY.vars,
+            ENV_AWS_SECRET_KEY.vars,
+            ENV_AZURE_ACCOUNT_KEY.vars
+        )
+
+        result = docker_command[:]
+        for i, item in enumerate(docker_command):
+            try:
+                if item not in ("-e", "--env"):
+                    continue
+                key, sep, _ = result[i + 1].partition("=")
+                if key not in keys or not sep:
+                    continue
+                result[i + 1] = "{}={}".format(key, "********")
+            except KeyError:
+                pass
+
+        return result
 
 
 if __name__ == "__main__":
