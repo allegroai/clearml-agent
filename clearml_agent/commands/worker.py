@@ -905,7 +905,7 @@ class Worker(ServiceCommandSection):
     def _dynamic_gpu_get_available(self, gpu_indexes):
         # noinspection PyBroadException
         try:
-            response = self._session.send_api(workers_api.GetAllRequest(last_seen=60))
+            response = self._session.send_api(workers_api.GetAllRequest(last_seen=600))
         except Exception:
             return None
 
