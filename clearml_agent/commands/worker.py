@@ -50,6 +50,7 @@ from clearml_agent.definitions import (
     ENV_AGENT_SECRET_KEY,
     ENV_AWS_SECRET_KEY,
     ENV_AZURE_ACCOUNT_KEY,
+    ENV_AGENT_DISABLE_SSH_MOUNT,
 )
 from clearml_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
 from clearml_agent.errors import APIError, CommandFailedError, Sigterm
@@ -2725,8 +2726,11 @@ class Worker(ServiceCommandSection):
         if temp_config.get("agent.venvs_cache.path", None):
             temp_config.put("agent.venvs_cache.path", '/root/.clearml/venvs-cache')
 
-        self._host_ssh_cache = mkdtemp(prefix='clearml_agent.ssh.')
-        self._temp_cleanup_list.append(self._host_ssh_cache)
+        if ENV_AGENT_DISABLE_SSH_MOUNT.get():
+            self._host_ssh_cache = None
+        else:
+            self._host_ssh_cache = mkdtemp(prefix='clearml_agent.ssh.')
+            self._temp_cleanup_list.append(self._host_ssh_cache)
 
         return temp_config, partial(self._get_docker_config_cmd, temp_config=temp_config)
 
@@ -2748,24 +2752,31 @@ class Worker(ServiceCommandSection):
             "agent.docker_pip_cache", '~/.clearml/pip-cache'))).expanduser().as_posix()
 
         # make sure all folders are valid
-        Path(host_apt_cache).mkdir(parents=True, exist_ok=True)
-        Path(host_pip_cache).mkdir(parents=True, exist_ok=True)
-        Path(host_cache).mkdir(parents=True, exist_ok=True)
-        Path(host_pip_dl).mkdir(parents=True, exist_ok=True)
-        Path(host_vcs_cache).mkdir(parents=True, exist_ok=True)
-        Path(host_ssh_cache).mkdir(parents=True, exist_ok=True)
+        if host_apt_cache:
+            Path(host_apt_cache).mkdir(parents=True, exist_ok=True)
+        if host_pip_cache:
+            Path(host_pip_cache).mkdir(parents=True, exist_ok=True)
+        if host_cache:
+            Path(host_cache).mkdir(parents=True, exist_ok=True)
+        if host_pip_dl:
+            Path(host_pip_dl).mkdir(parents=True, exist_ok=True)
+        if host_vcs_cache:
+            Path(host_vcs_cache).mkdir(parents=True, exist_ok=True)
+        if host_ssh_cache:
+            Path(host_ssh_cache).mkdir(parents=True, exist_ok=True)
         if host_venvs_cache:
             Path(host_venvs_cache).mkdir(parents=True, exist_ok=True)
 
-        # copy the .ssh folder to a temp folder, to be mapped into docker
-        # noinspection PyBroadException
-        try:
-            if Path(host_ssh_cache).is_dir():
-                shutil.rmtree(host_ssh_cache, ignore_errors=True)
-            shutil.copytree(Path('~/.ssh').expanduser().as_posix(), host_ssh_cache)
-        except Exception:
-            host_ssh_cache = None
-            self.log.warning('Failed creating temporary copy of ~/.ssh for git credential')
+        if host_ssh_cache:
+            # copy the .ssh folder to a temp folder, to be mapped into docker
+            # noinspection PyBroadException
+            try:
+                if Path(host_ssh_cache).is_dir():
+                    shutil.rmtree(host_ssh_cache, ignore_errors=True)
+                shutil.copytree(Path('~/.ssh').expanduser().as_posix(), host_ssh_cache)
+            except Exception:
+                host_ssh_cache = None
+                self.log.warning('Failed creating temporary copy of ~/.ssh for git credential')
 
         # check if the .git credentials exist:
         try:
