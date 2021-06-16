@@ -1423,7 +1423,7 @@ class Worker(ServiceCommandSection):
 
                 # get diff from previous poll
                 printed_lines, stdout_pos_count = _print_file(stdout_path, stdout_pos_count)
-                if self._services_mode and not stopping and not status:
+                if self._services_mode and not stopping and status is None:
                     # if the internal agent started, we stop logging, it will take over logging.
                     # if the internal agent started running the task itself, it will return status==0,
                     # then we can quit the monitoring loop of this process
