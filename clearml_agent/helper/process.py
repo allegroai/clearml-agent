@@ -42,20 +42,31 @@ def get_bash_output(cmd, strip=False, stderr=subprocess.STDOUT, stdin=False):
     return output if not strip or not output else output.strip()
 
 
-def terminate_process(pid, timeout=10.):
+def terminate_process(pid, timeout=10., ignore_zombie=True, include_children=False):
     # noinspection PyBroadException
     try:
         proc = psutil.Process(pid)
+        children = proc.children(recursive=True) if include_children else []
         proc.terminate()
         cnt = 0
-        while proc.is_running() and cnt < timeout:
+        while proc.is_running() and (ignore_zombie or proc.status() != 'zombie') and cnt < timeout:
             sleep(1.)
             cnt += 1
         proc.terminate()
+
+        # terminate children
+        for c in children:
+            c.terminate()
+
         cnt = 0
-        while proc.is_running() and cnt < timeout:
+        while proc.is_running() and (ignore_zombie or proc.status() != 'zombie') and cnt < timeout:
             sleep(1.)
             cnt += 1
+
+        # kill children
+        for c in children:
+            c.kill()
+
         proc.kill()
     except Exception:
         pass
@@ -66,9 +77,8 @@ def terminate_process(pid, timeout=10.):
         return True
 
 
-def kill_all_child_processes(pid=None):
+def kill_all_child_processes(pid=None, include_parent=True):
     # get current process if pid not provided
-    include_parent = True
     if not pid:
         pid = os.getpid()
         include_parent = False
@@ -82,6 +92,23 @@ def kill_all_child_processes(pid=None):
         child.kill()
     if include_parent:
         parent.kill()
+
+
+def terminate_all_child_processes(pid=None, timeout=10., include_parent=True):
+    # get current process if pid not provided
+    if not pid:
+        pid = os.getpid()
+        include_parent = False
+    try:
+        parent = psutil.Process(pid)
+    except psutil.Error:
+        # could not find parent process id
+        return
+    for child in parent.children(recursive=False):
+        print('Terminating child process {}'.format(child.pid))
+        terminate_process(child.pid, timeout=timeout, ignore_zombie=False, include_children=True)
+    if include_parent:
+        terminate_process(parent.pid, timeout=timeout, ignore_zombie=False)
 
 
 def get_docker_id(docker_cmd_contains):
@@ -194,6 +221,7 @@ class Argv(Executable):
         """
         self.argv = argv
         self._log = kwargs.pop("log", None)
+        self._display_argv = kwargs.pop("display_argv", argv)
         if not self._log:
             self._log = logging.getLogger(__name__)
             self._log.propagate = False
@@ -218,10 +246,10 @@ class Argv(Executable):
         return self.argv
 
     def __repr__(self):
-        return "<Argv{}>".format(self.argv)
+        return "<Argv{}>".format(self._display_argv)
 
     def __str__(self):
-        return "Executing: {}".format(self.argv)
+        return "Executing: {}".format(self._display_argv)
 
     def __iter__(self):
         if is_windows_platform():

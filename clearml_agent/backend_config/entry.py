@@ -64,8 +64,8 @@ class Entry(object):
             converter = self.default_conversions().get(self.type, self.type)
         return converter(value)
 
-    def get_pair(self, default=NotSet, converter=None):
-        # type: (Any, Converter) -> Optional[Tuple[Text, Any]]
+    def get_pair(self, default=NotSet, converter=None, value_cb=None):
+        # type: (Any, Converter, Callable[[str, Any], None]) -> Optional[Tuple[Text, Any]]
         for key in self.keys:
             value = self._get(key)
             if value is NotSet:
@@ -75,13 +75,20 @@ class Entry(object):
             except Exception as ex:
                 self.error("invalid value {key}={value}: {ex}".format(**locals()))
                 break
+            # noinspection PyBroadException
+            try:
+                if value_cb:
+                    value_cb(key, value)
+            except Exception:
+                pass
             return key, value
+
         result = self.default if default is NotSet else default
         return self.key, result
 
-    def get(self, default=NotSet, converter=None):
-        # type: (Any, Converter) -> Optional[Any]
-        return self.get_pair(default=default, converter=converter)[1]
+    def get(self, default=NotSet, converter=None, value_cb=None):
+        # type: (Any, Converter, Callable[[str, Any], None]) -> Optional[Any]
+        return self.get_pair(default=default, converter=converter, value_cb=value_cb)[1]
 
     def set(self, value):
         # type: (Any, Any) -> (Text, Any)

@@ -10,12 +10,15 @@ from clearml_agent.glue.k8s import K8sIntegration
 
 def parse_args():
     parser = ArgumentParser()
+    group = parser.add_mutually_exclusive_group()
+
     parser.add_argument(
         "--queue", type=str, help="Queue to pull tasks from"
     )
-    parser.add_argument(
+    group.add_argument(
         "--ports-mode", action='store_true', default=False,
         help="Ports-Mode will add a label to the pod which can be used as service, in order to expose ports"
+             "Should not be used with max-pods"
     )
     parser.add_argument(
         "--num-of-services", type=int, default=20,
@@ -57,6 +60,11 @@ def parse_args():
         "--namespace", type=str,
         help="Specify the namespace in which pods will be created (default: %(default)s)", default="clearml"
     )
+    group.add_argument(
+        "--max-pods", type=int,
+        help="Limit the maximum number of pods that this service can run at the same time."
+             "Should not be used with ports-mode"
+    )
     return parser.parse_args()
 
 
@@ -77,7 +85,7 @@ def main():
         user_props_cb=user_props_cb, overrides_yaml=args.overrides_yaml, clearml_conf_file=args.pod_clearml_conf,
         template_yaml=args.template_yaml, extra_bash_init_script=K8sIntegration.get_ssh_server_bash(
             ssh_port_number=args.ssh_server_port) if args.ssh_server_port else None,
-        namespace=args.namespace,
+        namespace=args.namespace, max_pods_limit=args.max_pods or None,
     )
     k8s.k8s_daemon(args.queue)
 

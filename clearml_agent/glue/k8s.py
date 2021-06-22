@@ -32,9 +32,9 @@ class K8sIntegration(Worker):
 
     K8S_DEFAULT_NAMESPACE = "clearml"
 
-    KUBECTL_APPLY_CMD = "kubectl apply -f"
+    KUBECTL_APPLY_CMD = "kubectl apply --namespace={namespace} -f"
 
-    KUBECTL_RUN_CMD = "kubectl run clearml-{queue_name}-id-{task_id} " \
+    KUBECTL_RUN_CMD = "kubectl run clearml-id-{task_id} " \
                       "--image {docker_image} " \
                       "--restart=Never " \
                       "--namespace={namespace}"
@@ -95,6 +95,7 @@ class K8sIntegration(Worker):
             clearml_conf_file=None,
             extra_bash_init_script=None,
             namespace=None,
+            max_pods_limit=None,
             **kwargs
     ):
         """
@@ -122,6 +123,7 @@ class K8sIntegration(Worker):
         :param str clearml_conf_file: clearml.conf file to be use by the pod itself (optional)
         :param str extra_bash_init_script: Additional bash script to run before starting the Task inside the container
         :param str namespace: K8S namespace to be used when creating the new pods (default: clearml)
+        :param int max_pods_limit: Maximum number of pods that K8S glue can run at the same time
         """
         super(K8sIntegration, self).__init__()
         self.k8s_pending_queue_name = k8s_pending_queue_name or self.K8S_PENDING_QUEUE
@@ -147,6 +149,7 @@ class K8sIntegration(Worker):
         self.namespace = namespace or self.K8S_DEFAULT_NAMESPACE
         self.pod_limits = []
         self.pod_requests = []
+        self.max_pods_limit = max_pods_limit if not self.ports_mode else None
         if overrides_yaml:
             with open(os.path.expandvars(os.path.expanduser(str(overrides_yaml))), 'rt') as f:
                 overrides = yaml.load(f, Loader=getattr(yaml, 'FullLoader', None))
@@ -304,20 +307,22 @@ class K8sIntegration(Worker):
         except Exception:
             queue_name = 'k8s'
 
-        # conform queue name to k8s standards
-        safe_queue_name = queue_name.lower().strip()
-        safe_queue_name = re.sub(r'\W+', '', safe_queue_name).replace('_', '').replace('-', '')
-
         # Search for a free pod number
         pod_count = 0
         pod_number = self.base_pod_num
-        while self.ports_mode:
+        while self.ports_mode or self.max_pods_limit:
             pod_number = self.base_pod_num + pod_count
-            kubectl_cmd_new = "kubectl get pods -l {pod_label},{agent_label} -n {namespace}".format(
-                pod_label=self.LIMIT_POD_LABEL.format(pod_number=pod_number),
-                agent_label=self.AGENT_LABEL,
-                namespace=self.namespace,
-            )
+            if self.ports_mode:
+                kubectl_cmd_new = "kubectl get pods -l {pod_label},{agent_label} -n {namespace}".format(
+                    pod_label=self.LIMIT_POD_LABEL.format(pod_number=pod_number),
+                    agent_label=self.AGENT_LABEL,
+                    namespace=self.namespace,
+                )
+            else:
+                kubectl_cmd_new = "kubectl get pods -l {agent_label} -n {namespace} -o json".format(
+                    agent_label=self.AGENT_LABEL,
+                    namespace=self.namespace,
+                )
             process = subprocess.Popen(kubectl_cmd_new.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             output, error = process.communicate()
             output = '' if not output else output if isinstance(output, str) else output.decode('utf-8')
@@ -326,21 +331,47 @@ class K8sIntegration(Worker):
             if not output:
                 # No such pod exist so we can use the pod_number we found
                 break
-            if pod_count >= self.num_of_services - 1:
-                # All pod numbers are taken, exit
+
+            if self.max_pods_limit:
+                try:
+                    current_pod_count = len(json.loads(output).get("items", []))
+                except (ValueError, TypeError) as ex:
+                    self.log.warning(
+                        "K8S Glue pods monitor: Failed parsing kubectl output:\n{}\ntask '{}' "
+                        "will be enqueued back to queue '{}'\nEx: {}".format(
+                            output, task_id, queue, ex
+                        )
+                    )
+                    self._session.api_client.tasks.reset(task_id)
+                    self._session.api_client.tasks.enqueue(task_id, queue=queue, status_reason='kubectl parsing error')
+                    return
+                max_count = self.max_pods_limit
+            else:
+                current_pod_count = pod_count
+                max_count = self.num_of_services - 1
+
+            if current_pod_count >= max_count:
+                # All pods are taken, exit
+                self.log.debug(
+                    "kubectl last result: {}\n{}".format(error, output))
                 self.log.warning(
-                    "kubectl last result: {}\n{}\nAll k8s services are in use, task '{}' "
+                    "All k8s services are in use, task '{}' "
                     "will be enqueued back to queue '{}'".format(
-                        error, output, task_id, queue
+                        task_id, queue
                     )
                 )
                 self._session.api_client.tasks.reset(task_id)
                 self._session.api_client.tasks.enqueue(
                     task_id, queue=queue, status_reason='k8s max pod limit (no free k8s service)')
                 return
+            elif self.max_pods_limit:
+                # max pods limit hasn't reached yet, so we can create the pod
+                break
             pod_count += 1
 
         labels = ([self.LIMIT_POD_LABEL.format(pod_number=pod_number)] if self.ports_mode else []) + [self.AGENT_LABEL]
+        labels.append("clearml-agent-queue={}".format(self._safe_k8s_label_value(queue)))
+        labels.append("clearml-agent-queue-name={}".format(self._safe_k8s_label_value(queue_name)))
 
         if self.ports_mode:
             print("Kubernetes scheduling task id={} on pod={} (pod_count={})".format(task_id, pod_number, pod_count))
@@ -351,13 +382,13 @@ class K8sIntegration(Worker):
             output, error = self._kubectl_apply(
                 create_clearml_conf=create_clearml_conf,
                 labels=labels, docker_image=docker_image, docker_args=docker_args,
-                task_id=task_id, queue=queue, queue_name=safe_queue_name)
+                task_id=task_id, queue=queue)
         else:
             output, error = self._kubectl_run(
                 create_clearml_conf=create_clearml_conf,
                 labels=labels, docker_image=docker_cmd,
                 task_data=task_data,
-                task_id=task_id, queue=queue, queue_name=safe_queue_name)
+                task_id=task_id, queue=queue)
 
         error = '' if not error else (error if isinstance(error, str) else error.decode('utf-8'))
         output = '' if not output else (output if isinstance(output, str) else output.decode('utf-8'))
@@ -404,15 +435,16 @@ class K8sIntegration(Worker):
                 self.log.warning('skipping docker argument {} (only -e --env supported)'.format(cmd))
         return {'env': kube_args} if kube_args else {}
 
-    def _kubectl_apply(self, create_clearml_conf, docker_image, docker_args, labels, queue, task_id, queue_name):
+    def _kubectl_apply(self, create_clearml_conf, docker_image, docker_args, labels, queue, task_id):
         template = deepcopy(self.template_dict)
         template.setdefault('apiVersion', 'v1')
         template['kind'] = 'Pod'
         template.setdefault('metadata', {})
-        name = 'clearml-{queue}-id-{task_id}'.format(queue=queue_name, task_id=task_id)
+        name = 'clearml-id-{task_id}'.format(task_id=task_id)
         template['metadata']['name'] = name
         template.setdefault('spec', {})
         template['spec'].setdefault('containers', [])
+        template['spec'].setdefault('restartPolicy', 'Never')
         if labels:
             labels_dict = dict(pair.split('=', 1) for pair in labels)
             template['metadata'].setdefault('labels', {})
@@ -474,12 +506,11 @@ class K8sIntegration(Worker):
 
         return output, error
 
-    def _kubectl_run(self, create_clearml_conf, docker_image, labels, queue, task_data, task_id, queue_name):
+    def _kubectl_run(self, create_clearml_conf, docker_image, labels, queue, task_data, task_id):
         if callable(self.kubectl_cmd):
-            kubectl_cmd = self.kubectl_cmd(task_id, docker_image, queue, task_data, queue_name)
+            kubectl_cmd = self.kubectl_cmd(task_id, docker_image, queue, task_data)
         else:
             kubectl_cmd = self.kubectl_cmd.format(
-                queue_name=queue_name,
                 task_id=task_id,
                 docker_image=docker_image,
                 queue_id=queue,
@@ -607,3 +638,13 @@ class K8sIntegration(Worker):
         return merge_dicts(
             c1, c2, custom_merge_func=merge_env
         )
+
+    @staticmethod
+    def _safe_k8s_label_value(value):
+        """ Conform string to k8s standards for a label value """
+        value = value.lower().strip()
+        value = re.sub(r'^[^A-Za-z0-9]+', '', value)  # strip leading non-alphanumeric chars
+        value = re.sub(r'[^A-Za-z0-9]+$', '', value)  # strip trailing non-alphanumeric chars
+        value = re.sub(r'\W+', '-', value)  # allow only word chars (this removed "." which is supported, but nvm)
+        value = re.sub(r'-+', '-', value)  # don't leave messy "--" after replacing previous chars
+        return value[:63]

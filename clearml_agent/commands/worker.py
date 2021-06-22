@@ -11,6 +11,7 @@ import subprocess
 import sys
 import shutil
 import traceback
+import shlex
 from collections import defaultdict
 from copy import deepcopy, copy
 from datetime import datetime
@@ -19,7 +20,7 @@ from functools import partial, cmp_to_key
 from itertools import chain
 from tempfile import mkdtemp, NamedTemporaryFile
 from time import sleep, time
-from typing import Text, Optional, Any, Tuple
+from typing import Text, Optional, Any, Tuple, List
 
 import attr
 import psutil
@@ -43,7 +44,14 @@ from clearml_agent.definitions import (
     ENV_DOCKER_HOST_MOUNT,
     ENV_TASK_EXTRA_PYTHON_PATH,
     ENV_AGENT_GIT_USER,
-    ENV_AGENT_GIT_PASS, ENV_WORKER_ID, ENV_DOCKER_SKIP_GPUS_FLAG, )
+    ENV_AGENT_GIT_PASS,
+    ENV_WORKER_ID,
+    ENV_DOCKER_SKIP_GPUS_FLAG,
+    ENV_AGENT_SECRET_KEY,
+    ENV_AWS_SECRET_KEY,
+    ENV_AZURE_ACCOUNT_KEY,
+    ENV_AGENT_DISABLE_SSH_MOUNT,
+)
 from clearml_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
 from clearml_agent.errors import APIError, CommandFailedError, Sigterm
 from clearml_agent.helper.base import (
@@ -67,7 +75,9 @@ from clearml_agent.helper.base import (
     get_python_path,
     is_linux_platform,
     rm_file,
-    add_python_path, safe_remove_tree, )
+    add_python_path,
+    safe_remove_tree,
+)
 from clearml_agent.helper.console import ensure_text, print_text, decode_binary_lines
 from clearml_agent.helper.os.daemonize import daemonize_process
 from clearml_agent.helper.package.base import PackageManager
@@ -90,7 +100,10 @@ from clearml_agent.helper.process import (
     get_bash_output,
     shutdown_docker_process,
     get_docker_id,
-    commit_docker, terminate_process, check_if_command_exists,
+    commit_docker,
+    terminate_process,
+    check_if_command_exists,
+    terminate_all_child_processes,
 )
 from clearml_agent.helper.package.priority_req import PriorityPackageRequirement, PackageCollectorRequirement
 from clearml_agent.helper.repo import clone_repository_cached, RepoInfo, VCS, fix_package_import_diff_patch
@@ -187,7 +200,7 @@ class LiteralScriptManager(object):
         location = location or (repo_info and repo_info.root)
         if not location:
             location = Path(self.venv_folder, "code")
-            location.mkdir(exist_ok=True)
+            location.mkdir(exist_ok=True, parents=True)
         log.debug("selected execution directory: %s", location)
         return Text(location), self.write(task, location, execution.entry_point)
 
@@ -221,6 +234,9 @@ def get_task(session, task_id, *args, **kwargs):
 
 
 def get_task_container(session, task_id):
+    """
+    Returns dict with Task docker container setup {container: '', arguments: '', setup_shell_script: ''}
+    """
     if session.check_min_api_version("2.13"):
         result = session.send_request(
             service='tasks',
@@ -233,12 +249,12 @@ def get_task_container(session, task_id):
         try:
             container = result.json()['data']['tasks'][0]['container'] if result.ok else {}
             if container.get('arguments'):
-                container['arguments'] = str(container.get('arguments')).split(' ')
+                container['arguments'] = shlex.split(str(container.get('arguments')).strip())
         except (ValueError, TypeError):
             container = {}
     else:
         response = get_task(session, task_id, only_fields=["execution.docker_cmd"])
-        task_docker_cmd_parts = str(response.execution.docker_cmd or '').strip().split(' ')
+        task_docker_cmd_parts = shlex.split(str(response.execution.docker_cmd or '').strip())
         try:
             container = dict(
                 container=task_docker_cmd_parts[0],
@@ -251,11 +267,14 @@ def get_task_container(session, task_id):
 
 
 def set_task_container(session, task_id, docker_image=None, docker_arguments=None, docker_bash_script=None):
+    if docker_arguments and isinstance(docker_arguments, str):
+        docker_arguments = [docker_arguments]
+
     if session.check_min_api_version("2.13"):
         container = dict(
-            image=docker_image or None,
-            arguments=' '.join(docker_arguments) if docker_arguments else None,
-            setup_shell_script=docker_bash_script or None,
+            image=docker_image or '',
+            arguments=' '.join(docker_arguments) if docker_arguments else '',
+            setup_shell_script=docker_bash_script or '',
         )
         result = session.send_request(
             service='tasks',
@@ -614,10 +633,13 @@ class Worker(ServiceCommandSection):
                 '--standalone-mode' if self._standalone_mode else '',
                 task_id)
 
-            # send the actual used command line to the backend
-            self.send_logs(task_id=task_id, lines=['Executing: {}\n'.format(full_docker_cmd)], level="INFO")
+            display_docker_command = self._sanitize_docker_command(full_docker_cmd)
 
-            cmd = Argv(*full_docker_cmd)
+            # send the actual used command line to the backend
+            self.send_logs(task_id=task_id, lines=['Executing: {}\n'.format(display_docker_command)], level="INFO")
+
+            cmd = Argv(*full_docker_cmd, display_argv=display_docker_command)
+
             print('Running Docker:\n{}\n'.format(str(cmd)))
         else:
             cmd = worker_args.get_argv_for_command("execute") + (
@@ -685,6 +707,9 @@ class Worker(ServiceCommandSection):
                     shutdown_docker_process(docker_cmd_contains='--id {}\'\"'.format(task_id))
                 safe_remove_file(temp_stdout_name)
                 safe_remove_file(temp_stderr_name)
+                if self._services_mode and status == ExitStatus.interrupted:
+                    # unregister this worker, it was killed
+                    self._unregister()
 
     def run_tasks_loop(self, queues, worker_params, priority_order=True, gpu_indexes=None, gpu_queues=None):
         """
@@ -719,6 +744,7 @@ class Worker(ServiceCommandSection):
 
         # get current running instances
         available_gpus = None
+        dynamic_gpus_worker_id = None
         if gpu_indexes and gpu_queues:
             available_gpus, gpu_queues = self._setup_dynamic_gpus(gpu_queues)
             # multi instance support
@@ -812,7 +838,7 @@ class Worker(ServiceCommandSection):
                         self.report_monitor(ResourceMonitor.StatusReport(queues=queues, queue=queue, task=task_id))
 
                         org_gpus = os.environ.get('NVIDIA_VISIBLE_DEVICES')
-                        worker_id = self.worker_id
+                        dynamic_gpus_worker_id = self.worker_id
                         # the following is only executed in dynamic gpus mode
                         if gpu_queues and gpu_queues.get(queue):
                             # pick the first available GPUs
@@ -836,7 +862,7 @@ class Worker(ServiceCommandSection):
                         self.run_one_task(queue, task_id, worker_params)
 
                         if gpu_queues:
-                            self.worker_id = worker_id
+                            self.worker_id = dynamic_gpus_worker_id
                             os.environ['CUDA_VISIBLE_DEVICES'] = \
                                 os.environ['NVIDIA_VISIBLE_DEVICES'] = org_gpus
 
@@ -864,23 +890,23 @@ class Worker(ServiceCommandSection):
                     if shutdown_docker_process(docker_cmd_contains='--id {}\'\"'.format(t_id)):
                         self.handle_task_termination(task_id=t_id, exit_code=0, stop_reason=TaskStopReason.stopped)
             else:
+                # if we are in dynamic gpus / services mode,
+                # we should send termination signal to all child processes
+                if self._services_mode:
+                    terminate_all_child_processes(timeout=20, include_parent=False)
+
                 # if we are here, just kill all sub processes
                 kill_all_child_processes()
-                for t_id in set(list_task_gpus_ids.values()):
-                    # check if Task is running,
-                    task_info = get_task(
-                        self._session, t_id, only_fields=["status"]
-                    )
-                    # this is a bit risky we might have rerun it again after it already completed
-                    # basically we are not removing completed tasks from the list, hence the issue
-                    if str(task_info.status) == "in_progress":
-                        self.handle_task_termination(
-                            task_id=t_id, exit_code=0, stop_reason=TaskStopReason.stopped)
+
+            # unregister dynamic GPU worker, if we were terminated while setting up a Task
+            if dynamic_gpus_worker_id:
+                self.worker_id = dynamic_gpus_worker_id
+                self._unregister()
 
     def _dynamic_gpu_get_available(self, gpu_indexes):
         # noinspection PyBroadException
         try:
-            response = self._session.send_api(workers_api.GetAllRequest(last_seen=60))
+            response = self._session.send_api(workers_api.GetAllRequest(last_seen=600))
         except Exception:
             return None
 
@@ -1360,6 +1386,7 @@ class Worker(ServiceCommandSection):
         service_mode_internal_agent_started = None
         stopping = False
         status = None
+        process = None
         try:
             _last_machine_update_ts = time()
             stop_reason = None
@@ -1396,7 +1423,7 @@ class Worker(ServiceCommandSection):
 
                 # get diff from previous poll
                 printed_lines, stdout_pos_count = _print_file(stdout_path, stdout_pos_count)
-                if self._services_mode and not stopping and not status:
+                if self._services_mode and not stopping and status is None:
                     # if the internal agent started, we stop logging, it will take over logging.
                     # if the internal agent started running the task itself, it will return status==0,
                     # then we can quit the monitoring loop of this process
@@ -1416,6 +1443,8 @@ class Worker(ServiceCommandSection):
             status = ex.returncode
         except KeyboardInterrupt:
             # so someone else will catch us
+            if process:
+                kill_all_child_processes(process.pid)
             raise
         except Exception:
             # we should not get here, but better safe than sorry
@@ -1426,6 +1455,10 @@ class Worker(ServiceCommandSection):
                 stderr_line_count += self.send_logs(task_id, printed_lines)
             stop_reason = TaskStopReason.exception
             status = -1
+
+        # full cleanup (just in case)
+        if process:
+            kill_all_child_processes(process.pid)
 
         # if running in services mode, keep the file open
         # in case the docker was so quick it started and finished, check the stop reason
@@ -1792,15 +1825,16 @@ class Worker(ServiceCommandSection):
                 debug=self._session.debug_mode,
                 trace=self._session.trace,
             )
-            self.report_monitor(ResourceMonitor.StatusReport(task=current_task.id))
-            self.run_one_task(queue='', task_id=current_task.id, worker_args=worker_params, docker=docker)
+            try:
+                self.report_monitor(ResourceMonitor.StatusReport(task=current_task.id))
+                self.run_one_task(queue='', task_id=current_task.id, worker_args=worker_params, docker=docker)
+            finally:
+                self.stop_monitor()
+                self._unregister()
 
-            self.stop_monitor()
-            self._unregister()
-
-            if full_monitoring and self.temp_config_path:
-                safe_remove_file(self._session.config_file)
-                Singleton.close_pid_file()
+                if full_monitoring and self.temp_config_path:
+                    safe_remove_file(self._session.config_file)
+                    Singleton.close_pid_file()
             return
 
         self._session.print_configuration()
@@ -1908,7 +1942,6 @@ class Worker(ServiceCommandSection):
             if current_task.script.binary and current_task.script.binary.startswith('python') and \
                     execution.entry_point and execution.entry_point.split()[0].strip() == '-m':
                 # we need to split it
-                import shlex
                 extra.extend(shlex.split(execution.entry_point))
             else:
                 extra.append(execution.entry_point)
@@ -2693,8 +2726,11 @@ class Worker(ServiceCommandSection):
         if temp_config.get("agent.venvs_cache.path", None):
             temp_config.put("agent.venvs_cache.path", '/root/.clearml/venvs-cache')
 
-        self._host_ssh_cache = mkdtemp(prefix='clearml_agent.ssh.')
-        self._temp_cleanup_list.append(self._host_ssh_cache)
+        if ENV_AGENT_DISABLE_SSH_MOUNT.get():
+            self._host_ssh_cache = None
+        else:
+            self._host_ssh_cache = mkdtemp(prefix='clearml_agent.ssh.')
+            self._temp_cleanup_list.append(self._host_ssh_cache)
 
         return temp_config, partial(self._get_docker_config_cmd, temp_config=temp_config)
 
@@ -2716,24 +2752,31 @@ class Worker(ServiceCommandSection):
             "agent.docker_pip_cache", '~/.clearml/pip-cache'))).expanduser().as_posix()
 
         # make sure all folders are valid
-        Path(host_apt_cache).mkdir(parents=True, exist_ok=True)
-        Path(host_pip_cache).mkdir(parents=True, exist_ok=True)
-        Path(host_cache).mkdir(parents=True, exist_ok=True)
-        Path(host_pip_dl).mkdir(parents=True, exist_ok=True)
-        Path(host_vcs_cache).mkdir(parents=True, exist_ok=True)
-        Path(host_ssh_cache).mkdir(parents=True, exist_ok=True)
+        if host_apt_cache:
+            Path(host_apt_cache).mkdir(parents=True, exist_ok=True)
+        if host_pip_cache:
+            Path(host_pip_cache).mkdir(parents=True, exist_ok=True)
+        if host_cache:
+            Path(host_cache).mkdir(parents=True, exist_ok=True)
+        if host_pip_dl:
+            Path(host_pip_dl).mkdir(parents=True, exist_ok=True)
+        if host_vcs_cache:
+            Path(host_vcs_cache).mkdir(parents=True, exist_ok=True)
+        if host_ssh_cache:
+            Path(host_ssh_cache).mkdir(parents=True, exist_ok=True)
         if host_venvs_cache:
             Path(host_venvs_cache).mkdir(parents=True, exist_ok=True)
 
-        # copy the .ssh folder to a temp folder, to be mapped into docker
-        # noinspection PyBroadException
-        try:
-            if Path(host_ssh_cache).is_dir():
-                shutil.rmtree(host_ssh_cache, ignore_errors=True)
-            shutil.copytree(Path('~/.ssh').expanduser().as_posix(), host_ssh_cache)
-        except Exception:
-            host_ssh_cache = None
-            self.log.warning('Failed creating temporary copy of ~/.ssh for git credential')
+        if host_ssh_cache:
+            # copy the .ssh folder to a temp folder, to be mapped into docker
+            # noinspection PyBroadException
+            try:
+                if Path(host_ssh_cache).is_dir():
+                    shutil.rmtree(host_ssh_cache, ignore_errors=True)
+                shutil.copytree(Path('~/.ssh').expanduser().as_posix(), host_ssh_cache)
+            except Exception:
+                host_ssh_cache = None
+                self.log.warning('Failed creating temporary copy of ~/.ssh for git credential')
 
         # check if the .git credentials exist:
         try:
@@ -3080,7 +3123,7 @@ class Worker(ServiceCommandSection):
                     warning('Could not terminate process pid={}'.format(pid))
                 return True
 
-            # wither we have a match for the worker_id or we just pick the first one, and kill it.
+            # either we have a match for the worker_id or we just pick the first one, and kill it.
             if (worker_id and uid == worker_id) or (not worker_id and uid.startswith('{}:'.format(worker_name))):
                 # this is us kill it
                 print('Terminating clearml-agent worker_id={} pid={}'.format(uid, pid))
@@ -3142,6 +3185,33 @@ class Worker(ServiceCommandSection):
                 q_id = self._resolve_name(q if isinstance(q, str) else q.name, "queues")
             queue_ids.append(q_id)
         return queue_ids
+
+    def _sanitize_docker_command(self, docker_command):
+        # type: (List[str]) -> List[str]
+        if not self._session.config.get('agent.hide_docker_command_env_vars.enabled', False):
+            return docker_command
+
+        keys = set(self._session.config.get('agent.hide_docker_command_env_vars.extra_keys', []))
+        keys.update(
+            ENV_AGENT_GIT_PASS.vars,
+            ENV_AGENT_SECRET_KEY.vars,
+            ENV_AWS_SECRET_KEY.vars,
+            ENV_AZURE_ACCOUNT_KEY.vars
+        )
+
+        result = docker_command[:]
+        for i, item in enumerate(docker_command):
+            try:
+                if item not in ("-e", "--env"):
+                    continue
+                key, sep, _ = result[i + 1].partition("=")
+                if key not in keys or not sep:
+                    continue
+                result[i + 1] = "{}={}".format(key, "********")
+            except KeyError:
+                pass
+
+        return result
 
 
 if __name__ == "__main__":

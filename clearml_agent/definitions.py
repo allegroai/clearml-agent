@@ -62,6 +62,10 @@ class EnvironmentConfig(object):
         return None
 
 
+ENV_AGENT_SECRET_KEY = EnvironmentConfig("CLEARML_API_SECRET_KEY", "TRAINS_API_SECRET_KEY")
+ENV_AWS_SECRET_KEY = EnvironmentConfig("AWS_SECRET_ACCESS_KEY")
+ENV_AZURE_ACCOUNT_KEY = EnvironmentConfig("AZURE_STORAGE_KEY")
+
 ENVIRONMENT_CONFIG = {
     "api.api_server": EnvironmentConfig("CLEARML_API_HOST", "TRAINS_API_HOST", ),
     "api.files_server": EnvironmentConfig("CLEARML_FILES_HOST", "TRAINS_FILES_HOST", ),
@@ -69,9 +73,7 @@ ENVIRONMENT_CONFIG = {
     "api.credentials.access_key": EnvironmentConfig(
         "CLEARML_API_ACCESS_KEY", "TRAINS_API_ACCESS_KEY",
     ),
-    "api.credentials.secret_key": EnvironmentConfig(
-        "CLEARML_API_SECRET_KEY", "TRAINS_API_SECRET_KEY",
-    ),
+    "api.credentials.secret_key": ENV_AGENT_SECRET_KEY,
     "agent.worker_name": EnvironmentConfig("CLEARML_WORKER_NAME", "TRAINS_WORKER_NAME", ),
     "agent.worker_id": EnvironmentConfig("CLEARML_WORKER_ID", "TRAINS_WORKER_ID", ),
     "agent.cuda_version": EnvironmentConfig(
@@ -84,10 +86,10 @@ ENVIRONMENT_CONFIG = {
         names=("CLEARML_CPU_ONLY", "TRAINS_CPU_ONLY", "CPU_ONLY"), type=bool
     ),
     "sdk.aws.s3.key": EnvironmentConfig("AWS_ACCESS_KEY_ID"),
-    "sdk.aws.s3.secret": EnvironmentConfig("AWS_SECRET_ACCESS_KEY"),
+    "sdk.aws.s3.secret": ENV_AWS_SECRET_KEY,
     "sdk.aws.s3.region": EnvironmentConfig("AWS_DEFAULT_REGION"),
     "sdk.azure.storage.containers.0": {'account_name': EnvironmentConfig("AZURE_STORAGE_ACCOUNT"),
-                                       'account_key': EnvironmentConfig("AZURE_STORAGE_KEY")},
+                                       'account_key': ENV_AZURE_ACCOUNT_KEY},
     "sdk.google.storage.credentials_json": EnvironmentConfig("GOOGLE_APPLICATION_CREDENTIALS"),
 }
 
@@ -132,6 +134,7 @@ ENV_DOCKER_SKIP_GPUS_FLAG = EnvironmentConfig('CLEARML_DOCKER_SKIP_GPUS_FLAG', '
 ENV_AGENT_GIT_USER = EnvironmentConfig('CLEARML_AGENT_GIT_USER', 'TRAINS_AGENT_GIT_USER')
 ENV_AGENT_GIT_PASS = EnvironmentConfig('CLEARML_AGENT_GIT_PASS', 'TRAINS_AGENT_GIT_PASS')
 ENV_AGENT_GIT_HOST = EnvironmentConfig('CLEARML_AGENT_GIT_HOST', 'TRAINS_AGENT_GIT_HOST')
+ENV_AGENT_DISABLE_SSH_MOUNT = EnvironmentConfig('CLEARML_AGENT_DISABLE_SSH_MOUNT', type=bool)
 ENV_TASK_EXECUTE_AS_USER = EnvironmentConfig('CLEARML_AGENT_EXEC_USER', 'TRAINS_AGENT_EXEC_USER')
 ENV_TASK_EXTRA_PYTHON_PATH = EnvironmentConfig('CLEARML_AGENT_EXTRA_PYTHON_PATH', 'TRAINS_AGENT_EXTRA_PYTHON_PATH')
 ENV_DOCKER_HOST_MOUNT = EnvironmentConfig('CLEARML_AGENT_K8S_HOST_MOUNT', 'CLEARML_AGENT_DOCKER_HOST_MOUNT',
