@@ -112,7 +112,7 @@ class Session(TokenManager):
 
         self.__access_key = api_key or ENV_ACCESS_KEY.get(
             default=(self.config.get("api.credentials.access_key", None) or self.default_key),
-            value_cb=lambda key, value: logger.info("Using environment access key {}={}".format(key, value))
+            value_cb=lambda key, value: print("Using environment access key {}={}".format(key, value))
         )
         if not self.access_key:
             raise ValueError(
@@ -121,7 +121,7 @@ class Session(TokenManager):
 
         self.__secret_key = secret_key or ENV_SECRET_KEY.get(
             default=(self.config.get("api.credentials.secret_key", None) or self.default_secret),
-            value_cb=lambda key, value: logger.info("Using environment secret key {}=********".format(key))
+            value_cb=lambda key, value: print("Using environment secret key {}=********".format(key))
         )
         if not self.secret_key:
             raise ValueError(
