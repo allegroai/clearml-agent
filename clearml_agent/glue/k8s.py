@@ -508,6 +508,10 @@ class K8sIntegration(Worker):
         with open(yaml_file, 'wt') as f:
             yaml.dump(template, f)
 
+        if self._docker_force_pull:
+            for c in template['spec']['containers']:
+                c.setdefault('imagePullPolicy', 'Always')
+
         kubectl_cmd = self.KUBECTL_APPLY_CMD.format(
             task_id=task_id,
             docker_image=docker_image,
@@ -556,6 +560,9 @@ class K8sIntegration(Worker):
             kubectl_cmd += ['--limits', ",".join(self.pod_limits)]
         if self.pod_requests:
             kubectl_cmd += ['--requests', ",".join(self.pod_requests)]
+
+        if self._docker_force_pull and not any(x.startswith("--image-pull-policy=") for x in kubectl_cmd):
+            kubectl_cmd += ["--image-pull-policy='always'"]
 
         container_bash_script = [self.container_bash_script] if isinstance(self.container_bash_script, str) \
             else self.container_bash_script
