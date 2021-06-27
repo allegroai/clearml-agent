@@ -503,14 +503,14 @@ class K8sIntegration(Worker):
         else:
             template['spec']['containers'].append(container)
 
+        if self._docker_force_pull:
+            for c in template['spec']['containers']:
+                c.setdefault('imagePullPolicy', 'Always')
+
         fp, yaml_file = tempfile.mkstemp(prefix='clearml_k8stmpl_', suffix='.yml')
         os.close(fp)
         with open(yaml_file, 'wt') as f:
             yaml.dump(template, f)
-
-        if self._docker_force_pull:
-            for c in template['spec']['containers']:
-                c.setdefault('imagePullPolicy', 'Always')
 
         kubectl_cmd = self.KUBECTL_APPLY_CMD.format(
             task_id=task_id,
