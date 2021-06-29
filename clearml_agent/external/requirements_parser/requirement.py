@@ -20,6 +20,15 @@ VCS_REGEX = re.compile(
     r'(#(?P<fragment>\S+))?'
 )
 
+VCS_EXT_REGEX = re.compile(
+    r'^(?P<scheme>{0})(@)'.format(r'|'.join(
+        [scheme.replace('+', r'\+') for scheme in ['git+git']])) +
+    r'((?P<login>[^/@]+)@)?'
+    r'(?P<path>[^#@]+)'
+    r'(@(?P<revision>[^#]+))?'
+    r'(#(?P<fragment>\S+))?'
+)
+
 # This matches just about everyting
 LOCAL_REGEX = re.compile(
     r'^((?P<scheme>file)://)?'
@@ -100,7 +109,7 @@ class Requirement(object):
 
         req = cls('-e {0}'.format(line))
         req.editable = True
-        vcs_match = VCS_REGEX.match(line)
+        vcs_match = VCS_REGEX.match(line) or VCS_EXT_REGEX.match(line)
         local_match = LOCAL_REGEX.match(line)
 
         if vcs_match is not None:
@@ -147,7 +156,7 @@ class Requirement(object):
 
         req = cls(line)
 
-        vcs_match = VCS_REGEX.match(line)
+        vcs_match = VCS_REGEX.match(line) or VCS_EXT_REGEX.match(line)
         uri_match = URI_REGEX.match(line)
         local_match = LOCAL_REGEX.match(line)
 
@@ -226,7 +235,7 @@ class Requirement(object):
                 # check if the name is valid & parsed
                 Req.parse(name)
                 # if we are here, name is a valid package name, check if the vcs part is valid
-                if VCS_REGEX.match(uri):
+                if VCS_REGEX.match(uri) or VCS_EXT_REGEX.match(uri):
                     req = cls.parse_line(uri)
                     req.name = name
                     return req
