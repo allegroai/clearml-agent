@@ -448,9 +448,13 @@ class RequirementsManager(object):
         self.translator = RequirementsTranslator(session, interpreter=base_interpreter,
                                                  cache_dir=pip_cache_dir.as_posix())
         self._base_interpreter = base_interpreter
+        self._cwd = None
 
     def register(self, cls):  # type: (Type[RequirementSubstitution]) -> None
         self.handlers.append(cls(self._session))
+
+    def set_cwd(self, cwd):
+        self._cwd = str(cwd) if cwd else None
 
     def _replace_one(self, req):  # type: (MarkerRequirement) -> Optional[Text]
         match = re.search(r';\s*(.*)', Text(req))
@@ -466,7 +470,7 @@ class RequirementsManager(object):
     def replace(self, requirements):  # type: (Text) -> Text
         def safe_parse(req_str):
             try:
-                return next(parse(req_str))
+                return next(parse(req_str, cwd=self._cwd))
             except Exception as ex:
                 return Requirement(req_str)
 

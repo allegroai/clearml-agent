@@ -2370,6 +2370,10 @@ class Worker(ServiceCommandSection):
         if not self.is_conda:
             package_api.out_of_scope_install_package('Cython')
 
+        # add support for -r <file.txt> in requirements
+        if requirements_manager:
+            requirements_manager.set_cwd(cwd)
+
         cached_requirements_failed = False
         if cached_requirements and (cached_requirements.get('pip') is not None or
                                     cached_requirements.get('conda') is not None):

@@ -4,13 +4,14 @@ import warnings
 from .requirement import Requirement
 
 
-def parse(reqstr):
+def parse(reqstr, cwd=None):
     """
     Parse a requirements file into a list of Requirements
 
     See: pip/req.py:parse_requirements()
 
     :param reqstr: a string or file like object containing requirements
+    :param cwd: Optional current working dir for -r file.txt loading
     :returns: a *generator* of Requirement objects
     """
     filename = getattr(reqstr, 'name', None)
@@ -32,8 +33,8 @@ def parse(reqstr):
             continue
         elif line.startswith('-r') or line.startswith('--requirement'):
             _, new_filename = line.split()
-            new_file_path = os.path.join(os.path.dirname(filename or '.'),
-                                         new_filename)
+            new_file_path = os.path.join(
+                os.path.dirname(filename or '.') if filename or not cwd else cwd, new_filename)
             with open(new_file_path) as f:
                 for requirement in parse(f):
                     yield requirement
