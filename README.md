@@ -122,7 +122,7 @@ The ClearML Agent executes experiments using the following process:
 
 #### System Design & Flow
 
-<img src="https://clear.ml/docs/latest/assets/images/clearml_architecture-e4b6cc6f63d71aecefaf3db3595b867f.png" width="100%" alt="clearml-architecture">
+<img src="https://github.com/allegroai/clearml-agent/blob/master/docs/clearml_architecture.png" width="100%" alt="clearml-architecture">
 
 
 #### Installing the ClearML Agent
