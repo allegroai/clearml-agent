@@ -1456,14 +1456,14 @@ class Worker(ServiceCommandSection):
             stop_reason = TaskStopReason.exception
             status = -1
 
-        # full cleanup (just in case)
-        if process:
-            kill_all_child_processes(process.pid)
-
         # if running in services mode, keep the file open
         # in case the docker was so quick it started and finished, check the stop reason
         if self._services_mode and service_mode_internal_agent_started and stop_reason == 'Service started':
             return None, None
+
+        # full cleanup (just in case)
+        if process and not self._services_mode:
+            kill_all_child_processes(process.pid)
 
         stdout.close()
         if stderr_path:
