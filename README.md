@@ -37,7 +37,7 @@ It is a zero configuration fire-and-forget execution agent, providing a full ML/
 "All the Deep/Machine-Learning DevOps your research needs, and then some... Because ain't nobody got time for that"
 
 **Try ClearML now** [Self Hosted](https://github.com/allegroai/clearml-server) or [Free tier Hosting](https://app.community.clear.ml)
-<a href="https://app.community.clear.ml"><img src="https://github.com/allegroai/clearml/blob/master/docs/webapp_screenshots.gif?raw=true" width="100%"></a>
+<a href="https://app.community.clear.ml"><img src="https://github.com/allegroai/clearml-agent/blob/master/docs/screenshots.gif?raw=true" width="100%"></a>
 
 ### Simple, Flexible Experiment Orchestration
 **The ClearML Agent was built to address the DL/ML R&D DevOps needs:**
