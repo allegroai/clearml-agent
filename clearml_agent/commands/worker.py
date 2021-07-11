@@ -51,6 +51,7 @@ from clearml_agent.definitions import (
     ENV_AWS_SECRET_KEY,
     ENV_AZURE_ACCOUNT_KEY,
     ENV_AGENT_DISABLE_SSH_MOUNT,
+    ENV_SSH_AUTH_SOCK,
 )
 from clearml_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
 from clearml_agent.errors import APIError, CommandFailedError, Sigterm
@@ -2730,7 +2731,15 @@ class Worker(ServiceCommandSection):
         if temp_config.get("agent.venvs_cache.path", None):
             temp_config.put("agent.venvs_cache.path", '/root/.clearml/venvs-cache')
 
-        if ENV_AGENT_DISABLE_SSH_MOUNT.get():
+        if (ENV_SSH_AUTH_SOCK.get() or '').strip():
+            self._host_ssh_cache = None
+            ssh_auth_sock_env = 'SSH_AUTH_SOCK={}'.format(ENV_SSH_AUTH_SOCK.get())
+            if not self._extra_docker_arguments or ssh_auth_sock_env not in self._extra_docker_arguments:
+                self._extra_docker_arguments = (self._extra_docker_arguments or []) + [
+                    '-v', '{}:{}'.format(ENV_SSH_AUTH_SOCK.get(), ENV_SSH_AUTH_SOCK.get()),
+                    '-e', ssh_auth_sock_env,
+                ]
+        elif ENV_AGENT_DISABLE_SSH_MOUNT.get():
             self._host_ssh_cache = None
         else:
             self._host_ssh_cache = mkdtemp(prefix='clearml_agent.ssh.')
