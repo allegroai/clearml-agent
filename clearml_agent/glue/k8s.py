@@ -293,9 +293,12 @@ class K8sIntegration(Worker):
         # push task into the k8s queue, so we have visibility on pending tasks in the k8s scheduler
         try:
             print('Pushing task {} into temporary pending queue'.format(task_id))
-            self._session.api_client.tasks.reset(task_id)
-            self._session.api_client.tasks.enqueue(task_id, queue=self.k8s_pending_queue_name,
-                                                   status_reason='k8s pending scheduler')
+            self._session.api_client.tasks.stop(task_id, force=True)
+            self._session.api_client.tasks.enqueue(
+                task_id,
+                queue=self.k8s_pending_queue_name,
+                status_reason='k8s pending scheduler'
+            )
         except Exception as e:
             self.log.error("ERROR: Could not push back task [{}] to k8s pending queue [{}], error: {}".format(
                 task_id, self.k8s_pending_queue_name, e))
@@ -367,7 +370,7 @@ class K8sIntegration(Worker):
                             output, task_id, queue, ex
                         )
                     )
-                    self._session.api_client.tasks.reset(task_id)
+                    self._session.api_client.tasks.stop(task_id, force=True)
                     self._session.api_client.tasks.enqueue(task_id, queue=queue, status_reason='kubectl parsing error')
                     return
                 max_count = self.max_pods_limit
@@ -385,7 +388,7 @@ class K8sIntegration(Worker):
                         task_id, queue
                     )
                 )
-                self._session.api_client.tasks.reset(task_id)
+                self._session.api_client.tasks.stop(task_id, force=True)
                 self._session.api_client.tasks.enqueue(
                     task_id, queue=queue, status_reason='k8s max pod limit (no free k8s service)')
                 return
