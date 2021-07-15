@@ -17,7 +17,7 @@ from typing import Text, List, Callable, Any, Collection, Optional, Union
 import yaml
 
 from clearml_agent.commands.events import Events
-from clearml_agent.commands.worker import Worker, get_task_container
+from clearml_agent.commands.worker import Worker, get_task_container, set_task_container
 from clearml_agent.definitions import ENV_DOCKER_IMAGE
 from clearml_agent.errors import APIError
 from clearml_agent.helper.base import safe_remove_file
@@ -281,6 +281,9 @@ class K8sIntegration(Worker):
                 ENV_DOCKER_IMAGE.get() or self._session.config.get("agent.default_docker.image", "nvidia/cuda")
             )
             container['arguments'] = self._session.config.get("agent.default_docker.arguments", None)
+            set_task_container(
+                self._session, task_id, docker_image=container['image'], docker_arguments=container['arguments']
+            )
 
         # get the clearml.conf encoded file
         # noinspection PyProtectedMember
