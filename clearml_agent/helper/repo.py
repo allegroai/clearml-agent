@@ -274,6 +274,18 @@ class VCS(object):
             url = parsed_url.url
         return url
 
+    @classmethod
+    def rewrite_ssh_url(cls, url, port=None, username=None):
+        # type: (Text, Optional[int], Optional[str]) -> Text
+        """
+        Rewrite SSH URL with custom port and username
+        """
+        parsed_url = furl(url)
+        if parsed_url.scheme == "ssh":
+            parsed_url.username = username or "git"
+            parsed_url.port = port or None
+            return parsed_url.url
+
     def _set_ssh_url(self):
         """
         Replace instance URL with SSH substitution result and report to log.
@@ -297,6 +309,20 @@ class VCS(object):
                         self.url, new_url))
                     self.url = new_url
                 return
+            # rewrite ssh URLs only if either ssh port or ssh user are forced in config
+            if parsed_url.scheme == "ssh" and (
+                self.session.config.get('agent.force_git_ssh_port', None) or
+                self.session.config.get('agent.force_git_ssh_user', None)
+            ):
+                new_url = self.rewrite_ssh_url(
+                    self.url,
+                    port=self.session.config.get('agent.force_git_ssh_port', None),
+                    username=self.session.config.get('agent.force_git_ssh_user', None)
+                )
+                if new_url != self.url:
+                    print("Using SSH credentials - ssh url '{}' with ssh url '{}'".format(
+                        self.url, new_url))
+                    self.url = new_url
 
         if not self.session.config.agent.translate_ssh:
             return
