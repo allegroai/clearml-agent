@@ -1,10 +1,10 @@
+import shlex
 from datetime import timedelta
 from distutils.util import strtobool
 from enum import IntEnum
 from os import getenv, environ
 from typing import Text, Optional, Union, Tuple, Any
 
-from furl import furl
 from pathlib2 import Path
 
 import six
@@ -34,6 +34,7 @@ class EnvironmentConfig(object):
     conversions = {
         bool: lambda value: bool(strtobool(value)),
         six.text_type: lambda s: six.text_type(s).strip(),
+        list: lambda s: shlex.split(s.strip()),
     }
 
     def __init__(self, *names, **kwargs):
@@ -63,6 +64,7 @@ class EnvironmentConfig(object):
 
 
 ENV_AGENT_SECRET_KEY = EnvironmentConfig("CLEARML_API_SECRET_KEY", "TRAINS_API_SECRET_KEY")
+ENV_AGENT_AUTH_TOKEN = EnvironmentConfig("CLEARML_AUTH_TOKEN")
 ENV_AWS_SECRET_KEY = EnvironmentConfig("AWS_SECRET_ACCESS_KEY")
 ENV_AZURE_ACCOUNT_KEY = EnvironmentConfig("AZURE_STORAGE_KEY")
 
@@ -130,6 +132,8 @@ PIP_EXTRA_INDICES = [
 DEFAULT_PIP_DOWNLOAD_CACHE = normalize_path(CONFIG_DIR, "pip-download-cache")
 ENV_DOCKER_IMAGE = EnvironmentConfig('CLEARML_DOCKER_IMAGE', 'TRAINS_DOCKER_IMAGE')
 ENV_WORKER_ID = EnvironmentConfig('CLEARML_WORKER_ID', 'TRAINS_WORKER_ID')
+ENV_WORKER_TAGS = EnvironmentConfig('CLEARML_WORKER_TAGS')
+ENV_AGENT_SKIP_PIP_VENV_INSTALL = EnvironmentConfig('CLEARML_AGENT_SKIP_PIP_VENV_INSTALL')
 ENV_DOCKER_SKIP_GPUS_FLAG = EnvironmentConfig('CLEARML_DOCKER_SKIP_GPUS_FLAG', 'TRAINS_DOCKER_SKIP_GPUS_FLAG')
 ENV_AGENT_GIT_USER = EnvironmentConfig('CLEARML_AGENT_GIT_USER', 'TRAINS_AGENT_GIT_USER')
 ENV_AGENT_GIT_PASS = EnvironmentConfig('CLEARML_AGENT_GIT_PASS', 'TRAINS_AGENT_GIT_PASS')
@@ -140,6 +144,8 @@ ENV_TASK_EXECUTE_AS_USER = EnvironmentConfig('CLEARML_AGENT_EXEC_USER', 'TRAINS_
 ENV_TASK_EXTRA_PYTHON_PATH = EnvironmentConfig('CLEARML_AGENT_EXTRA_PYTHON_PATH', 'TRAINS_AGENT_EXTRA_PYTHON_PATH')
 ENV_DOCKER_HOST_MOUNT = EnvironmentConfig('CLEARML_AGENT_K8S_HOST_MOUNT', 'CLEARML_AGENT_DOCKER_HOST_MOUNT',
                                           'TRAINS_AGENT_K8S_HOST_MOUNT', 'TRAINS_AGENT_DOCKER_HOST_MOUNT')
+ENV_VENV_CACHE_PATH = EnvironmentConfig('CLEARML_AGENT_VENV_CACHE_PATH')
+ENV_EXTRA_DOCKER_ARGS = EnvironmentConfig('CLEARML_AGENT_EXTRA_DOCKER_ARGS', type=list)
 
 
 class FileBuffering(IntEnum):
