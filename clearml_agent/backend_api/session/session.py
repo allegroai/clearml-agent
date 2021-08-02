@@ -2,14 +2,15 @@ import json as json_lib
 import sys
 import types
 from socket import gethostname
-from six.moves.urllib.parse import urlparse, urlunparse
 
 import jwt
 import requests
 import six
-from pyhocon import ConfigTree
+from pyhocon import ConfigTree, ConfigFactory
 from requests.auth import HTTPBasicAuth
+from six.moves.urllib.parse import urlparse, urlunparse
 
+from clearml_agent.definitions import ENV_DISABLE_VAULT_SUPPORT
 from .callresult import CallResult
 from .defs import ENV_VERBOSE, ENV_HOST, ENV_ACCESS_KEY, ENV_SECRET_KEY, ENV_WEB_HOST, ENV_FILES_HOST, ENV_AUTH_TOKEN, \
     ENV_NO_DEFAULT_SERVER
@@ -185,6 +186,40 @@ class Session(TokenManager):
         # we do that here, so if we have problems authenticating, we see them immediately
         # notice: this is across the board warning omission
         urllib_log_warning_setup(total_retries=http_retries_config.get('total', 0), display_warning_after=3)
+
+        self._load_vaults()
+
+    def _load_vaults(self):
+        if not self.check_min_api_version("2.15") or self.feature_set == "basic":
+            return
+
+        if ENV_DISABLE_VAULT_SUPPORT.get():
+            print("Vault support is disabled")
+            return
+
+        def parse(vault):
+            # noinspection PyBroadException
+            try:
+                d = vault.get('data', None)
+                if d:
+                    r = ConfigFactory.parse_string(d)
+                    if isinstance(r, (ConfigTree, dict)):
+                        return r
+            except Exception as e:
+                print("Failed parsing vault {}: {}".format(vault.get("description", "<unknown>"), e))
+
+        # noinspection PyBroadException
+        try:
+            res = self.send_request("users", "get_vaults", json={"enabled": True, "types": ["config"]})
+            if res.ok:
+                vaults = res.json().get("data", {}).get("vaults", [])
+                data = list(filter(None, map(parse, vaults)))
+                if data:
+                    self.config.set_overrides(*data)
+            elif res.status_code != 404:
+                raise Exception(res.json().get("meta", {}).get("result_msg", res.text))
+        except Exception as ex:
+            print("Failed getting vaults: {}".format(ex))
 
     def _send_request(
         self,

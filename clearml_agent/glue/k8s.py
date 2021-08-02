@@ -194,7 +194,18 @@ class K8sIntegration(Worker):
         _check_pod_thread.daemon = True
         _check_pod_thread.start()
 
+    @staticmethod
+    def _get_path(d, *path, default=None):
+        try:
+            return functools.reduce(
+                lambda a, b: a[b], path, d
+            )
+        except (IndexError, KeyError):
+            return default
+
     def _monitor_hanging_pods_daemon(self):
+        last_tasks_msgs = {}  # last msg updated for every task
+
         while True:
             output = get_bash_output('kubectl get pods -n {namespace} -o=JSON'.format(
                 namespace=self.namespace
@@ -207,23 +218,44 @@ class K8sIntegration(Worker):
                 sleep(self._polling_interval)
                 continue
             pods = output_config.get('items', [])
+            task_ids = set()
             for pod in pods:
-                try:
-                    reason = functools.reduce(
-                        lambda a, b: a[b], ('status', 'containerStatuses', 0, 'state', 'waiting', 'reason'), pod
-                    )
-                except (IndexError, KeyError):
+                if self._get_path(pod, 'status', 'phase') != "Pending":
                     continue
-                if reason == 'ImagePullBackOff':
-                    pod_name = pod.get('metadata', {}).get('name', None)
-                    if pod_name:
-                        task_id = pod_name.rpartition('-')[-1]
+
+                pod_name = pod.get('metadata', {}).get('name', None)
+                if not pod_name:
+                    continue
+
+                task_id = pod_name.rpartition('-')[-1]
+                if not task_id:
+                    continue
+
+                task_ids.add(task_id)
+
+                msg = None
+
+                waiting = self._get_path(pod, 'status', 'containerStatuses', 0, 'state', 'waiting')
+                if not waiting:
+                    condition = self._get_path(pod, 'status', 'conditions', 0)
+                    if condition:
+                        reason = condition.get('reason')
+                        if reason == 'Unschedulable':
+                            message = condition.get('message')
+                            msg = reason + (" ({})".format(message) if message else "")
+                else:
+                    reason = waiting.get("reason", None)
+                    message = waiting.get("message", None)
+
+                    msg = reason + (" ({})".format(message) if message else "")
+
+                    if reason == 'ImagePullBackOff':
                         delete_pod_cmd = 'kubectl delete pods {} -n {}'.format(pod_name, self.namespace)
                         get_bash_output(delete_pod_cmd)
                         try:
                             self._session.api_client.tasks.failed(
                                 task=task_id,
-                                status_reason="K8S glue error due to ImagePullBackOff",
+                                status_reason="K8S glue error: {}".format(msg),
                                 status_message="Changed by K8S glue",
                                 force=True
                             )
@@ -231,6 +263,35 @@ class K8sIntegration(Worker):
                             self.log.warning(
                                 'K8S Glue pods monitor: Failed deleting task "{}"\nEX: {}'.format(task_id, ex)
                             )
+
+                        # clean up any msg for this task
+                        last_tasks_msgs.pop(task_id, None)
+                        continue
+                if msg and last_tasks_msgs.get(task_id, None) != msg:
+                    try:
+                        result = self._session.send_request(
+                            service='tasks',
+                            action='update',
+                            json={"task": task_id, "status_message": "K8S glue status: {}".format(msg)},
+                            method='get',
+                            async_enable=False,
+                        )
+                        if not result.ok:
+                            result_msg = self._get_path(result.json(), 'meta', 'result_msg')
+                            raise Exception(result_msg or result.text)
+
+                        # update last msg for this task
+                        last_tasks_msgs[task_id] = msg
+                    except Exception as ex:
+                        self.log.warning(
+                            'K8S Glue pods monitor: Failed setting status message for task "{}"\nEX: {}'.format(
+                                task_id, ex
+                            )
+                        )
+
+            # clean up any last message for a task that wasn't seen as a pod
+            last_tasks_msgs = {k: v for k, v in last_tasks_msgs.items() if k in task_ids}
+
             sleep(self._polling_interval)
 
     def _set_task_user_properties(self, task_id: str, **properties: str):
@@ -308,12 +369,14 @@ class K8sIntegration(Worker):
         # push task into the k8s queue, so we have visibility on pending tasks in the k8s scheduler
         try:
             print('Pushing task {} into temporary pending queue'.format(task_id))
-            self._session.api_client.tasks.stop(task_id, force=True)
-            self._session.api_client.tasks.enqueue(
+            res = self._session.api_client.tasks.stop(task_id, force=True)
+            res = self._session.api_client.tasks.enqueue(
                 task_id,
                 queue=self.k8s_pending_queue_name,
-                status_reason='k8s pending scheduler'
+                status_reason='k8s pending scheduler',
             )
+            if res.meta.result_code != 200:
+                raise Exception(res.meta.result_msg)
         except Exception as e:
             self.log.error("ERROR: Could not push back task [{}] to k8s pending queue [{}], error: {}".format(
                 task_id, self.k8s_pending_queue_name, e))

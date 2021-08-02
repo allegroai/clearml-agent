@@ -4,15 +4,13 @@ import functools
 import json
 import os
 import sys
-import warnings
-from fnmatch import fnmatch
 from os.path import expanduser
 from typing import Any
 
 import pyhocon
 import six
 from pathlib2 import Path
-from pyhocon import ConfigTree
+from pyhocon import ConfigTree, ConfigFactory
 from pyparsing import (
     ParseFatalException,
     ParseException,
@@ -71,6 +69,10 @@ class Config(object):
 
     # used in place of None in Config.get as default value because None is a valid value
     _MISSING = object()
+    extra_config_values_env_key_sep = "__"
+    extra_config_values_env_key_prefix = [
+        "CLEARML_AGENT" + extra_config_values_env_key_sep,
+    ]
 
     def __init__(
         self,
@@ -80,7 +82,7 @@ class Config(object):
         relative_to=None,
         app=None,
         is_server=False,
-        **_
+        **_,
     ):
         self._app = app
         self._verbose = verbose
@@ -90,6 +92,7 @@ class Config(object):
         self._env = env or os.environ.get("TRAINS_ENV", Environment.default)
         self.config_paths = set()
         self.is_server = is_server
+        self._overrides_configs = None
 
         if self._verbose:
             print("Config env:%s" % str(self._env))
@@ -100,6 +103,7 @@ class Config(object):
             )
         if self._env not in get_options(Environment):
             raise ValueError("Invalid environment %s" % env)
+
         if relative_to is not None:
             self.load_relative_to(relative_to)
 
@@ -158,7 +162,9 @@ class Config(object):
         if LOCAL_CONFIG_PATHS:
             config = functools.reduce(
                 lambda cfg, path: ConfigTree.merge_configs(
-                    cfg, self._read_recursive(path, verbose=self._verbose), copy_trees=True
+                    cfg,
+                    self._read_recursive(path, verbose=self._verbose),
+                    copy_trees=True,
                 ),
                 LOCAL_CONFIG_PATHS,
                 config,
@@ -181,8 +187,37 @@ class Config(object):
                 config,
             )
 
+        config = ConfigTree.merge_configs(
+            config, self._read_extra_env_config_values(), copy_trees=True
+        )
+
+        if self._overrides_configs:
+            config = functools.reduce(
+                lambda cfg, override: ConfigTree.merge_configs(cfg, override, copy_trees=True),
+                self._overrides_configs,
+                config,
+            )
+
         config["env"] = env
         return config
+
+    def _read_extra_env_config_values(self) -> ConfigTree:
+        """ Loads extra configuration from environment-injected values """
+        result = ConfigTree()
+
+        for prefix in self.extra_config_values_env_key_prefix:
+            keys = sorted(k for k in os.environ if k.startswith(prefix))
+            for key in keys:
+                path = (
+                    key[len(prefix) :]
+                    .replace(self.extra_config_values_env_key_sep, ".")
+                    .lower()
+                )
+                result = ConfigTree.merge_configs(
+                    result, ConfigFactory.parse_string(f"{path}: {os.environ[key]}")
+                )
+
+        return result
 
     def replace(self, config):
         self._config = config
@@ -340,3 +375,10 @@ class Config(object):
         except Exception as ex:
             print("Failed loading %s: %s" % (file_path, ex))
             raise
+
+    def set_overrides(self, *dicts):
+        """ Set several override dictionaries or ConfigTree objects which should be merged onto the configuration """
+        self._overrides_configs = [
+            d if isinstance(d, ConfigTree) else pyhocon.ConfigFactory.from_dict(d) for d in dicts
+        ]
+        self.reload()
