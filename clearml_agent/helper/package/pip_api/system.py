@@ -1,6 +1,7 @@
 import os
 import sys
 from itertools import chain
+from pathlib import Path
 from typing import Text, Optional
 
 from clearml_agent.definitions import PIP_EXTRA_INDICES, PROGRAM_NAME
@@ -19,7 +20,7 @@ class SystemPip(PackageManager):
         Program interface to the system pip.
         """
         super(SystemPip, self).__init__()
-        self._bin = interpreter or sys.executable
+        self._bin = Path(interpreter or sys.executable)
         self.session = session
 
     @property

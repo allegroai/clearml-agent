@@ -3,11 +3,13 @@ from __future__ import unicode_literals
 import abc
 from collections import OrderedDict
 from contextlib import contextmanager
-from typing import Text, Iterable, Union, Optional, Dict, List
-from pathlib2 import Path
 from hashlib import md5
+from typing import Text, Iterable, Union, Optional, Dict, List
 
 import six
+from pathlib2 import Path
+
+from clearml_agent.definitions import ENV_VENV_CACHE_PATH
 from clearml_agent.helper.base import mkstemp, safe_remove_file, join_lines, select_for_platform
 from clearml_agent.helper.console import ensure_binary
 from clearml_agent.helper.os.folder_cache import FolderCache
@@ -252,7 +254,7 @@ class PackageManager(object):
 
     def _get_cache_manager(self):
         if not self._cache_manager:
-            cache_folder = self.session.config.get(self._config_cache_folder, None)
+            cache_folder = ENV_VENV_CACHE_PATH.get() or self.session.config.get(self._config_cache_folder, None)
             if not cache_folder:
                 return None
 

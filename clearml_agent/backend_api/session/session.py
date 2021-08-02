@@ -11,7 +11,8 @@ from pyhocon import ConfigTree
 from requests.auth import HTTPBasicAuth
 
 from .callresult import CallResult
-from .defs import ENV_VERBOSE, ENV_HOST, ENV_ACCESS_KEY, ENV_SECRET_KEY, ENV_WEB_HOST, ENV_FILES_HOST
+from .defs import ENV_VERBOSE, ENV_HOST, ENV_ACCESS_KEY, ENV_SECRET_KEY, ENV_WEB_HOST, ENV_FILES_HOST, ENV_AUTH_TOKEN, \
+    ENV_NO_DEFAULT_SERVER
 from .request import Request, BatchRequest
 from .token_manager import TokenManager
 from ..config import load
@@ -45,6 +46,7 @@ class Session(TokenManager):
     _write_session_timeout = (30.0, 30.)
 
     api_version = '2.1'
+    feature_set = 'basic'
     default_host = "https://demoapi.demo.clear.ml"
     default_web = "https://demoapp.demo.clear.ml"
     default_files = "https://demofiles.demo.clear.ml"
@@ -103,30 +105,42 @@ class Session(TokenManager):
             "auth.token_expiration_threshold_sec", 60
         )
 
+        self._verbose = verbose if verbose is not None else ENV_VERBOSE.get()
+        self._logger = logger
+        self.__auth_token = None
+
+        if ENV_AUTH_TOKEN.get(
+            value_cb=lambda key, value: print("Using environment access token {}=********".format(key))
+        ):
+            self._set_auth_token(ENV_AUTH_TOKEN.get())
+            # if we use a token we override make sure we are at least 3600 seconds (1 hour)
+            # away from the token expiration date, ask for a new one.
+            token_expiration_threshold_sec = max(token_expiration_threshold_sec, 3600)
+        else:
+            self.__access_key = api_key or ENV_ACCESS_KEY.get(
+                default=(self.config.get("api.credentials.access_key", None) or self.default_key),
+                value_cb=lambda key, value: print("Using environment access key {}={}".format(key, value))
+            )
+            if not self.access_key:
+                raise ValueError(
+                    "Missing access_key. Please set in configuration file or pass in session init."
+                )
+
+            self.__secret_key = secret_key or ENV_SECRET_KEY.get(
+                default=(self.config.get("api.credentials.secret_key", None) or self.default_secret),
+                value_cb=lambda key, value: print("Using environment secret key {}=********".format(key))
+            )
+            if not self.secret_key:
+                raise ValueError(
+                    "Missing secret_key. Please set in configuration file or pass in session init."
+                )
+
         super(Session, self).__init__(
             token_expiration_threshold_sec=token_expiration_threshold_sec, **kwargs
         )
 
-        self._verbose = verbose if verbose is not None else ENV_VERBOSE.get()
-        self._logger = logger
-
-        self.__access_key = api_key or ENV_ACCESS_KEY.get(
-            default=(self.config.get("api.credentials.access_key", None) or self.default_key),
-            value_cb=lambda key, value: print("Using environment access key {}={}".format(key, value))
-        )
-        if not self.access_key:
-            raise ValueError(
-                "Missing access_key. Please set in configuration file or pass in session init."
-            )
-
-        self.__secret_key = secret_key or ENV_SECRET_KEY.get(
-            default=(self.config.get("api.credentials.secret_key", None) or self.default_secret),
-            value_cb=lambda key, value: print("Using environment secret key {}=********".format(key))
-        )
-        if not self.secret_key:
-            raise ValueError(
-                "Missing secret_key. Please set in configuration file or pass in session init."
-            )
+        if self.access_key == self.default_key and self.secret_key == self.default_secret:
+            print("Using built-in ClearML default key/secret")
 
         host = host or self.get_api_server_host(config=self.config)
         if not host:
@@ -163,6 +177,7 @@ class Session(TokenManager):
                 api_version = '2.2' if token_dict.get('env', '') == 'prod' else Session.api_version
 
             Session.api_version = str(api_version)
+            Session.feature_set = str(token_dict.get('feature_set', self.feature_set) or "basic")
         except (jwt.DecodeError, ValueError):
             pass
 
@@ -243,6 +258,14 @@ class Session(TokenManager):
     def add_auth_headers(self, headers):
         headers[self._AUTHORIZATION_HEADER] = "Bearer {}".format(self.token)
         return headers
+
+    def _set_auth_token(self, auth_token):
+        self.__access_key = self.__secret_key = None
+        self.__auth_token = auth_token
+
+    def set_auth_token(self, auth_token):
+        self._set_auth_token(auth_token)
+        self.refresh_token()
 
     def send_request(
         self,
@@ -441,8 +464,11 @@ class Session(TokenManager):
         if not config:
             return None
 
-        return ENV_HOST.get(default=(config.get("api.api_server", None) or
-                                     config.get("api.host", None) or cls.default_host))
+        default = config.get("api.api_server", None) or config.get("api.host", None)
+        if not ENV_NO_DEFAULT_SERVER.get():
+            default = default or cls.default_host
+
+        return ENV_HOST.get(default=default)
 
     @classmethod
     def get_app_server_host(cls, config=None):
@@ -522,7 +548,13 @@ class Session(TokenManager):
                 )
             )
 
-        auth = HTTPBasicAuth(self.access_key, self.secret_key)
+        headers = None
+        # use token only once (the second time the token is already built into the http session)
+        if self.__auth_token:
+            headers = dict(Authorization="Bearer {}".format(self.__auth_token))
+            self.__auth_token = None
+
+        auth = HTTPBasicAuth(self.access_key, self.secret_key) if self.access_key and self.secret_key else None
         res = None
         try:
             data = {"expiration_sec": exp} if exp else {}
@@ -531,6 +563,7 @@ class Session(TokenManager):
                 action="login",
                 auth=auth,
                 json=data,
+                headers=headers,
                 refresh_token_if_unauthorized=False,
             )
             try:

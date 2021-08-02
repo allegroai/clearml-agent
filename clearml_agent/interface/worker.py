@@ -83,6 +83,12 @@ DAEMON_ARGS = dict({
         'type': int,
         'default': None,
     },
+    '--child-report-tags': {
+        'help': 'List of tags to send with the status reports from the worker that runs a task',
+        'nargs': '+',
+        'type': str,
+        'default': None,
+    },
     '--create-queue': {
         'help': 'Create requested queue if it does not exist already.',
         'action': 'store_true',
@@ -121,6 +127,10 @@ DAEMON_ARGS = dict({
         'help': 'Print the worker\'s schedule (uptime properties, server\'s runtime properties and listening queues)',
         'action': 'store_true',
     },
+    '--use-owner-token': {
+        'help': 'Generate and use task owner token for the execution of the task',
+        'action': 'store_true',
+    }
 }, **WORKER_ARGS)
 
 COMMANDS = {

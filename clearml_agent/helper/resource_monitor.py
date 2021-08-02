@@ -2,6 +2,7 @@ from __future__ import unicode_literals, division
 
 import logging
 import os
+import shlex
 from collections import deque
 from itertools import starmap
 from threading import Thread, Event
@@ -12,6 +13,7 @@ import attr
 import psutil
 from pathlib2 import Path
 from clearml_agent.session import Session
+from clearml_agent.definitions import ENV_WORKER_TAGS
 
 try:
     from .gpu import gpustat
@@ -59,6 +61,7 @@ class ResourceMonitor(object):
         sample_frequency_per_sec=2.0,
         report_frequency_sec=30.0,
         first_report_sec=None,
+        worker_tags=None,
     ):
         self.session = session
         self.queue = deque(maxlen=1)
@@ -76,6 +79,9 @@ class ResourceMonitor(object):
         self._gpustat_fail = 0
         self._gpustat = gpustat
         self._active_gpus = None
+        if not worker_tags and ENV_WORKER_TAGS.get():
+            worker_tags = shlex.split(ENV_WORKER_TAGS.get())
+        self._worker_tags = worker_tags
         if os.environ.get('NVIDIA_VISIBLE_DEVICES') == 'none':
             # NVIDIA_VISIBLE_DEVICES set to none, marks cpu_only flag
             # active_gpus == False means no GPU reporting
@@ -118,6 +124,7 @@ class ResourceMonitor(object):
             machine_stats=stats,
             timestamp=(int(time()) * 1000),
             worker=self._worker_id,
+            tags=self._worker_tags,
             **self.get_report().to_dict()
         )
         log.debug("sending report: %s", report)

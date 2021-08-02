@@ -21,14 +21,16 @@ class Events(ServiceCommandSection):
         """ Events command service endpoint """
         return 'events'
 
-    def send_events(self, list_events):
+    def send_events(self, list_events, session=None):
         def send_packet(jsonlines):
             if not jsonlines:
                 return 0
             num_lines = len(jsonlines)
             jsonlines = '\n'.join(jsonlines)
 
-            new_events = self.post('add_batch', data=jsonlines, headers={'Content-type': 'application/json-lines'})
+            new_events = self.post(
+                'add_batch', data=jsonlines, headers={'Content-type': 'application/json-lines'}, session=session
+            )
             if new_events['added'] != num_lines:
                 print('Error (%s) sending events only %d of %d registered' %
                       (new_events['errors'], new_events['added'], num_lines))
@@ -57,7 +59,7 @@ class Events(ServiceCommandSection):
         # print('Sending events done: %d / %d events sent' % (sent_events, len(list_events)))
         return sent_events
 
-    def send_log_events(self, worker_id, task_id, lines, level='DEBUG'):
+    def send_log_events(self, worker_id, task_id, lines, level='DEBUG', session=None):
         log_events = []
         base_timestamp = int(time.time() * 1000)
         base_log_items = {
@@ -94,4 +96,4 @@ class Events(ServiceCommandSection):
             log_events.append(get_event(count))
 
         # now send the events
-        return self.send_events(list_events=log_events)
+        return self.send_events(list_events=log_events, session=session)
