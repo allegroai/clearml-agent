@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: k8s-glue
+spec:
+  containers:
+    - name: k8s-glue-container
+      image: allegroai/clearml-agent-k8s:test
+      imagePullPolicy: Always
+      command: [
+          "/bin/bash",
+          "-c",
+          "echo \"api.credentials.access_key: $CLEARML_API_ACCESS_KEY\" >> ~/clearml.conf \
+             && echo \"api.credentials.secret_key: $CLEARML_API_SECRET_KEY\" >> ~/clearml.conf \
+             && echo \"api.api_server: $CLEARML_API_HOST\" >> ~/clearml.conf \
+             && echo \"api.web_server: $CLEARML_WEB_HOST\" >> ~/clearml.conf \
+             && echo \"api.files_server: $CLEARML_FILES_HOST\" >> ~/clearml.conf \
+             && source /root/.bashrc \
+             && export PATH=$PATH:$HOME/bin \
+             && /root/entrypoint.sh
+          "
+      ]
+      volumeMounts:
+        - name: pod-template
+          mountPath: /root/template
+      env:
+        - name: CLEARML_API_HOST
+          value: ""
+        - name: CLEARML_WEB_HOST
+          value: ""
+        - name: CLEARML_FILES_HOST
+          value: ""
+#        - name: K8S_GLUE_MAX_PODS
+#          value: "2"
+        - name: K8S_GLUE_QUEUE
+          value: "k8s-glue"
+        - name: K8S_GLUE_EXTRA_ARGS
+          value: "--template-yaml /root/template/pod_template.yml"
+        - name: CLEARML_API_ACCESS_KEY
+          value: ""
+        - name: CLEARML_API_SECRET_KEY
+          value: ""
+        - name: CLEARML_WORKER_ID
+          value: "k8s-glue-agent" 
+        - name: CLEARML_AGENT_UPDATE_REPO
+          value: ""
+        - name: FORCE_CLEARML_AGENT_REPO
+          value: ""
+        - name: CLEARML_DOCKER_IMAGE
+          value: "ubuntu:18.04"
+  volumes:
+    - name: pod-template
+      secret:
+        secretName: k8s-glue-pod-template
