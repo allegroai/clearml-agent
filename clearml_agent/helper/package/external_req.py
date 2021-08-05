@@ -139,7 +139,8 @@ class ExternalRequirements(SimpleSubstitution):
         try:
             if not req.name and req.req and not req.req.editable and not req.req.vcs and \
                     req.req.line and req.req.line.strip().split('#')[0] and \
-                    not req.req.line.strip().split('#')[0].lower().endswith('.whl'):
+                    not req.req.line.strip().split('#')[0].lower().endswith('.whl') and \
+                    not (req.req.line.strip().startswith('-r ') or req.req.line.strip().startswith('--requirement ')):
                 return True
         except Exception:
             pass

@@ -241,6 +241,9 @@ class PackageManager(object):
                                  if p.strip(strip_chars) and not p.strip(strip_chars).startswith('#')])
             if not pip_reqs and not conda_reqs:
                 continue
+            # do not process "-r" or "--requirement" because we cannot know what we have in the git repo.
+            if any(r.strip().startswith('-r ') or r.strip().startswith('--requirement ') for r in pip_reqs):
+                continue
             hash_text = '{class_type}\n{docker_cmd}\n{cuda_ver}\n{python_version}\n{pip_reqs}\n{conda_reqs}'.format(
                 class_type=str(cls),
                 docker_cmd=str(docker_cmd or ''),

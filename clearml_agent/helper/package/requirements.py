@@ -469,16 +469,17 @@ class RequirementsManager(object):
 
     def replace(self, requirements):  # type: (Text) -> Text
         def safe_parse(req_str):
+            # noinspection PyBroadException
             try:
-                return next(parse(req_str, cwd=self._cwd))
+                return list(parse(req_str, cwd=self._cwd))
             except Exception as ex:
-                return Requirement(req_str)
+                return [Requirement(req_str)]
 
         parsed_requirements = tuple(
             map(
                 MarkerRequirement,
-                [safe_parse(line) for line in (requirements.splitlines()
-                                               if isinstance(requirements, six.text_type) else requirements)]
+                [r for line in (requirements.splitlines() if isinstance(requirements, six.text_type) else requirements)
+                 for r in safe_parse(line)]
             )
         )
         if not parsed_requirements:
