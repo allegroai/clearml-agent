@@ -3,26 +3,21 @@ kind: Pod
 metadata:
   name: k8s-glue
 spec:
+  serviceAccountName: ""
   containers:
     - name: k8s-glue-container
-      image: allegroai/clearml-agent-k8s:test
+      image: allegroai/clearml-agent-k8s:gcp-latest-1.21
       imagePullPolicy: Always
       command: [
           "/bin/bash",
           "-c",
-          "echo \"api.credentials.access_key: $CLEARML_API_ACCESS_KEY\" >> ~/clearml.conf \
-             && echo \"api.credentials.secret_key: $CLEARML_API_SECRET_KEY\" >> ~/clearml.conf \
-             && echo \"api.api_server: $CLEARML_API_HOST\" >> ~/clearml.conf \
-             && echo \"api.web_server: $CLEARML_WEB_HOST\" >> ~/clearml.conf \
-             && echo \"api.files_server: $CLEARML_FILES_HOST\" >> ~/clearml.conf \
-             && source /root/.bashrc \
-             && export PATH=$PATH:$HOME/bin \
-             && /root/entrypoint.sh
-          "
+          "source /root/.bashrc && /root/entrypoint.sh"
       ]
       volumeMounts:
         - name: pod-template
           mountPath: /root/template
+        - name: service-acc-key
+          mountPath: /root/keys
       env:
         - name: CLEARML_API_HOST
           value: ""
@@ -41,14 +36,23 @@ spec:
         - name: CLEARML_API_SECRET_KEY
           value: ""
         - name: CLEARML_WORKER_ID
-          value: "k8s-glue-agent" 
+          value: "k8s-glue-agent"
         - name: CLEARML_AGENT_UPDATE_REPO
           value: ""
         - name: FORCE_CLEARML_AGENT_REPO
           value: ""
         - name: CLEARML_DOCKER_IMAGE
           value: "ubuntu:18.04"
+        - name: CLEARML_SERVICE_ACC
+          value: ""
+        - name: SERVICE_ACC_KEY_JSON
+          value: service-account-key.json
+        - name: CLUSTER_CRED
+          value: ""
   volumes:
     - name: pod-template
       secret:
         secretName: k8s-glue-pod-template
+    - name: service-acc-key
+      secret:
+        secretName: k8s-glue-service-acc-key

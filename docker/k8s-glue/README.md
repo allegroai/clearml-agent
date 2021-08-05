@@ -12,4 +12,3 @@ To run, you'll need to:
   ```bash
   kubectl -n clearml apply -f k8s-glue.yml
   ```
-  

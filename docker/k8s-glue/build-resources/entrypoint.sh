@@ -24,4 +24,13 @@ QUEUE=${K8S_GLUE_QUEUE:-k8s_glue}
 MAX_PODS=${K8S_GLUE_MAX_PODS:-2}
 EXTRA_ARGS=${K8S_GLUE_EXTRA_ARGS:-}
 
+# shellcheck disable=SC2129
+echo "api.credentials.access_key: ${CLEARML_API_ACCESS_KEY}" >> ~/clearml.conf
+echo "api.credentials.secret_key: ${CLEARML_API_SECRET_KEY}" >> ~/clearml.conf
+echo "api.api_server: ${CLEARML_API_HOST}" >> ~/clearml.conf
+echo "api.web_server: ${CLEARML_WEB_HOST}" >> ~/clearml.conf
+echo "api.files_server: ${CLEARML_FILES_HOST}" >> ~/clearml.conf
+
+./provider_entrypoint.sh
+
 python3 k8s_glue_example.py --queue ${QUEUE} --max-pods ${MAX_PODS} ${EXTRA_ARGS}
