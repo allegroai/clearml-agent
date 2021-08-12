@@ -5,10 +5,12 @@ import json
 import logging
 import os
 import os.path
+import random
 import re
 import shlex
 import shutil
 import signal
+import string
 import subprocess
 import sys
 import traceback
@@ -123,6 +125,9 @@ from .events import Events
 
 DOCKER_ROOT_CONF_FILE = "/root/clearml.conf"
 DOCKER_DEFAULT_CONF_FILE = "/root/default_clearml.conf"
+
+
+sys_random = random.SystemRandom()
 
 
 @attr.s
@@ -687,6 +692,23 @@ class Worker(ServiceCommandSection):
             if self._services_mode:
                 # if this is services mode, give the docker a unique worker id, as it will register itself.
                 docker_params["worker_id"] = worker_id
+
+            name_format = self._session.config.get('agent.docker_container_name_format', None)
+            if name_format:
+                try:
+                    name = name_format.format(
+                        task_id=re.sub(r'[^a-zA-Z0-9._-]', '-', task_id),
+                        worker_id=re.sub(r'[^a-zA-Z0-9._-]', '-', worker_id),
+                        rand_string="".join(sys_random.choice(string.ascii_lowercase) for _ in range(32))
+                    )
+                except Exception as ex:
+                    print("Warning: failed generating docker container name: {}".format(ex))
+                else:
+                    if self._valid_docker_container_name(name):
+                        docker_params["name"] = name
+                    else:
+                        print("Warning: generated docker container name is invalid: {}".format(name))
+
             full_docker_cmd = self.docker_image_func(**docker_params)
 
             # if we are using the default docker, update back the Task:
@@ -3119,6 +3141,7 @@ class Worker(ServiceCommandSection):
             docker_bash_setup_script=None,
             auth_token=None,
             worker_tags=None,
+            name=None,
     ):
         docker = 'docker'
 
@@ -3294,6 +3317,7 @@ class Worker(ServiceCommandSection):
                 ' ; '
 
         base_cmd += (
+            (['--name', name] if name else []) +
             ['-v', conf_file+':'+DOCKER_ROOT_CONF_FILE] +
             (['-v', host_ssh_cache+':/root/.ssh'] if host_ssh_cache else []) +
             (['-v', host_apt_cache+':/var/cache/apt/archives'] if host_apt_cache else []) +
@@ -3499,6 +3523,11 @@ class Worker(ServiceCommandSection):
                 pass
 
         return result
+
+    @staticmethod
+    def _valid_docker_container_name(name):
+        # type: (str) -> bool
+        return re.fullmatch(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]+$", name) is not None
 
 
 if __name__ == "__main__":
