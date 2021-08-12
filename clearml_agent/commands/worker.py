@@ -178,12 +178,12 @@ class LiteralScriptManager(object):
             if os.path.exists(full_path):
                 return entry_point
 
-            with open(full_path, "wt") as f:
+            with open(full_path, "wt", encoding='utf-8') as f:
                 f.write(task.script.diff)
                 return full_path
 
         with named_temporary_file(
-            delete=False, prefix="script_", suffix=".py", dir=Text(directory), mode="wt"
+            delete=False, prefix="script_", suffix=".py", dir=Text(directory), mode="wt", encoding='utf-8'
         ) as f:
             f.write(task.script.diff)
             return f.name
@@ -1255,9 +1255,9 @@ class Worker(ServiceCommandSection):
         self._impersonate_as_task_owner = kwargs.get('use_owner_token', False)
         if self._impersonate_as_task_owner:
             if not self._session.check_min_api_version("2.14"):
-                raise ValueError("Apiserver does not support --use-owner-token option. The apiserver version is too low")
+                raise ValueError("Server does not support --use-owner-token option (incompatible API version)")
             if self._session.feature_set == "basic":
-                raise ValueError("Apiserver does not support --use-owner-token option")
+                raise ValueError("Server does not support --use-owner-token option")
         self._standalone_mode = kwargs.get('standalone_mode', False)
         self._services_mode = kwargs.get('services_mode', False)
         # must have docker in services_mode
@@ -2192,6 +2192,10 @@ class Worker(ServiceCommandSection):
             status_message=self._task_status_change_message,
             force=True,
         )
+
+        # check if we need to add encoding to the subprocess
+        if sys.getfilesystemencoding() == 'ascii':
+            os.environ["PYTHONIOENCODING"] = "utf-8"
 
         print("Starting Task Execution:\n".format(current_task.id))
         exit_code = -1
