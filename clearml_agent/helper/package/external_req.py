@@ -64,10 +64,19 @@ class ExternalRequirements(SimpleSubstitution):
                     vcs_url = req_line[4:]
                     # reverse replace
                     vcs_url = vcs_url[::-1].replace(fragment[::-1], '', 1)[::-1]
+                    # remove ssh:// or git:// prefix for git detection and credentials
+                    scheme = ''
+                    if vcs_url and (vcs_url.startswith('ssh://') or vcs_url.startswith('git://')):
+                        scheme = 'ssh://'  # notice git:// is actually ssh://
+                        vcs_url = vcs_url[6:]
+
                     from ..repo import Git
                     vcs = Git(session=session, url=vcs_url, location=None, revision=None)
                     vcs._set_ssh_url()
-                    new_req_line = 'git+{}{}'.format(vcs.url_with_auth, fragment)
+                    new_req_line = 'git+{}{}{}'.format(
+                        '' if scheme and '://' in vcs.url else scheme,
+                        vcs.url_with_auth, fragment
+                    )
                     if new_req_line != req_line:
                         furl_line = furl(new_req_line)
                         print('Replacing original pip vcs \'{}\' with \'{}\''.format(
