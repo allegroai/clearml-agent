@@ -145,7 +145,12 @@ class Session(TokenManager):
 
         host = host or self.get_api_server_host(config=self.config)
         if not host:
-            raise ValueError("host is required in init or config")
+            raise ValueError(
+                "Could not find host server definition "
+                "(missing `~/clearml.conf` or Environment CLEARML_API_HOST)\n"
+                "To get started with ClearML: setup your own `clearml-server`, "
+                "or create a free account at https://app.community.clear.ml and run `clearml-agent init`"
+            )
 
         self.__host = host.strip("/")
         http_retries_config = http_retries_config or self.config.get(
