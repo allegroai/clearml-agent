@@ -3016,11 +3016,19 @@ class Worker(ServiceCommandSection):
         host_pip_cache = Path(os.path.expandvars(self._session.config.get(
             "agent.docker_pip_cache", '~/.clearml/pip-cache'))).expanduser().as_posix()
 
+        if self.poetry.enabled:
+            host_poetry_cache = Path(os.path.expandvars(self._session.config.get(
+                "agent.docker_poetry_cache", '~/.clearml/poetry-cache'))).expanduser().as_posix()
+        else:
+            host_poetry_cache = None
+
         # make sure all folders are valid
         if host_apt_cache:
             Path(host_apt_cache).mkdir(parents=True, exist_ok=True)
         if host_pip_cache:
             Path(host_pip_cache).mkdir(parents=True, exist_ok=True)
+        if host_poetry_cache:
+            Path(host_poetry_cache).mkdir(parents=True, exist_ok=True)
         if host_cache:
             Path(host_cache).mkdir(parents=True, exist_ok=True)
         if host_pip_dl:
@@ -3086,6 +3094,7 @@ class Worker(ServiceCommandSection):
             conf_file=self.temp_config_path,
             host_apt_cache=host_apt_cache,
             host_pip_cache=host_pip_cache,
+            host_poetry_cache=host_poetry_cache,
             host_ssh_cache=host_ssh_cache, host_git_credentials=host_git_credentials,
             host_cache=host_cache, mounted_cache=mounted_cache_dir,
             host_pip_dl=host_pip_dl, mounted_pip_dl=mounted_pip_dl_dir,
@@ -3132,6 +3141,7 @@ class Worker(ServiceCommandSection):
             conf_file,
             host_apt_cache,
             host_pip_cache,
+            host_poetry_cache,
             host_ssh_cache,
             host_cache, mounted_cache,
             host_pip_dl, mounted_pip_dl,
@@ -3203,7 +3213,8 @@ class Worker(ServiceCommandSection):
             # expect CLEARML_AGENT_K8S_HOST_MOUNT = '/mnt/host/data:/root/.clearml'
             k8s_node_mnt, _, k8s_pod_mnt = ENV_DOCKER_HOST_MOUNT.get().partition(':')
             # search and replace all the host folders with the k8s
-            host_mounts = [host_apt_cache, host_pip_cache, host_pip_dl, host_cache, host_vcs_cache, host_venvs_cache]
+            host_mounts = [host_apt_cache, host_pip_cache, host_poetry_cache, host_pip_dl,
+                           host_cache, host_vcs_cache, host_venvs_cache]
             for i, m in enumerate(host_mounts):
                 if not m:
                     continue
@@ -3212,7 +3223,8 @@ class Worker(ServiceCommandSection):
                     host_mounts[i] = None
                 else:
                     host_mounts[i] = m.replace(k8s_pod_mnt, k8s_node_mnt, 1)
-            host_apt_cache, host_pip_cache, host_pip_dl, host_cache, host_vcs_cache, host_venvs_cache = host_mounts
+            host_apt_cache, host_pip_cache, host_poetry_cache, host_pip_dl, \
+                host_cache, host_vcs_cache, host_venvs_cache = host_mounts
 
             # copy the configuration file into the mounted folder
             new_conf_file = os.path.join(k8s_pod_mnt, '.clearml_agent.{}.cfg'.format(quote(worker_id, safe="")))
@@ -3326,6 +3338,7 @@ class Worker(ServiceCommandSection):
             (['-v', host_ssh_cache+':/root/.ssh'] if host_ssh_cache else []) +
             (['-v', host_apt_cache+':/var/cache/apt/archives'] if host_apt_cache else []) +
             (['-v', host_pip_cache+':/root/.cache/pip'] if host_pip_cache else []) +
+            (['-v', host_poetry_cache + ':/root/.cache/pypoetry'] if host_poetry_cache else []) +
             (['-v', host_pip_dl+':'+mounted_pip_dl] if host_pip_dl else []) +
             (['-v', host_cache+':'+mounted_cache] if host_cache else []) +
             (['-v', host_vcs_cache+':'+mounted_vcs_cache] if host_vcs_cache else []) +
