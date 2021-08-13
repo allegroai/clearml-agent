@@ -51,40 +51,7 @@ class ExternalRequirements(SimpleSubstitution):
             except:
                 freeze_base = ''
 
-            req_line = req.tostr(markers=False)
-            if req_line.strip().startswith('-e ') or req_line.strip().startswith('--editable'):
-                req_line = re.sub(r'^(-e|--editable=?)\s*', '', req_line, count=1)
-
-            if req.req.vcs and req_line.startswith('git+'):
-                try:
-                    url_no_frag = furl(req_line)
-                    url_no_frag.set(fragment=None)
-                    # reverse replace
-                    fragment = req_line[::-1].replace(url_no_frag.url[::-1], '', 1)[::-1]
-                    vcs_url = req_line[4:]
-                    # reverse replace
-                    vcs_url = vcs_url[::-1].replace(fragment[::-1], '', 1)[::-1]
-                    # remove ssh:// or git:// prefix for git detection and credentials
-                    scheme = ''
-                    if vcs_url and (vcs_url.startswith('ssh://') or vcs_url.startswith('git://')):
-                        scheme = 'ssh://'  # notice git:// is actually ssh://
-                        vcs_url = vcs_url[6:]
-
-                    from ..repo import Git
-                    vcs = Git(session=session, url=vcs_url, location=None, revision=None)
-                    vcs._set_ssh_url()
-                    new_req_line = 'git+{}{}{}'.format(
-                        '' if scheme and '://' in vcs.url else scheme,
-                        vcs.url_with_auth, fragment
-                    )
-                    if new_req_line != req_line:
-                        furl_line = furl(new_req_line)
-                        print('Replacing original pip vcs \'{}\' with \'{}\''.format(
-                            req_line,
-                            furl_line.set(password='xxxxxx').tostr() if furl_line.password else new_req_line))
-                        req_line = new_req_line
-                except Exception:
-                    print('WARNING: Failed parsing pip git install, using original line {}'.format(req_line))
+            req_line = self._add_vcs_credentials(req, session)
 
             # if we have older pip version we have to make sure we replace back the package name with the
             # git repository link. In new versions this is supported and we get "package @ git+https://..."
@@ -103,6 +70,43 @@ class ExternalRequirements(SimpleSubstitution):
             # and make sure the required packages are installed (if they are not it will install them)
             if not PackageManager.out_of_scope_install_package(req_line):
                 raise ValueError("Failed installing GIT/HTTPs package \'{}\'".format(req_line))
+
+    @staticmethod
+    def _add_vcs_credentials(req, session):
+        req_line = req.tostr(markers=False)
+        if req_line.strip().startswith('-e ') or req_line.strip().startswith('--editable'):
+            req_line = re.sub(r'^(-e|--editable=?)\s*', '', req_line, count=1)
+        if req.req.vcs and req_line.startswith('git+'):
+            try:
+                url_no_frag = furl(req_line)
+                url_no_frag.set(fragment=None)
+                # reverse replace
+                fragment = req_line[::-1].replace(url_no_frag.url[::-1], '', 1)[::-1]
+                vcs_url = req_line[4:]
+                # reverse replace
+                vcs_url = vcs_url[::-1].replace(fragment[::-1], '', 1)[::-1]
+                # remove ssh:// or git:// prefix for git detection and credentials
+                scheme = ''
+                if vcs_url and (vcs_url.startswith('ssh://') or vcs_url.startswith('git://')):
+                    scheme = 'ssh://'  # notice git:// is actually ssh://
+                    vcs_url = vcs_url[6:]
+
+                from ..repo import Git
+                vcs = Git(session=session, url=vcs_url, location=None, revision=None)
+                vcs._set_ssh_url()
+                new_req_line = 'git+{}{}{}'.format(
+                    '' if scheme and '://' in vcs.url else scheme,
+                    vcs.url_with_auth, fragment
+                )
+                if new_req_line != req_line:
+                    furl_line = furl(new_req_line)
+                    print('Replacing original pip vcs \'{}\' with \'{}\''.format(
+                        req_line,
+                        furl_line.set(password='xxxxxx').tostr() if furl_line.password else new_req_line))
+                    req_line = new_req_line
+            except Exception:
+                print('WARNING: Failed parsing pip git install, using original line {}'.format(req_line))
+        return req_line
 
     def replace(self, req):
         """
@@ -161,7 +165,7 @@ class OnlyExternalRequirements(ExternalRequirements):
         super(OnlyExternalRequirements, self).__init__(*args, **kwargs)
 
     def match(self, req):
-        return not super(OnlyExternalRequirements, self).match(req)
+        return True
 
     def replace(self, req):
         """
@@ -170,4 +174,6 @@ class OnlyExternalRequirements(ExternalRequirements):
         """
         # Do not store the skipped requirements
         # mark skip package
+        if super(OnlyExternalRequirements, self).match(req):
+            return self._add_vcs_credentials(req, self._session)
         return Text('')
