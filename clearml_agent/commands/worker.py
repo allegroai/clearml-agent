@@ -2194,7 +2194,7 @@ class Worker(ServiceCommandSection):
         )
 
         # check if we need to add encoding to the subprocess
-        if sys.getfilesystemencoding() == 'ascii':
+        if sys.getfilesystemencoding() == 'ascii' and not os.environ.get("PYTHONIOENCODING"):
             os.environ["PYTHONIOENCODING"] = "utf-8"
 
         print("Starting Task Execution:\n".format(current_task.id))
