@@ -2959,10 +2959,14 @@ class Worker(ServiceCommandSection):
             '*standalone*' if self._standalone_mode else '', self._docker_image, self._docker_arguments or ''))
 
         temp_config = deepcopy(self._session.config)
-        mounted_cache_dir = self._docker_fixed_user_cache  # '/root/.clearml/cache'
-        mounted_pip_dl_dir = '/root/.clearml/pip-download-cache'
-        mounted_vcs_cache = '/root/.clearml/vcs-cache'
-        mounted_venv_dir = '/root/.clearml/venvs-builds'
+        mounted_cache_dir = temp_config.get(
+            "agent.docker_internal_mounts.sdk_cache", self._docker_fixed_user_cache)
+        mounted_pip_dl_dir = temp_config.get(
+            "agent.docker_internal_mounts.pip_download", '/root/.clearml/pip-download-cache')
+        mounted_vcs_cache = temp_config.get(
+            "agent.docker_internal_mounts.vcs_cache", '/root/.clearml/vcs-cache')
+        mounted_venv_dir = temp_config.get(
+            "agent.docker_internal_mounts.venv_build", '/root/.clearml/venvs-builds')
         temp_config.put("sdk.storage.cache.default_base_dir", mounted_cache_dir)
         temp_config.put("agent.pip_download_cache.path", mounted_pip_dl_dir)
         temp_config.put("agent.vcs_cache.path", mounted_vcs_cache)
@@ -3078,6 +3082,10 @@ class Worker(ServiceCommandSection):
         mounted_pip_dl_dir = temp_config.get("agent.pip_download_cache.path")
         mounted_vcs_cache = temp_config.get("agent.vcs_cache.path")
         mounted_venvs_cache = temp_config.get("agent.venvs_cache.path", "")
+        mount_ssh = temp_config.get("agent.docker_internal_mounts.ssh_folder", None)
+        mount_apt_cache = temp_config.get("agent.docker_internal_mounts.apt_cache", None)
+        mount_pip_cache = temp_config.get("agent.docker_internal_mounts.pip_cache", None)
+        mount_poetry_cache = temp_config.get("agent.docker_internal_mounts.poetry_cache", None)
 
         # Make sure we have created the configuration file for the executor
         if not self.dump_config(self.temp_config_path, config=temp_config, clean_api_credentials=clean_api_credentials):
@@ -3105,6 +3113,10 @@ class Worker(ServiceCommandSection):
             bash_script=bash_script,
             preprocess_bash_script=preprocess_bash_script,
             install_opencv_libs=install_opencv_libs,
+            mount_ssh=mount_ssh,
+            mount_apt_cache=mount_apt_cache,
+            mount_pip_cache=mount_pip_cache,
+            mount_poetry_cache=mount_poetry_cache,
         )
 
         docker_cmd.update(kwargs)
@@ -3156,6 +3168,7 @@ class Worker(ServiceCommandSection):
             auth_token=None,
             worker_tags=None,
             name=None,
+            mount_ssh=None, mount_apt_cache=None, mount_pip_cache=None, mount_poetry_cache=None,
     ):
         docker = 'docker'
 
@@ -3332,13 +3345,18 @@ class Worker(ServiceCommandSection):
                            for line in docker_bash_setup_script.split('\n') if line.strip()) + \
                 ' ; '
 
+        mount_ssh = mount_ssh or '/root/.ssh'
+        mount_apt_cache = mount_apt_cache or '/var/cache/apt/archives'
+        mount_pip_cache = mount_pip_cache or '/root/.cache/pip'
+        mount_poetry_cache = mount_poetry_cache or '/root/.cache/pypoetry'
+
         base_cmd += (
             (['--name', name] if name else []) +
             ['-v', conf_file+':'+DOCKER_ROOT_CONF_FILE] +
-            (['-v', host_ssh_cache+':/root/.ssh'] if host_ssh_cache else []) +
-            (['-v', host_apt_cache+':/var/cache/apt/archives'] if host_apt_cache else []) +
-            (['-v', host_pip_cache+':/root/.cache/pip'] if host_pip_cache else []) +
-            (['-v', host_poetry_cache + ':/root/.cache/pypoetry'] if host_poetry_cache else []) +
+            (['-v', host_ssh_cache+':'+mount_ssh] if host_ssh_cache else []) +
+            (['-v', host_apt_cache+':'+mount_apt_cache] if host_apt_cache else []) +
+            (['-v', host_pip_cache+':'+mount_pip_cache] if host_pip_cache else []) +
+            (['-v', host_poetry_cache + ':'+mount_poetry_cache] if host_poetry_cache else []) +
             (['-v', host_pip_dl+':'+mounted_pip_dl] if host_pip_dl else []) +
             (['-v', host_cache+':'+mounted_cache] if host_cache else []) +
             (['-v', host_vcs_cache+':'+mounted_vcs_cache] if host_vcs_cache else []) +
