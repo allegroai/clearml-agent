@@ -673,7 +673,7 @@ class Worker(ServiceCommandSection):
                 lines=
                 ['Running Task {} inside {}docker: {} arguments: {}\n'.format(
                     task_id, "default " if default_docker else '',
-                    docker_image, docker_arguments or [])]
+                    docker_image, self._sanitize_docker_command(docker_arguments or []))]
                 + (['custom_setup_bash_script:\n{}'.format(docker_setup_script)] if docker_setup_script else []),
                 level="INFO",
                 session=task_session,
@@ -1434,7 +1434,7 @@ class Worker(ServiceCommandSection):
 
         queue_names = [q.name for q in queues]
         if not all('=' in q for q in queue_names):
-            raise ValueError("using --dynamic-gpus, --queue [{}], "
+            raise ValueError("using --dynamic-gpus, --queues [{}], "
                              "queue must be in format <queue_name>=<num_gpus>".format(queue_names))
 
         gpu_indexes = kwargs.get('gpus')
@@ -1938,7 +1938,6 @@ class Worker(ServiceCommandSection):
         clone=False,
         **_
     ):
-
         self._standalone_mode = standalone_mode
 
         if not task_id:
@@ -2292,8 +2291,13 @@ class Worker(ServiceCommandSection):
                     execution.working_dir
                 )
             )
+
         print("Executing task id [%s]:" % current_task.id)
-        for pair in attr.asdict(execution).items():
+        sanitized_execution = attr.evolve(
+            execution,
+            docker_cmd=" ".join(self._sanitize_docker_command(shlex.split(execution.docker_cmd or ""))),
+        )
+        for pair in attr.asdict(sanitized_execution).items():
             print("{} = {}".format(*pair))
         print()
         return execution
@@ -2956,7 +2960,8 @@ class Worker(ServiceCommandSection):
         self._docker_arguments = docker_arguments
 
         print("Running in Docker {} mode (v19.03 and above) - using default docker image: {} {}\n".format(
-            '*standalone*' if self._standalone_mode else '', self._docker_image, self._docker_arguments or ''))
+            '*standalone*' if self._standalone_mode else '', self._docker_image,
+            self._sanitize_docker_command(self._docker_arguments) or ''))
 
         temp_config = deepcopy(self._session.config)
         mounted_cache_dir = temp_config.get(
@@ -3533,6 +3538,8 @@ class Worker(ServiceCommandSection):
 
     def _sanitize_docker_command(self, docker_command):
         # type: (List[str]) -> List[str]
+        if not docker_command:
+            return docker_command
         if not self._session.config.get('agent.hide_docker_command_env_vars.enabled', False):
             return docker_command
 
