@@ -1,8 +1,10 @@
 
 import json as json_lib
+import os
 import sys
 import types
 from socket import gethostname
+from typing import Optional
 
 import jwt
 import requests
@@ -13,7 +15,7 @@ from six.moves.urllib.parse import urlparse, urlunparse
 
 from .callresult import CallResult
 from .defs import ENV_VERBOSE, ENV_HOST, ENV_ACCESS_KEY, ENV_SECRET_KEY, ENV_WEB_HOST, ENV_FILES_HOST, ENV_AUTH_TOKEN, \
-    ENV_NO_DEFAULT_SERVER, ENV_DISABLE_VAULT_SUPPORT
+    ENV_NO_DEFAULT_SERVER, ENV_DISABLE_VAULT_SUPPORT, ENV_INITIAL_CONNECT_RETRY_OVERRIDE
 from .request import Request, BatchRequest
 from .token_manager import TokenManager
 from ..config import load
@@ -42,7 +44,7 @@ class Session(TokenManager):
     _session_requests = 0
     _session_initial_timeout = (3.0, 10.)
     _session_timeout = (10.0, 30.)
-    _session_initial_connect_retry = 4
+    _session_initial_retry_connect_override = 4
     _write_session_data_size = 15000
     _write_session_timeout = (30.0, 30.)
 
@@ -102,9 +104,7 @@ class Session(TokenManager):
             if initialize_logging:
                 self.config.initialize_logging(debug=kwargs.get('debug', False))
 
-        token_expiration_threshold_sec = self.config.get(
-            "auth.token_expiration_threshold_sec", 60
-        )
+        super(Session, self).__init__(config=config, **kwargs)
 
         self._verbose = verbose if verbose is not None else ENV_VERBOSE.get()
         self._logger = logger
@@ -113,10 +113,7 @@ class Session(TokenManager):
         if ENV_AUTH_TOKEN.get(
             value_cb=lambda key, value: print("Using environment access token {}=********".format(key))
         ):
-            self._set_auth_token(ENV_AUTH_TOKEN.get())
-            # if we use a token we override make sure we are at least 3600 seconds (1 hour)
-            # away from the token expiration date, ask for a new one.
-            token_expiration_threshold_sec = max(token_expiration_threshold_sec, 3600)
+            self.set_auth_token(ENV_AUTH_TOKEN.get())
         else:
             self.__access_key = api_key or ENV_ACCESS_KEY.get(
                 default=(self.config.get("api.credentials.access_key", None) or self.default_key),
@@ -136,10 +133,6 @@ class Session(TokenManager):
                     "Missing secret_key. Please set in configuration file or pass in session init."
                 )
 
-        super(Session, self).__init__(
-            token_expiration_threshold_sec=token_expiration_threshold_sec, **kwargs
-        )
-
         if self.access_key == self.default_key and self.secret_key == self.default_secret:
             print("Using built-in ClearML default key/secret")
 
@@ -153,10 +146,6 @@ class Session(TokenManager):
             )
 
         self.__host = host.strip("/")
-        http_retries_config = http_retries_config or self.config.get(
-            "api.http.retries", ConfigTree()
-        ).as_plain_ordered_dict()
-        http_retries_config["status_forcelist"] = self._retry_codes
 
         self.__worker = worker or gethostname()
 
@@ -167,13 +156,15 @@ class Session(TokenManager):
         self.client = client or "api-{}".format(__version__)
 
         # limit the reconnect retries, so we get an error if we are starting the session
-        http_no_retries_config = dict(**http_retries_config)
-        http_no_retries_config['connect'] = self._session_initial_connect_retry
-        self.__http_session = get_http_session_with_retry(**http_no_retries_config)
+        _, self.__http_session = self._setup_session(
+            http_retries_config,
+            initial_session=True,
+            default_initial_connect_override=(False if kwargs.get("command") == "execute" else None)
+        )
         # try to connect with the server
         self.refresh_token()
         # create the default session with many retries
-        self.__http_session = get_http_session_with_retry(**http_retries_config)
+        http_retries_config, self.__http_session = self._setup_session(http_retries_config)
 
         # update api version from server response
         try:
@@ -193,6 +184,31 @@ class Session(TokenManager):
         urllib_log_warning_setup(total_retries=http_retries_config.get('total', 0), display_warning_after=3)
 
         self._load_vaults()
+
+    def _setup_session(self, http_retries_config, initial_session=False, default_initial_connect_override=None):
+        # type: (dict, bool, Optional[bool]) -> (dict, requests.Session)
+        http_retries_config = http_retries_config or self.config.get(
+            "api.http.retries", ConfigTree()
+        ).as_plain_ordered_dict()
+        http_retries_config["status_forcelist"] = self._retry_codes
+
+        if initial_session:
+            kwargs = {} if default_initial_connect_override is None else {
+                "default": default_initial_connect_override
+            }
+            if ENV_INITIAL_CONNECT_RETRY_OVERRIDE.get(**kwargs):
+                connect_retries = self._session_initial_retry_connect_override
+                try:
+                    value = ENV_INITIAL_CONNECT_RETRY_OVERRIDE.get(converter=str)
+                    if not isinstance(value, bool):
+                        connect_retries = abs(int(value))
+                except ValueError:
+                    pass
+
+                http_retries_config = dict(**http_retries_config)
+                http_retries_config['connect'] = connect_retries
+
+        return http_retries_config, get_http_session_with_retry(**http_retries_config)
 
     def _load_vaults(self):
         if not self.check_min_api_version("2.15") or self.feature_set == "basic":
@@ -299,13 +315,9 @@ class Session(TokenManager):
         headers[self._AUTHORIZATION_HEADER] = "Bearer {}".format(self.token)
         return headers
 
-    def _set_auth_token(self, auth_token):
-        self.__access_key = self.__secret_key = None
-        self.__auth_token = auth_token
-
     def set_auth_token(self, auth_token):
-        self._set_auth_token(auth_token)
-        self.refresh_token()
+        self.__access_key = self.__secret_key = None
+        self._set_token(auth_token)
 
     def send_request(
         self,
@@ -576,7 +588,7 @@ class Session(TokenManager):
             return v + (0,) * max(0, 3 - len(v))
         return version_tuple(cls.api_version) >= version_tuple(str(min_api_version))
 
-    def _do_refresh_token(self, old_token, exp=None):
+    def _do_refresh_token(self, current_token, exp=None):
         """ TokenManager abstract method implementation.
             Here we ignore the old token and simply obtain a new token.
         """
@@ -588,13 +600,13 @@ class Session(TokenManager):
                 )
             )
 
+        auth = None
         headers = None
-        # use token only once (the second time the token is already built into the http session)
-        if self.__auth_token:
-            headers = dict(Authorization="Bearer {}".format(self.__auth_token))
-            self.__auth_token = None
+        if self.access_key and self.secret_key:
+            auth = HTTPBasicAuth(self.access_key, self.secret_key)
+        elif current_token:
+            headers = dict(Authorization="Bearer {}".format(current_token))
 
-        auth = HTTPBasicAuth(self.access_key, self.secret_key) if self.access_key and self.secret_key else None
         res = None
         try:
             data = {"expiration_sec": exp} if exp else {}
@@ -619,7 +631,10 @@ class Session(TokenManager):
                 )
             if verbose:
                 self._logger.info("Received new token")
-            return resp["data"]["token"]
+            token = resp["data"]["token"]
+            if ENV_AUTH_TOKEN.get():
+                os.environ[ENV_AUTH_TOKEN.key] = token
+            return token
         except LoginError:
             six.reraise(*sys.exc_info())
         except KeyError as ex:
