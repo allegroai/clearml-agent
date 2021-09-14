@@ -1434,7 +1434,7 @@ class Worker(ServiceCommandSection):
 
         queue_names = [q.name for q in queues]
         if not all('=' in q for q in queue_names):
-            raise ValueError("using --dynamic-gpus, --queues [{}], "
+            raise ValueError("using --dynamic-gpus, --queue [{}], "
                              "queue must be in format <queue_name>=<num_gpus>".format(queue_names))
 
         gpu_indexes = kwargs.get('gpus')
