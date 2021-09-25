@@ -82,7 +82,7 @@ class Config(object):
         relative_to=None,
         app=None,
         is_server=False,
-        **_,
+        **_
     ):
         self._app = app
         self._verbose = verbose
@@ -214,7 +214,7 @@ class Config(object):
                     .lower()
                 )
                 result = ConfigTree.merge_configs(
-                    result, ConfigFactory.parse_string(f"{path}: {os.environ[key]}")
+                    result, ConfigFactory.parse_string("{}: {}".format(path, os.environ[key]))
                 )
 
         return result
