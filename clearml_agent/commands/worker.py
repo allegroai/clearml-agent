@@ -1278,14 +1278,14 @@ class Worker(ServiceCommandSection):
         if self._services_mode and dynamic_gpus:
             raise ValueError("Combining --dynamic-gpus and --services-mode is not supported")
 
-        # if we do not need to create queues, make sure they are valid
-        # match previous behaviour when we validated queue names before everything else
-        queues = self._resolve_queue_names(queues, create_if_missing=kwargs.get('create_queue', False))
-
         # We are not running a daemon we are killing one.
         # find the pid send termination signal and leave
         if kwargs.get('stop', False):
             return 1 if not self._kill_daemon(dynamic_gpus=dynamic_gpus) else 0
+
+        # if we do not need to create queues, make sure they are valid
+        # match previous behaviour when we validated queue names before everything else
+        queues = self._resolve_queue_names(queues, create_if_missing=kwargs.get('create_queue', False))
 
         queues_info = [
             q.to_dict()
