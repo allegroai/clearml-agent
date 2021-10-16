@@ -3519,8 +3519,13 @@ class Worker(ServiceCommandSection):
 
     def _resolve_queue_names(self, queues, create_if_missing=False):
         if not queues:
-            default_queue = self._session.send_api(queues_api.GetDefaultRequest())
-            return [default_queue.id]
+            # try to look for queues with "default" tag
+            try:
+                default_queue = self._session.send_api(queues_api.GetDefaultRequest())
+                return [default_queue.id]
+            except APIError:
+                # if we cannot find one with "default" tag, look for a queue named "default"
+                queues = ["default"]
 
         queues = return_list(queues)
         if not create_if_missing:
