@@ -37,7 +37,9 @@ from clearml_agent.backend_api.services import queues as queues_api
 from clearml_agent.backend_api.services import tasks as tasks_api
 from clearml_agent.backend_api.services import workers as workers_api
 from clearml_agent.backend_api.session import CallResult
+from clearml_agent.backend_api.session.defs import ENV_ENABLE_ENV_CONFIG_SECTION, ENV_ENABLE_FILES_CONFIG_SECTION
 from clearml_agent.backend_config.defs import UptimeConf
+from clearml_agent.backend_config.utils import apply_environment, apply_files
 from clearml_agent.commands.base import resolve_names, ServiceCommandSection
 from clearml_agent.definitions import (
     ENVIRONMENT_SDK_PARAMS,
@@ -60,6 +62,7 @@ from clearml_agent.definitions import (
     ENV_SSH_AUTH_SOCK,
     ENV_AGENT_SKIP_PIP_VENV_INSTALL,
     ENV_EXTRA_DOCKER_ARGS,
+
 )
 from clearml_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
 from clearml_agent.errors import APIError, CommandFailedError, Sigterm
@@ -1737,6 +1740,29 @@ class Worker(ServiceCommandSection):
             raise ValueError("Failed applying git diff:\n{}\n\n"
                              "ERROR! Failed applying git diff, see diff above.".format(diff))
 
+    def _apply_extra_configuration(self):
+        try:
+            self._session.load_vaults()
+        except Exception as ex:
+            print("Error: failed applying extra configuration: {}".format(ex))
+
+        config = self._session.config
+        default = config.get("agent.apply_environment", False)
+        if ENV_ENABLE_ENV_CONFIG_SECTION.get(default=default):
+            try:
+                keys = apply_environment(config)
+                if keys:
+                    print("Environment variables set from configuration: {}".format(keys))
+            except Exception as ex:
+                print("Error: failed applying environment from configuration: {}".format(ex))
+
+        default = config.get("agent.apply_files", default=False)
+        if ENV_ENABLE_FILES_CONFIG_SECTION.get(default=default):
+            try:
+                apply_files(config)
+            except Exception as ex:
+                print("Error: failed applying files from configuration: {}".format(ex))
+
     @resolve_names
     def build(
         self,
@@ -2016,6 +2042,8 @@ class Worker(ServiceCommandSection):
                     safe_remove_file(self._session.config_file)
                     Singleton.close_pid_file()
             return
+
+        self._apply_extra_configuration()
 
         self._session.print_configuration()
 
