@@ -2830,7 +2830,7 @@ class Worker(ServiceCommandSection):
         path itself can be passed in this variable)
         :return: virtualenv directory, requirements manager to use with task, True if there is a cached venv entry
         """
-        skip_pip_venv_install = ENV_AGENT_SKIP_PIP_VENV_INSTALL.get() if self._session.feature_set != "basic" else None
+        skip_pip_venv_install = ENV_AGENT_SKIP_PIP_VENV_INSTALL.get()
         if skip_pip_venv_install:
             try:
                 skip_pip_venv_install = bool(strtobool(skip_pip_venv_install))
