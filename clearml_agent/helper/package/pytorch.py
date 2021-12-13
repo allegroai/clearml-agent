@@ -263,6 +263,9 @@ class PytorchRequirement(SimpleSubstitution):
                 continue
             if len(parts) < 5 or platform_wheel not in parts[4]:
                 continue
+            # yes this is for linux python 2.7 support, this is the only python 2.7 we support...
+            if py_ver and py_ver[0] == '2' and len(parts) > 3 and not parts[3].endswith('u'):
+                continue
             # update the closest matched version (from above)
             if not closest_v:
                 closest_v = v

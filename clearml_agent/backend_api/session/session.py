@@ -183,8 +183,6 @@ class Session(TokenManager):
         # notice: this is across the board warning omission
         urllib_log_warning_setup(total_retries=http_retries_config.get('total', 0), display_warning_after=3)
 
-        self._load_vaults()
-
     def _setup_session(self, http_retries_config, initial_session=False, default_initial_connect_override=None):
         # type: (dict, bool, Optional[bool]) -> (dict, requests.Session)
         http_retries_config = http_retries_config or self.config.get(
@@ -210,7 +208,7 @@ class Session(TokenManager):
 
         return http_retries_config, get_http_session_with_retry(**http_retries_config)
 
-    def _load_vaults(self):
+    def load_vaults(self):
         if not self.check_min_api_version("2.15") or self.feature_set == "basic":
             return
 

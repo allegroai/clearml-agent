@@ -482,7 +482,7 @@ class VCS(object):
             parsed_url = furl(url)
         except ValueError:
             return url
-        if parsed_url.scheme in ["", "ssh"] or parsed_url.scheme.startswith("git"):
+        if parsed_url.scheme in ["", "ssh"] or (parsed_url.scheme or '').startswith("git"):
             return parsed_url.url
         config_user = ENV_AGENT_GIT_USER.get() or config.get("agent.{}_user".format(cls.executable_name), None)
         config_pass = ENV_AGENT_GIT_PASS.get() or config.get("agent.{}_pass".format(cls.executable_name), None)

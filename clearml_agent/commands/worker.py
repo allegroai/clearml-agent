@@ -37,7 +37,9 @@ from clearml_agent.backend_api.services import queues as queues_api
 from clearml_agent.backend_api.services import tasks as tasks_api
 from clearml_agent.backend_api.services import workers as workers_api
 from clearml_agent.backend_api.session import CallResult
+from clearml_agent.backend_api.session.defs import ENV_ENABLE_ENV_CONFIG_SECTION, ENV_ENABLE_FILES_CONFIG_SECTION
 from clearml_agent.backend_config.defs import UptimeConf
+from clearml_agent.backend_config.utils import apply_environment, apply_files
 from clearml_agent.commands.base import resolve_names, ServiceCommandSection
 from clearml_agent.definitions import (
     ENVIRONMENT_SDK_PARAMS,
@@ -60,6 +62,7 @@ from clearml_agent.definitions import (
     ENV_SSH_AUTH_SOCK,
     ENV_AGENT_SKIP_PIP_VENV_INSTALL,
     ENV_EXTRA_DOCKER_ARGS,
+
 )
 from clearml_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
 from clearml_agent.errors import APIError, CommandFailedError, Sigterm
@@ -567,6 +570,7 @@ class Worker(ServiceCommandSection):
         self._downtime_config = self._session.config.get("agent.downtime", None)
         self._suppress_cr = self._session.config.get("agent.suppress_carriage_return", True)
         self._host_ssh_cache = None
+        self._truncate_task_output_files = bool(self._session.config.get("agent.truncate_task_output_files", False))
 
         # True - supported
         # None - not initialized
@@ -1278,14 +1282,14 @@ class Worker(ServiceCommandSection):
         if self._services_mode and dynamic_gpus:
             raise ValueError("Combining --dynamic-gpus and --services-mode is not supported")
 
-        # if we do not need to create queues, make sure they are valid
-        # match previous behaviour when we validated queue names before everything else
-        queues = self._resolve_queue_names(queues, create_if_missing=kwargs.get('create_queue', False))
-
         # We are not running a daemon we are killing one.
         # find the pid send termination signal and leave
         if kwargs.get('stop', False):
             return 1 if not self._kill_daemon(dynamic_gpus=dynamic_gpus) else 0
+
+        # if we do not need to create queues, make sure they are valid
+        # match previous behaviour when we validated queue names before everything else
+        queues = self._resolve_queue_names(queues, create_if_missing=kwargs.get('create_queue', False))
 
         queues_info = [
             q.to_dict()
@@ -1544,10 +1548,16 @@ class Worker(ServiceCommandSection):
     ):
         # type: (...) -> Tuple[Optional[int], Optional[TaskStopReason]]
         def _print_file(file_path, prev_pos=0):
-            with open(file_path, "rb") as f:
+            with open(file_path, "ab+") as f:
                 f.seek(prev_pos)
                 binary_text = f.read()
-                pos = f.tell()
+                if not self._truncate_task_output_files:
+                    # non-buffered behavior
+                    pos = f.tell()
+                else:
+                    # buffered - read everything and truncate
+                    f.truncate(0)
+                    pos = 0
             # skip the previously printed lines,
             blines = binary_text.split(b'\n') if binary_text else []
             if not blines:
@@ -1563,6 +1573,21 @@ class Worker(ServiceCommandSection):
         stderr = open(stderr_path, "wt") if stderr_path else stdout
         stdout_line_count, stdout_pos_count, stdout_last_lines = 0, 0, []
         stderr_line_count, stderr_pos_count, stderr_last_lines = 0, 0, []
+        lines_buffer = defaultdict(list)
+
+        def report_lines(lines, source):
+            if not self._truncate_task_output_files:
+                # non-buffered
+                return self.send_logs(task_id, lines, session=session)
+
+            buffer = lines_buffer[source]
+            buffer += lines
+
+            sent = self.send_logs(task_id, buffer, session=session)
+            if sent > 0:
+                lines_buffer[source] = buffer[sent:]
+            return sent
+
         service_mode_internal_agent_started = None
         stopping = False
         status = None
@@ -1613,10 +1638,11 @@ class Worker(ServiceCommandSection):
                     if status is not None:
                         stop_reason = 'Service started'
 
-                stdout_line_count += self.send_logs(task_id, printed_lines, session=session)
+                stdout_line_count += report_lines(printed_lines, "stdout")
+
                 if stderr_path:
                     printed_lines, stderr_pos_count = _print_file(stderr_path, stderr_pos_count)
-                    stderr_line_count += self.send_logs(task_id, printed_lines, session=session)
+                    stderr_line_count += report_lines(printed_lines, "stderr")
 
         except subprocess.CalledProcessError as ex:
             # non zero return code
@@ -1630,10 +1656,10 @@ class Worker(ServiceCommandSection):
         except Exception:
             # we should not get here, but better safe than sorry
             printed_lines, stdout_pos_count = _print_file(stdout_path, stdout_pos_count)
-            stdout_line_count += self.send_logs(task_id, printed_lines, session=session)
+            stdout_line_count += report_lines(printed_lines, "stdout")
             if stderr_path:
                 printed_lines, stderr_pos_count = _print_file(stderr_path, stderr_pos_count)
-                stderr_line_count += self.send_logs(task_id, printed_lines, session=session)
+                stderr_line_count += report_lines(printed_lines, "stderr")
             stop_reason = TaskStopReason.exception
             status = -1
 
@@ -1652,10 +1678,10 @@ class Worker(ServiceCommandSection):
 
         # Send last lines
         printed_lines, stdout_pos_count = _print_file(stdout_path, stdout_pos_count)
-        stdout_line_count += self.send_logs(task_id, printed_lines, session=session)
+        stdout_line_count += report_lines(printed_lines, "stdout")
         if stderr_path:
             printed_lines, stderr_pos_count = _print_file(stderr_path, stderr_pos_count)
-            stderr_line_count += self.send_logs(task_id, printed_lines, session=session)
+            stderr_line_count += report_lines(printed_lines, "stderr")
 
         return status, stop_reason
 
@@ -1736,6 +1762,29 @@ class Worker(ServiceCommandSection):
         if not success:
             raise ValueError("Failed applying git diff:\n{}\n\n"
                              "ERROR! Failed applying git diff, see diff above.".format(diff))
+
+    def _apply_extra_configuration(self):
+        try:
+            self._session.load_vaults()
+        except Exception as ex:
+            print("Error: failed applying extra configuration: {}".format(ex))
+
+        config = self._session.config
+        default = config.get("agent.apply_environment", False)
+        if ENV_ENABLE_ENV_CONFIG_SECTION.get(default=default):
+            try:
+                keys = apply_environment(config)
+                if keys:
+                    print("Environment variables set from configuration: {}".format(keys))
+            except Exception as ex:
+                print("Error: failed applying environment from configuration: {}".format(ex))
+
+        default = config.get("agent.apply_files", default=False)
+        if ENV_ENABLE_FILES_CONFIG_SECTION.get(default=default):
+            try:
+                apply_files(config)
+            except Exception as ex:
+                print("Error: failed applying files from configuration: {}".format(ex))
 
     @resolve_names
     def build(
@@ -2016,6 +2065,8 @@ class Worker(ServiceCommandSection):
                     safe_remove_file(self._session.config_file)
                     Singleton.close_pid_file()
             return
+
+        self._apply_extra_configuration()
 
         self._session.print_configuration()
 
@@ -2779,7 +2830,7 @@ class Worker(ServiceCommandSection):
         path itself can be passed in this variable)
         :return: virtualenv directory, requirements manager to use with task, True if there is a cached venv entry
         """
-        skip_pip_venv_install = ENV_AGENT_SKIP_PIP_VENV_INSTALL.get() if self._session.feature_set != "basic" else None
+        skip_pip_venv_install = ENV_AGENT_SKIP_PIP_VENV_INSTALL.get()
         if skip_pip_venv_install:
             try:
                 skip_pip_venv_install = bool(strtobool(skip_pip_venv_install))
@@ -3519,8 +3570,13 @@ class Worker(ServiceCommandSection):
 
     def _resolve_queue_names(self, queues, create_if_missing=False):
         if not queues:
-            default_queue = self._session.send_api(queues_api.GetDefaultRequest())
-            return [default_queue.id]
+            # try to look for queues with "default" tag
+            try:
+                default_queue = self._session.send_api(queues_api.GetDefaultRequest())
+                return [default_queue.id]
+            except APIError:
+                # if we cannot find one with "default" tag, look for a queue named "default"
+                queues = ["default"]
 
         queues = return_list(queues)
         if not create_if_missing:
