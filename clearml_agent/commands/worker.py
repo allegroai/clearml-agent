@@ -41,6 +41,7 @@ from clearml_agent.backend_api.session.defs import ENV_ENABLE_ENV_CONFIG_SECTION
 from clearml_agent.backend_config.defs import UptimeConf
 from clearml_agent.backend_config.utils import apply_environment, apply_files
 from clearml_agent.commands.base import resolve_names, ServiceCommandSection
+from clearml_agent.commands.resolver import resolve_default_container
 from clearml_agent.definitions import (
     ENVIRONMENT_SDK_PARAMS,
     PROGRAM_NAME,
@@ -102,7 +103,8 @@ from clearml_agent.helper.package.poetry_api import PoetryConfig, PoetryAPI
 from clearml_agent.helper.package.post_req import PostRequirement
 from clearml_agent.helper.package.priority_req import PriorityPackageRequirement, PackageCollectorRequirement
 from clearml_agent.helper.package.pytorch import PytorchRequirement
-from clearml_agent.helper.package.requirements import RequirementsManager
+from clearml_agent.helper.package.requirements import (
+    RequirementsManager, )
 from clearml_agent.helper.package.venv_update_api import VenvUpdateAPI
 from clearml_agent.helper.process import (
     kill_all_child_processes,
@@ -329,6 +331,9 @@ def get_task_container(session, task_id):
             )
         except (ValueError, TypeError):
             container = {}
+
+    if (not container or not container.get('container')) and session.check_min_api_version("2.13"):
+        container = resolve_default_container(session=session, task_id=task_id, container_config=container)
 
     return container
 
@@ -629,7 +634,7 @@ class Worker(ServiceCommandSection):
         :param queue: ID of queue that task was pulled from
         :param task_id: ID of task to run
         :param worker_args: Worker command line arguments
-        :params task_session: The session for running operations on the passed task
+        :param task_session: The session for running operations on the passed task
         :param docker: Docker image in which the execution task will run
         """
         # start new process and execute task id
@@ -1118,6 +1123,7 @@ class Worker(ServiceCommandSection):
         return queue_tags, runtime_props
 
     def get_runtime_properties(self):
+        # TODO: refactor to use the Session env State
         if self._runtime_props_support is not True:
             # either not supported or never tested
             if self._runtime_props_support == self._session.api_version:
@@ -2843,7 +2849,8 @@ class Worker(ServiceCommandSection):
         requested_python_version = \
             requested_python_version or \
             Text(self._session.config.get("agent.python_binary", None)) or \
-            Text(self._session.config.get("agent.default_python", None))
+            Text(self._session.config.get("agent.default_python", None)) or \
+            '{}.{}'.format(sys.version_info.major, sys.version_info.minor)
 
         if self.is_conda:
             executable_version_suffix = \
@@ -2870,13 +2877,14 @@ class Worker(ServiceCommandSection):
                         self.find_python_executable_for_version(requested_python_version)
                 except Exception:
                     def_python_version = Text(self._session.config.get("agent.python_binary", None)) or \
-                                         Text(self._session.config.get("agent.default_python", None))
+                                         Text(self._session.config.get("agent.default_python", None)) or \
+                                         '{}.{}'.format(sys.version_info.major, sys.version_info.minor)
                     print('Warning: could not locate requested Python version {}, reverting to version {}'.format(
                         requested_python_version, def_python_version))
                     executable_version, executable_version_suffix, executable_name = \
                         self.find_python_executable_for_version(def_python_version)
 
-                self._session.config.put("agent.default_python", executable_version)
+                self._session.config.put("agent.default_python", executable_version_suffix)
                 self._session.config.put("agent.python_binary", executable_name)
 
         venv_dir = Path(venv_dir) if venv_dir else \

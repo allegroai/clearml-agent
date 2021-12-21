@@ -208,7 +208,11 @@ class SimpleVersion:
         if not version_b:
             return True
 
+        if not num_parts:
+            num_parts = max(len(version_a.split('.')), len(version_b.split('.')), )
+
         if op == '~=':
+            num_parts = len(version_b.split('.')) - 1
             num_parts = max(num_parts, 2)
             op = '=='
             ignore_sub_versions = True
@@ -244,6 +248,16 @@ class SimpleVersion:
         if op == '<':
             return version_a_key < version_b_key
         raise ValueError('Unrecognized comparison operator [{}]'.format(op))
+
+    @classmethod
+    def max_version(cls, version_a, version_b):
+        return version_a if cls.compare_versions(
+            version_a=version_a, op='>=', version_b=version_b, num_parts=None) else version_b
+
+    @classmethod
+    def min_version(cls, version_a, version_b):
+        return version_a if cls.compare_versions(
+            version_a=version_a, op='<=', version_b=version_b, num_parts=None) else version_b
 
     @staticmethod
     def _parse_letter_version(
@@ -311,6 +325,77 @@ class SimpleVersion:
                 for part in SimpleVersion._local_version_separators.split(local)
             )
         return ()
+
+
+def compare_version_rules(specs_a, specs_b):
+    # specs_a/b are a list of tuples: [('==', '1.2.3'), ] or [('>=', '1.2'), ('<', '1.3')]
+    # section definition:
+    class Section(object):
+        def __init__(self, left=None, left_eq=False, right=None, right_eq=False):
+            self.left, self.left_eq, self.right, self.right_eq = left, left_eq, right, right_eq
+    # first create a list of in/out sections for each spec
+    # >, >= are left rule
+    # <, <= are right rule
+    # ~= x.y.z is converted to: >= x.y and < x.y+1
+    # ==/=== are converted to: >= and <=
+    # != x.y.z will split a section into: left < x.y.z and right > x.y.z
+    def create_section(specs):
+        section = Section()
+        for op, v in specs:
+            a = section
+            if op == '>':
+                a.left = v
+                a.left_eq = False
+            elif op == '>=':
+                a.left = v
+                a.left_eq = True
+            elif op == '<':
+                a.right = v
+                a.right_eq = False
+            elif op == '<=':
+                a.right = v
+                a.right_eq = True
+            elif op == '==':
+                a.left = v
+                a.left_eq = True
+                a.right = v
+                a.right_eq = True
+            elif op == '~=':
+                new_v = v.split('.')
+                a_left = '.'.join(new_v[:-1])
+                a.left = a_left if not a.left else SimpleVersion.max_version(a_left, a.left)
+                a.left_eq = True
+                a_right = '.'.join(new_v[:-2] + [str(int(new_v[-2])+1)])
+                a.right = a_right if not a.right else SimpleVersion.min_version(a_right, a.right)
+                a.right_eq = False if a.right == a_right else a.right_eq
+
+        return section
+
+    section_a = create_section(specs_a)
+    section_b = create_section(specs_b)
+    i = Section()
+    # then we have a list of sections for spec A/B
+    if section_a.left == section_b.left:
+        i.left = section_a.left
+        i.left_eq = section_a.left_eq and section_b.left_eq
+    else:
+        i.left = SimpleVersion.max_version(section_a.left, section_b.left)
+        i.left_eq = section_a.left_eq if i.left == section_a.left else section_b.left_eq
+    if section_a.right == section_b.right:
+        i.right = section_a.right
+        i.right_eq = section_a.right_eq and section_b.right_eq
+    else:
+        i.right = SimpleVersion.min_version(section_a.right, section_b.right)
+        i.right_eq = section_a.right_eq if i.right == section_a.right else section_b.right_eq
+
+    # return true if any section from A intersects a section from B
+    valid = True
+    valid &= SimpleVersion.compare_versions(
+        version_a=i.left, op='<=' if i.left_eq else '<', version_b=i.right, num_parts=None)
+    valid &= SimpleVersion.compare_versions(
+        version_a=i.right, op='>=' if i.left_eq else '>', version_b=i.left, num_parts=None)
+
+    return valid
 
 
 @six.add_metaclass(ABCMeta)
@@ -468,20 +553,9 @@ class RequirementsManager(object):
         return None
 
     def replace(self, requirements):  # type: (Text) -> Text
-        def safe_parse(req_str):
-            # noinspection PyBroadException
-            try:
-                return list(parse(req_str, cwd=self._cwd))
-            except Exception as ex:
-                return [Requirement(req_str)]
+        parsed_requirements = self.parse_requirements_section_to_marker_requirements(
+            requirements=requirements, cwd=self._cwd)
 
-        parsed_requirements = tuple(
-            map(
-                MarkerRequirement,
-                [r for line in (requirements.splitlines() if isinstance(requirements, six.text_type) else requirements)
-                 for r in safe_parse(line)]
-            )
-        )
         if not parsed_requirements:
             # return the original requirements just in case
             return requirements
@@ -614,3 +688,24 @@ class RequirementsManager(object):
 
         return (normalize_cuda_version(cuda_version or 0),
                 normalize_cuda_version(cudnn_version or 0))
+
+    @staticmethod
+    def parse_requirements_section_to_marker_requirements(requirements, cwd=None):
+        def safe_parse(req_str):
+            # noinspection PyBroadException
+            try:
+                return list(parse(req_str, cwd=cwd))
+            except Exception as ex:
+                return [Requirement(req_str)]
+
+        if not requirements:
+            return tuple()
+
+        parsed_requirements = tuple(
+            map(
+                MarkerRequirement,
+                [r for line in (requirements.splitlines() if isinstance(requirements, str) else requirements)
+                 for r in safe_parse(line)]
+            )
+        )
+        return parsed_requirements

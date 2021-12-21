@@ -229,26 +229,35 @@ class Session(_Session):
             except:
                 pass
 
-    def print_configuration(self, remove_secret_keys=("secret", "pass", "token", "account_key")):
+    def print_configuration(
+            self,
+            remove_secret_keys=("secret", "pass", "token", "account_key", "contents"),
+            skip_value_keys=("environment", )
+    ):
         # remove all the secrets from the print
-        def recursive_remove_secrets(dictionary, secret_keys=()):
+        def recursive_remove_secrets(dictionary, secret_keys=(), empty_keys=()):
             for k in list(dictionary):
                 for s in secret_keys:
                     if s in k:
                         dictionary.pop(k)
                         break
+                for s in empty_keys:
+                    if s == k:
+                        dictionary[k] = {key: '****' for key in dictionary[k]} \
+                            if isinstance(dictionary[k], dict) else '****'
+                        break
                 if isinstance(dictionary.get(k, None), dict):
-                    recursive_remove_secrets(dictionary[k], secret_keys=secret_keys)
+                    recursive_remove_secrets(dictionary[k], secret_keys=secret_keys, empty_keys=empty_keys)
                 elif isinstance(dictionary.get(k, None), (list, tuple)):
                     for item in dictionary[k]:
                         if isinstance(item, dict):
-                            recursive_remove_secrets(item, secret_keys=secret_keys)
+                            recursive_remove_secrets(item, secret_keys=secret_keys, empty_keys=empty_keys)
 
         config = deepcopy(self.config.to_dict())
         # remove the env variable, it's not important
         config.pop('env', None)
-        if remove_secret_keys:
-            recursive_remove_secrets(config, secret_keys=remove_secret_keys)
+        if remove_secret_keys or skip_value_keys:
+            recursive_remove_secrets(config, secret_keys=remove_secret_keys, empty_keys=skip_value_keys)
         # remove logging.loggers.urllib3.level from the print
         try:
             config['logging']['loggers']['urllib3'].pop('level', None)

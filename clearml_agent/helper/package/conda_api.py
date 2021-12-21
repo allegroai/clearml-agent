@@ -189,14 +189,6 @@ class CondaAPI(PackageManager):
         if conda_env.is_file() and not is_windows_platform():
             self.source = self.pip.source = CommandSequence(('source', conda_env.as_posix()), self.source)
 
-        # install cuda toolkit
-        # noinspection PyBroadException
-        try:
-            cuda_version = float(int(self.session.config['agent.cuda_version'])) / 10.0
-            if cuda_version > 0:
-                self._install('cudatoolkit={:.1f}'.format(cuda_version))
-        except Exception:
-            pass
         return self
 
     def _init_existing_environment(self, conda_pre_build_env_path):
@@ -456,7 +448,9 @@ class CondaAPI(PackageManager):
             requirements['conda'] = requirements['conda'].split('\n')
         has_torch = False
         has_matplotlib = False
+        has_cudatoolkit = False
         try:
+            # notice this is an integer version: 112 (means 11.2)
             cuda_version = int(self.session.config.get('agent.cuda_version', 0))
         except:
             cuda_version = 0
@@ -488,6 +482,19 @@ class CondaAPI(PackageManager):
                 if '.' not in m.specs[0][1]:
                     continue
 
+            if m.name.lower() == 'cudatoolkit':
+                # skip cuda if we are running on CPU
+                if not cuda_version:
+                    continue
+
+                has_cudatoolkit = True
+                # cuda version, only major.minor
+                requested_cuda_version = '.'.join(m.specs[0][1].split('.')[:2])
+                # make sure that the cuda_version we support can install the requested cuda (major version)
+                if int(float(requested_cuda_version)) > int(float(cuda_version)/10.0):
+                    continue
+                m.specs = [(m.specs[0][0], str(requested_cuda_version)), ]
+
             conda_supported_req_names.append(m.name.lower())
             if m.req.name.lower() == 'matplotlib':
                 has_matplotlib = True
@@ -502,6 +509,10 @@ class CondaAPI(PackageManager):
                 has_torch = True
                 m.req.name = 'tensorflow-gpu' if cuda_version > 0 else 'tensorflow'
 
+            reqs.append(m)
+
+        if not has_cudatoolkit and cuda_version:
+            m = MarkerRequirement(Requirement("cudatoolkit == {}".format(float(cuda_version) / 10.0)))
             reqs.append(m)
 
         # if we have a conda list, the rest should be installed with pip,
@@ -559,8 +570,12 @@ class CondaAPI(PackageManager):
             # change _ to - in name but not the prefix _ (as this is conda prefix)
             if r.name and not r.name.startswith('_') and not requirements.get('conda', None):
                 r.name = r.name.replace('_', '-')
-            # remove .post from version numbers, it fails ~= version, and change == to ~=
-            if r.specs and r.specs[0]:
+
+            if has_cudatoolkit and r.specs and len(r.specs[0]) > 1 and r.name == 'cudatoolkit':
+                # select specific cuda version if it came from the requirements
+                r.specs = [(r.specs[0][0].replace('==', '='), r.specs[0][1].split('.post')[0])]
+            elif r.specs and r.specs[0] and len(r.specs[0]) > 1:
+                # remove .post from version numbers it fails with ~= version, and change == to ~=
                 r.specs = [(r.specs[0][0].replace('==', '~='), r.specs[0][1].split('.post')[0])]
 
         while reqs:

@@ -240,6 +240,12 @@ class Session(TokenManager):
         except Exception as ex:
             print("Failed getting vaults: {}".format(ex))
 
+    def verify_feature_set(self, feature_set):
+        if isinstance(feature_set, str):
+            feature_set = [feature_set]
+        if self.feature_set not in feature_set:
+            raise ValueError('ClearML-server does not support requested feature set {}'.format(feature_set))
+
     def _send_request(
         self,
         service,
