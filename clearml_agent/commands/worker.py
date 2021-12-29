@@ -1801,6 +1801,7 @@ class Worker(ServiceCommandSection):
         docker=None,
         entry_point=None,
         install_globally=False,
+        force_docker=False,
         **_
     ):
         if not task_id:
@@ -1809,7 +1810,7 @@ class Worker(ServiceCommandSection):
         self._session.print_configuration()
 
         if docker is not False and docker is not None:
-            return self._build_docker(docker, target, task_id, entry_point)
+            return self._build_docker(docker, target, task_id, entry_point, force_docker=force_docker)
 
         current_task = self._session.api_client.tasks.get_by_id(task_id)
 
@@ -1891,7 +1892,7 @@ class Worker(ServiceCommandSection):
 
         return 0
 
-    def _build_docker(self, docker, target, task_id, entry_point=None):
+    def _build_docker(self, docker, target, task_id, entry_point=None, force_docker=False):
 
         self.temp_config_path = safe_mkstemp(
             suffix=".cfg", prefix=".clearml_agent.", text=True, name_only=True
@@ -1902,20 +1903,24 @@ class Worker(ServiceCommandSection):
         temp_config, docker_image_func = self.get_docker_config_cmd(docker)
         self.dump_config(self.temp_config_path, config=temp_config)
         self.docker_image_func = docker_image_func
-        # noinspection PyBroadException
-        try:
-            task_container = get_task_container(self._session, task_id)
-        except Exception:
-            task_container = {}
 
-        if task_container.get('image'):
-            docker_image = task_container.get('image')
-            docker_arguments = task_container.get('arguments')
-            docker_setup_script = task_container.get('setup_shell_script')
+        docker_image = self._docker_image
+        docker_arguments = self._docker_arguments
+        docker_setup_script = None
+
+        if force_docker:
+            print('Ignoring any task container info, using docker image {}'.format(docker_image))
         else:
-            docker_image = self._docker_image
-            docker_arguments = self._docker_arguments
-            docker_setup_script = None
+            # noinspection PyBroadException
+            try:
+                task_container = get_task_container(self._session, task_id)
+                if task_container.get('image'):
+                    docker_image = task_container.get('image')
+                    print('Ignoring default docker image, using task docker image {}'.format(docker_image))
+                    docker_arguments = task_container.get('arguments')
+                    docker_setup_script = task_container.get('setup_shell_script')
+            except Exception:
+                pass
 
         print('Building Task {} inside docker image: {} {} setup_script={}\n'.format(
             task_id, docker_image, docker_arguments or '', docker_setup_script or ''))
@@ -3018,8 +3023,8 @@ class Worker(ServiceCommandSection):
         self._docker_image = docker_image
         self._docker_arguments = docker_arguments
 
-        print("Running in Docker {} mode (v19.03 and above) - using default docker image: {} {}\n".format(
-            '*standalone*' if self._standalone_mode else '', self._docker_image,
+        print("Running in Docker{} mode (v19.03 and above) - using default docker image: {} {}\n".format(
+            ' *standalone*' if self._standalone_mode else '', self._docker_image,
             self._sanitize_docker_command(self._docker_arguments) or ''))
 
         temp_config = deepcopy(self._session.config)
