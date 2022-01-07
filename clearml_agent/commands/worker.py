@@ -2230,7 +2230,10 @@ class Worker(ServiceCommandSection):
                 os.environ.update(hyper_params)
 
         # Add the script CWD to the python path
-        python_path = get_python_path(script_dir, execution.entry_point, self.package_api, is_conda_env=self.is_conda)
+        if repo_info and repo_info.root and self._session.config.get('agent.force_git_root_python_path', None):
+            python_path = get_python_path(repo_info.root, None, self.package_api, is_conda_env=self.is_conda)
+        else:
+            python_path = get_python_path(script_dir, execution.entry_point, self.package_api, is_conda_env=self.is_conda)
         if ENV_TASK_EXTRA_PYTHON_PATH.get():
             python_path = add_python_path(python_path, ENV_TASK_EXTRA_PYTHON_PATH.get())
         if python_path:
