@@ -2803,7 +2803,7 @@ class Worker(ServiceCommandSection):
                 ".".join, reversed(list(suffixes(self._get_python_version_suffix(config_version).split("."))))
             )
         ]
-
+        default_python = None
         for version, executable in python_executables:
             self.log.debug("Searching for {}".format(executable))
             if find_executable(executable):
@@ -2814,15 +2814,37 @@ class Worker(ServiceCommandSection):
                 except subprocess.CalledProcessError as ex:
                     self.log.warning("error getting %s version: %s", executable, ex)
                     continue
+
+                if not default_python:
+                    match = re.search(r"Python ({}(?:\.\d+)*)".format(r"\d+"), output)
+                    default_python = (
+                        match.group(1),
+                        version if version and '.' in version else '.'.join(match.group(1).split('.')[:2]),
+                        executable)
+
                 match = re.search(
                     r"Python ({}(?:\.\d+)*)".format(
                         r"\d+" if not config_version or os.path.sep in config_version else config_version), output
                 )
                 if match:
                     self.log.debug("Found: {}".format(executable))
-                    return match.group(1), version or '.'.join(match.group(1).split('.')[:2]), executable
+                    return (
+                        match.group(1),
+                        version if version and '.' in version else '.'.join(match.group(1).split('.')[:2]),
+                        executable
+                    )
+
+        if default_python:
+            self.log.warning(
+                "Python executable with version {!r} requested by the Task, "
+                "not found in path, using \'{}\' (v{}) instead".format(
+                    config_version, find_executable(default_python[-1]), default_python[0]
+                )
+            )
+            return default_python
+
         raise CommandFailedError(
-            "Python executable with version {!r} defined in configuration file, "
+            "Python executable with version {!r} requested by the Task, "
             "key 'agent.default_python', not found in path, tried: {}".format(
                 config_version, list(zip(*python_executables))[1]
             )
@@ -2897,6 +2919,7 @@ class Worker(ServiceCommandSection):
 
         venv_dir = Path(venv_dir) if venv_dir else \
             Path(self._session.config["agent.venvs_dir"], executable_version_suffix)
+        venv_dir = Path(os.path.expanduser(os.path.expandvars(venv_dir.as_posix())))
 
         first_time = not standalone_mode and (
             is_windows_platform()
