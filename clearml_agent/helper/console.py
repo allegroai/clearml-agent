@@ -2,7 +2,7 @@ from __future__ import unicode_literals, print_function
 
 import csv
 import sys
-from collections import Iterable
+from collections.abc import Iterable
 from typing import List, Dict, Text, Any
 
 from attr import attrs, attrib
