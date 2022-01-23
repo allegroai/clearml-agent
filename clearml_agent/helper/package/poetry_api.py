@@ -5,6 +5,7 @@ import attr
 import sys
 import os
 from pathlib2 import Path
+
 from clearml_agent.helper.process import Argv, DEVNULL, check_if_command_exists
 from clearml_agent.session import Session, POETRY
 
@@ -81,6 +82,32 @@ class PoetryConfig:
     @_guard_enabled
     def initialize(self, cwd=None):
         if not self._initialized:
+            if self.session.config.get("agent.package_manager.poetry_version", None) is not None:
+                version = str(self.session.config.get("agent.package_manager.poetry_version"))
+                print('Upgrading Poetry package {}'.format(version))
+                # first upgrade pip if we need to
+                try:
+                    from clearml_agent.helper.package.pip_api.venv import VirtualenvPip
+                    pip = VirtualenvPip(
+                        session=self.session, python=self._python,
+                        requirements_manager=None, path=None, interpreter=self._python)
+                    pip.upgrade_pip()
+                except Exception as ex:
+                    self.log.warning("failed upgrading pip: {}".format(ex))
+
+                # now install poetry
+                try:
+                    version = version.replace(' ', '')
+                    if ('=' in version) or ('~' in version) or ('<' in version) or ('>' in version):
+                        version = version
+                    elif version:
+                        version = "==" + version
+                    argv = Argv(self._python, "-m", "pip", "install", "poetry{}".format(version),
+                                "--upgrade", "--disable-pip-version-check")
+                    print(argv.get_output())
+                except Exception as ex:
+                    self.log.warning("failed upgrading poetry: {}".format(ex))
+
             self._initialized = True
             try:
                 self._config("--local", "virtualenvs.in-project",  "true", cwd=cwd)

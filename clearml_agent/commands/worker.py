@@ -2602,8 +2602,8 @@ class Worker(ServiceCommandSection):
                 print('Poetry Enabled: Ignoring requested python packages, using repository poetry lock file!')
                 api.install()
                 return api
-        except Exception:
-            self.log.error("failed installing poetry requirements:")
+        except Exception as ex:
+            self.log.error("failed installing poetry requirements: {}".format(ex))
         return None
 
     def install_requirements(
