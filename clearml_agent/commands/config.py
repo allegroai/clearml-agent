@@ -11,10 +11,10 @@ from clearml_agent.backend_config.defs import LOCAL_CONFIG_FILES
 
 
 description = """
-Please create new clearml credentials through the profile page in your `clearml-server` web app, 
-or create a free account at https://app.community.clear.ml/profile
+Please create new clearml credentials through the settings page in your `clearml-server` web app, 
+or create a free account at https://app.clear.ml/webapp-configuration
     
-In the profile page, press "Create new credentials", then press "Copy to clipboard".
+In the settings > workspace  page, press "Create new credentials", then press "Copy to clipboard".
 
 Paste copied configuration here: 
 """
@@ -157,7 +157,7 @@ def main():
                      '    api_server: %s\n' \
                      '    web_server: %s\n' \
                      '    files_server: %s\n' \
-                     '    # Credentials are generated using the webapp, %s/profile\n' \
+                     '    # Credentials are generated using the webapp, %s/settings\n' \
                      '    # Override with os environment: CLEARML_API_ACCESS_KEY / CLEARML_API_SECRET_KEY\n' \
                      '    credentials {"access_key": "%s", "secret_key": "%s"}\n' \
                      '}\n\n' % (api_host, web_host, files_host,
