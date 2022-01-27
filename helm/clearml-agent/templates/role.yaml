@@ -1,0 +1,13 @@
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    {{- include "clearml-agent.labels" . | nindent 4 }}
+  name: {{ include "clearml-agent.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+rules:
+- apiGroups: [""] 
+  resources: ["pods"]
+  verbs: ["*"]
+{{- end }}

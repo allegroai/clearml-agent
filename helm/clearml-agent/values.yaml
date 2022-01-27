@@ -1,0 +1,96 @@
+# Default values for clearml-agent.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  repository: allegroai/clearml-agent-k8s
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+command:
+  - python3
+args:
+  - k8s_glue_example.py
+  - --queue
+  - $(K8S_GLUE_QUEUE)
+  - --max-pods
+  - $(K8S_GLUE_MAX_PODS)
+  - --template-yaml
+  - $(K8S_GLUE_TEMPLATE_YAML)
+  - --namespace
+  - $(POD_NAMESPACE)
+  # - --pod-clearml-conf
+  # - $(K8S_GLUE_CLEARML_CONF)
+
+env:
+  PYTHONUNBUFFERED: "1"
+  CLEARML_API_HOST: "http://10.0.0.10:8008"
+  CLEARML_WEB_HOST: "http://10.0.0.10:8080"
+  CLEARML_FILES_HOST: "http://10.0.0.10:8081"
+  K8S_GLUE_MAX_PODS: "2"
+  K8S_GLUE_QUEUE: "k8s-queue"
+  K8S_GLUE_TEMPLATE_YAML: "/config/pod-template.yaml"
+  # K8S_GLUE_CLEARML_CONF: "/root/clearml.conf"
+  CLEARML_WORKER_ID: "k8s-glue-agent"
+  CLEARML_AGENT_UPDATE_REPO: ""
+  FORCE_CLEARML_AGENT_REPO: ""
+  CLEARML_DOCKER_IMAGE: "nvidia/cuda:11.6.0-runtime-ubuntu20.04"
+  HOME_DIR: /root
+
+envFromSecrets: {}
+
+extraEnv:
+  - name: POD_NAMESPACE
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.namespace
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+rbac:
+  create: true
