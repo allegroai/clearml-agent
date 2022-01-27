@@ -29,7 +29,7 @@ ML-Ops scheduler & orchestration solution supporting Linux, macOS and Windows**
 It is a zero configuration fire-and-forget execution agent, providing a full ML/DL cluster solution.
 
 **Full Automation in 5 steps**
-1. ClearML Server [self-hosted](https://github.com/allegroai/clearml-server) or [free tier hosting](https://app.community.clear.ml)
+1. ClearML Server [self-hosted](https://github.com/allegroai/clearml-server) or [free tier hosting](https://app.clear.ml)
 2. `pip install clearml-agent` ([install](#installing-the-clearml-agent) the ClearML Agent on any GPU machine: on-premises / cloud / ...)
 3. Create a [job](https://github.com/allegroai/clearml/docs/clearml-task.md) or Add [ClearML](https://github.com/allegroai/clearml) to your code with just 2 lines
 4. Change the [parameters](#using-the-clearml-agent) in the UI & schedule for [execution](#using-the-clearml-agent) (or automate with an [AutoML pipeline](#automl-and-orchestration-pipelines-))
@@ -37,8 +37,8 @@ It is a zero configuration fire-and-forget execution agent, providing a full ML/
 
 "All the Deep/Machine-Learning DevOps your research needs, and then some... Because ain't nobody got time for that"
 
-**Try ClearML now** [Self Hosted](https://github.com/allegroai/clearml-server) or [Free tier Hosting](https://app.community.clear.ml)
-<a href="https://app.community.clear.ml"><img src="https://github.com/allegroai/clearml-agent/blob/master/docs/screenshots.gif?raw=true" width="100%"></a>
+**Try ClearML now** [Self Hosted](https://github.com/allegroai/clearml-server) or [Free tier Hosting](https://app.clear.ml)
+<a href="https://app.clear.ml"><img src="https://github.com/allegroai/clearml-agent/blob/master/docs/screenshots.gif?raw=true" width="100%"></a>
 
 ### Simple, Flexible Experiment Orchestration
 **The ClearML Agent was built to address the DL/ML R&D DevOps needs:**
@@ -219,7 +219,7 @@ clearml-agent daemon --queue important_jobs default
 ```
 The **ClearML Agent** will first try to pull jobs from the `important_jobs` queue, only then it will fetch a job from the `default` queue.
 
-Adding queues, managing job order within a queue and moving jobs between queues, is available using the Web UI, see example on our [free server](https://app.community.clear.ml/workers-and-queues/queues)
+Adding queues, managing job order within a queue and moving jobs between queues, is available using the Web UI, see example on our [free server](https://app.clear.ml/workers-and-queues/queues)
 
 ##### Stopping the ClearML Agent
 
