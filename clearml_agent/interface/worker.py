@@ -204,6 +204,13 @@ COMMANDS = {
                 'nargs': '*',
                 'default': False,
             },
+            '--force-docker': {
+                'help': 'Force using the agent-specified docker image (either explicitly in the --docker argument or'
+                        'using the agent\'s default docker image). If provided, the agent will not use any docker'
+                        'container information stored on the task itself (default False)',
+                'default': False,
+                'action': 'store_true',
+            },
             '--python-version': {
                 'help': 'Virtual environment python version to use',
             },

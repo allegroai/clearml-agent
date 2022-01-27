@@ -18,3 +18,12 @@ ENV_ENABLE_FILES_CONFIG_SECTION = EnvEntry('CLEARML_AGENT_ENABLE_FILES_CONFIG_SE
 ENV_INITIAL_CONNECT_RETRY_OVERRIDE = EnvEntry(
     'CLEARML_AGENT_INITIAL_CONNECT_RETRY_OVERRIDE', default=True, converter=safe_text_to_bool
 )
+
+"""
+Experimental option to set the request method for all API requests and auth login.
+This could be useful when GET requests with payloads are blocked by a server as
+POST requests can be used instead.
+
+However this has not been vigorously tested and may have unintended consequences.
+"""
+ENV_API_DEFAULT_REQ_METHOD = EnvEntry("CLEARML_API_DEFAULT_REQ_METHOD")

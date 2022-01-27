@@ -41,6 +41,7 @@ from clearml_agent.backend_api.session.defs import ENV_ENABLE_ENV_CONFIG_SECTION
 from clearml_agent.backend_config.defs import UptimeConf
 from clearml_agent.backend_config.utils import apply_environment, apply_files
 from clearml_agent.commands.base import resolve_names, ServiceCommandSection
+from clearml_agent.commands.resolver import resolve_default_container
 from clearml_agent.definitions import (
     ENVIRONMENT_SDK_PARAMS,
     PROGRAM_NAME,
@@ -102,7 +103,8 @@ from clearml_agent.helper.package.poetry_api import PoetryConfig, PoetryAPI
 from clearml_agent.helper.package.post_req import PostRequirement
 from clearml_agent.helper.package.priority_req import PriorityPackageRequirement, PackageCollectorRequirement
 from clearml_agent.helper.package.pytorch import PytorchRequirement
-from clearml_agent.helper.package.requirements import RequirementsManager
+from clearml_agent.helper.package.requirements import (
+    RequirementsManager, )
 from clearml_agent.helper.package.venv_update_api import VenvUpdateAPI
 from clearml_agent.helper.process import (
     kill_all_child_processes,
@@ -329,6 +331,9 @@ def get_task_container(session, task_id):
             )
         except (ValueError, TypeError):
             container = {}
+
+    if (not container or not container.get('container')) and session.check_min_api_version("2.13"):
+        container = resolve_default_container(session=session, task_id=task_id, container_config=container)
 
     return container
 
@@ -629,7 +634,7 @@ class Worker(ServiceCommandSection):
         :param queue: ID of queue that task was pulled from
         :param task_id: ID of task to run
         :param worker_args: Worker command line arguments
-        :params task_session: The session for running operations on the passed task
+        :param task_session: The session for running operations on the passed task
         :param docker: Docker image in which the execution task will run
         """
         # start new process and execute task id
@@ -1118,6 +1123,7 @@ class Worker(ServiceCommandSection):
         return queue_tags, runtime_props
 
     def get_runtime_properties(self):
+        # TODO: refactor to use the Session env State
         if self._runtime_props_support is not True:
             # either not supported or never tested
             if self._runtime_props_support == self._session.api_version:
@@ -1795,6 +1801,7 @@ class Worker(ServiceCommandSection):
         docker=None,
         entry_point=None,
         install_globally=False,
+        force_docker=False,
         **_
     ):
         if not task_id:
@@ -1803,7 +1810,7 @@ class Worker(ServiceCommandSection):
         self._session.print_configuration()
 
         if docker is not False and docker is not None:
-            return self._build_docker(docker, target, task_id, entry_point)
+            return self._build_docker(docker, target, task_id, entry_point, force_docker=force_docker)
 
         current_task = self._session.api_client.tasks.get_by_id(task_id)
 
@@ -1885,7 +1892,7 @@ class Worker(ServiceCommandSection):
 
         return 0
 
-    def _build_docker(self, docker, target, task_id, entry_point=None):
+    def _build_docker(self, docker, target, task_id, entry_point=None, force_docker=False):
 
         self.temp_config_path = safe_mkstemp(
             suffix=".cfg", prefix=".clearml_agent.", text=True, name_only=True
@@ -1896,20 +1903,24 @@ class Worker(ServiceCommandSection):
         temp_config, docker_image_func = self.get_docker_config_cmd(docker)
         self.dump_config(self.temp_config_path, config=temp_config)
         self.docker_image_func = docker_image_func
-        # noinspection PyBroadException
-        try:
-            task_container = get_task_container(self._session, task_id)
-        except Exception:
-            task_container = {}
 
-        if task_container.get('image'):
-            docker_image = task_container.get('image')
-            docker_arguments = task_container.get('arguments')
-            docker_setup_script = task_container.get('setup_shell_script')
+        docker_image = self._docker_image
+        docker_arguments = self._docker_arguments
+        docker_setup_script = None
+
+        if force_docker:
+            print('Ignoring any task container info, using docker image {}'.format(docker_image))
         else:
-            docker_image = self._docker_image
-            docker_arguments = self._docker_arguments
-            docker_setup_script = None
+            # noinspection PyBroadException
+            try:
+                task_container = get_task_container(self._session, task_id)
+                if task_container.get('image'):
+                    docker_image = task_container.get('image')
+                    print('Ignoring default docker image, using task docker image {}'.format(docker_image))
+                    docker_arguments = task_container.get('arguments')
+                    docker_setup_script = task_container.get('setup_shell_script')
+            except Exception:
+                pass
 
         print('Building Task {} inside docker image: {} {} setup_script={}\n'.format(
             task_id, docker_image, docker_arguments or '', docker_setup_script or ''))
@@ -2219,7 +2230,10 @@ class Worker(ServiceCommandSection):
                 os.environ.update(hyper_params)
 
         # Add the script CWD to the python path
-        python_path = get_python_path(script_dir, execution.entry_point, self.package_api, is_conda_env=self.is_conda)
+        if repo_info and repo_info.root and self._session.config.get('agent.force_git_root_python_path', None):
+            python_path = get_python_path(repo_info.root, None, self.package_api, is_conda_env=self.is_conda)
+        else:
+            python_path = get_python_path(script_dir, execution.entry_point, self.package_api, is_conda_env=self.is_conda)
         if ENV_TASK_EXTRA_PYTHON_PATH.get():
             python_path = add_python_path(python_path, ENV_TASK_EXTRA_PYTHON_PATH.get())
         if python_path:
@@ -2588,8 +2602,8 @@ class Worker(ServiceCommandSection):
                 print('Poetry Enabled: Ignoring requested python packages, using repository poetry lock file!')
                 api.install()
                 return api
-        except Exception:
-            self.log.error("failed installing poetry requirements:")
+        except Exception as ex:
+            self.log.error("failed installing poetry requirements: {}".format(ex))
         return None
 
     def install_requirements(
@@ -2789,7 +2803,7 @@ class Worker(ServiceCommandSection):
                 ".".join, reversed(list(suffixes(self._get_python_version_suffix(config_version).split("."))))
             )
         ]
-
+        default_python = None
         for version, executable in python_executables:
             self.log.debug("Searching for {}".format(executable))
             if find_executable(executable):
@@ -2800,15 +2814,37 @@ class Worker(ServiceCommandSection):
                 except subprocess.CalledProcessError as ex:
                     self.log.warning("error getting %s version: %s", executable, ex)
                     continue
+
+                if not default_python:
+                    match = re.search(r"Python ({}(?:\.\d+)*)".format(r"\d+"), output)
+                    default_python = (
+                        match.group(1),
+                        version if version and '.' in version else '.'.join(match.group(1).split('.')[:2]),
+                        executable)
+
                 match = re.search(
                     r"Python ({}(?:\.\d+)*)".format(
                         r"\d+" if not config_version or os.path.sep in config_version else config_version), output
                 )
                 if match:
                     self.log.debug("Found: {}".format(executable))
-                    return match.group(1), version or '.'.join(match.group(1).split('.')[:2]), executable
+                    return (
+                        match.group(1),
+                        version if version and '.' in version else '.'.join(match.group(1).split('.')[:2]),
+                        executable
+                    )
+
+        if default_python:
+            self.log.warning(
+                "Python executable with version {!r} requested by the Task, "
+                "not found in path, using \'{}\' (v{}) instead".format(
+                    config_version, find_executable(default_python[-1]), default_python[0]
+                )
+            )
+            return default_python
+
         raise CommandFailedError(
-            "Python executable with version {!r} defined in configuration file, "
+            "Python executable with version {!r} requested by the Task, "
             "key 'agent.default_python', not found in path, tried: {}".format(
                 config_version, list(zip(*python_executables))[1]
             )
@@ -2843,7 +2879,8 @@ class Worker(ServiceCommandSection):
         requested_python_version = \
             requested_python_version or \
             Text(self._session.config.get("agent.python_binary", None)) or \
-            Text(self._session.config.get("agent.default_python", None))
+            Text(self._session.config.get("agent.default_python", None)) or \
+            '{}.{}'.format(sys.version_info.major, sys.version_info.minor)
 
         if self.is_conda:
             executable_version_suffix = \
@@ -2870,17 +2907,19 @@ class Worker(ServiceCommandSection):
                         self.find_python_executable_for_version(requested_python_version)
                 except Exception:
                     def_python_version = Text(self._session.config.get("agent.python_binary", None)) or \
-                                         Text(self._session.config.get("agent.default_python", None))
+                                         Text(self._session.config.get("agent.default_python", None)) or \
+                                         '{}.{}'.format(sys.version_info.major, sys.version_info.minor)
                     print('Warning: could not locate requested Python version {}, reverting to version {}'.format(
                         requested_python_version, def_python_version))
                     executable_version, executable_version_suffix, executable_name = \
                         self.find_python_executable_for_version(def_python_version)
 
-                self._session.config.put("agent.default_python", executable_version)
+                self._session.config.put("agent.default_python", executable_version_suffix)
                 self._session.config.put("agent.python_binary", executable_name)
 
         venv_dir = Path(venv_dir) if venv_dir else \
             Path(self._session.config["agent.venvs_dir"], executable_version_suffix)
+        venv_dir = Path(os.path.expanduser(os.path.expandvars(venv_dir.as_posix())))
 
         first_time = not standalone_mode and (
             is_windows_platform()
@@ -3010,8 +3049,8 @@ class Worker(ServiceCommandSection):
         self._docker_image = docker_image
         self._docker_arguments = docker_arguments
 
-        print("Running in Docker {} mode (v19.03 and above) - using default docker image: {} {}\n".format(
-            '*standalone*' if self._standalone_mode else '', self._docker_image,
+        print("Running in Docker{} mode (v19.03 and above) - using default docker image: {} {}\n".format(
+            ' *standalone*' if self._standalone_mode else '', self._docker_image,
             self._sanitize_docker_command(self._docker_arguments) or ''))
 
         temp_config = deepcopy(self._session.config)

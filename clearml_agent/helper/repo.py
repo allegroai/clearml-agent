@@ -663,7 +663,9 @@ def clone_repository_cached(session, execution, destination):
 
             vcs.pull()
             rm_tree(destination)
-            shutil.copytree(Text(cached_repo_path), Text(clone_folder))
+            shutil.copytree(Text(cached_repo_path), Text(clone_folder),
+                            symlinks=select_for_platform(linux=True, windows=False),
+                            ignore_dangling_symlinks=True)
             if not clone_folder.is_dir():
                 raise CommandFailedError(
                     "copying of repository failed: from {} to {}".format(

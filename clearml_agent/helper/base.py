@@ -204,10 +204,13 @@ def get_python_path(script_dir, entry_point, package_api, is_conda_env=False):
             ["-c", "import sys; print('{}'.join(sys.path))".format(python_path_sep)])
         org_python_path = python_path_cmd.get_output(cwd=script_dir)
         # Add path of the script directory and executable directory
-        python_path = '{}{python_path_sep}{}{python_path_sep}'.format(
-            Path(script_dir).absolute().as_posix(),
-            (Path(script_dir) / Path(entry_point)).parent.absolute().as_posix(),
-            python_path_sep=python_path_sep)
+        python_path = '{}{python_path_sep}'.format(
+            Path(script_dir).absolute().as_posix(), python_path_sep=python_path_sep)
+        if entry_point:
+            python_path += '{}{python_path_sep}'.format(
+                (Path(script_dir) / Path(entry_point)).parent.absolute().as_posix(),
+                python_path_sep=python_path_sep)
+
         if is_windows_platform():
             python_path = python_path.replace('/', '\\')
 
