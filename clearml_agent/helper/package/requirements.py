@@ -14,6 +14,7 @@ from pathlib2 import Path
 from pyhocon import ConfigTree
 
 import six
+import logging
 from clearml_agent.definitions import PIP_EXTRA_INDICES
 from clearml_agent.helper.base import warning, is_conda, which, join_lines, is_windows_platform
 from clearml_agent.helper.process import Argv, PathLike
@@ -152,6 +153,31 @@ class MarkerRequirement(object):
 
         return SimpleVersion.compare_versions(
             version_a=requested_version, op=op, version_b=version, num_parts=num_parts)
+
+    def remove_local_file_ref(self):
+        if not self.local_file or self.vcs or self.editable or self.path:
+            return False
+        parts = re.split(r"@\s*{}".format(self.req.uri), self.req.line)
+        # if we did not find anything do nothing
+        if len(parts) < 2:
+            return False
+        self.req.line = ''.join(parts).strip()
+        self.req.uri = None
+        self.req.local_file = False
+        return True
+
+    def validate_local_file_ref(self):
+        # if local file does not exist, remove the reference to it
+        if self.vcs or self.editable or self.path or not self.local_file or not self.name or \
+                not self.uri or not self.uri.startswith("file://"):
+            return
+        local_path = Path(self.uri[len("file://"):])
+        if not local_path.exists():
+            line = self.line
+            if self.remove_local_file_ref():
+                # print warning
+                logging.getLogger(__name__).warning(
+                    'Local file not found [{}], references removed !'.format(line))
 
 
 class SimpleVersion:
@@ -698,12 +724,17 @@ class RequirementsManager(object):
             except Exception as ex:
                 return [Requirement(req_str)]
 
+        def create_req(x):
+            r = MarkerRequirement(x)
+            r.validate_local_file_ref()
+            return r
+
         if not requirements:
             return tuple()
 
         parsed_requirements = tuple(
             map(
-                MarkerRequirement,
+                create_req,
                 [r for line in (requirements.splitlines() if isinstance(requirements, str) else requirements)
                  for r in safe_parse(line)]
             )

@@ -449,10 +449,25 @@ class CondaAPI(PackageManager):
         has_torch = False
         has_matplotlib = False
         has_cudatoolkit = False
+        cuda_version_full = 0
+        # noinspection PyBroadException
         try:
             # notice this is an integer version: 112 (means 11.2)
-            cuda_version = int(self.session.config.get('agent.cuda_version', 0))
-        except:
+            cuda_version = str(self.session.config.get('agent.cuda_version', "")).strip()
+            if not cuda_version:
+                cuda_version = 0
+            else:
+                cuda_version_full = str(cuda_version)
+                # if we have patch version we parse it here
+                cuda_version_parts = [int(v) for v in cuda_version.split('.')]
+                if len(cuda_version_parts) > 1 or cuda_version_parts[0] < 60:
+                    cuda_version = 10*cuda_version_parts[0]
+                    if len(cuda_version_parts) > 1:
+                        cuda_version += cuda_version_parts[1]
+                else:
+                    cuda_version = cuda_version_parts[0]
+                    cuda_version_full = "{:.1f}".format(float(cuda_version)/10.)
+        except Exception:
             cuda_version = 0
 
         # notice 'conda' entry with empty string is a valid conda requirements list, it means pip only
@@ -469,6 +484,7 @@ class CondaAPI(PackageManager):
                 continue
 
             m = MarkerRequirement(marker[0])
+            m.validate_local_file_ref()
             # conda does not support version control links
             if m.vcs:
                 pip_requirements.append(m)
@@ -512,7 +528,8 @@ class CondaAPI(PackageManager):
             reqs.append(m)
 
         if not has_cudatoolkit and cuda_version:
-            m = MarkerRequirement(Requirement("cudatoolkit == {}".format(float(cuda_version) / 10.0)))
+            m = MarkerRequirement(Requirement.parse("cudatoolkit == {}".format(cuda_version_full)))
+            has_cudatoolkit = True
             reqs.append(m)
 
         # if we have a conda list, the rest should be installed with pip,
@@ -528,9 +545,9 @@ class CondaAPI(PackageManager):
                     continue
 
                 m = MarkerRequirement(marker[0])
-                # skip over local files (we cannot change the version to a local file)
-                if m.local_file:
-                    continue
+                # remove local files reference if it does not exist (leave the package name)
+                m.validate_local_file_ref()
+
                 m_name = (m.name or '').lower()
                 if m_name in conda_supported_req_names:
                     # this package is in the conda list,
