@@ -31,6 +31,7 @@ import six
 from pathlib2 import Path
 from pyhocon import ConfigTree, ConfigFactory
 from six.moves.urllib.parse import quote
+from six.moves.urllib.parse import urlparse, urlunparse
 
 from clearml_agent.backend_api.services import auth as auth_api
 from clearml_agent.backend_api.services import queues as queues_api
@@ -3631,6 +3632,27 @@ class Worker(ServiceCommandSection):
             queue_ids.append(q_id)
         return queue_ids
 
+    @staticmethod
+    def _sanitize_urls(s: str) -> Tuple[str, bool]:
+        """ Replaces passwords in URLs with asterisks """
+        regex = re.compile("^([^:]*:)[^@]+(.*)$")
+        tokens = re.split(r"\s", s)
+        changed = False
+        for k in range(len(tokens)):
+            if "@" in tokens[k]:
+                res = urlparse(tokens[k])
+                if regex.match(res.netloc):
+                    changed = True
+                    tokens[k] = urlunparse((
+                        res.scheme,
+                        regex.sub("\\1********\\2", res.netloc),
+                        res.path,
+                        res.params,
+                        res.query,
+                        res.fragment
+                    ))
+        return " ".join(tokens) if changed else s, changed
+
     def _sanitize_docker_command(self, docker_command):
         # type: (List[str]) -> List[str]
         if not docker_command:
@@ -3647,16 +3669,35 @@ class Worker(ServiceCommandSection):
             ENV_AGENT_AUTH_TOKEN.vars,
         )
 
+        parse_embedded_urls = bool(self._session.config.get(
+            'agent.hide_docker_command_env_vars.parse_embedded_urls', True
+        ))
+
+        skip_next = False
         result = docker_command[:]
         for i, item in enumerate(docker_command):
+            if skip_next:
+                skip_next = False
+                continue
             try:
-                if item not in ("-e", "--env"):
-                    continue
-                key, sep, _ = result[i + 1].partition("=")
-                if key not in keys or not sep:
-                    continue
-                result[i + 1] = "{}={}".format(key, "********")
-            except KeyError:
+                if item in ("-e", "--env"):
+                    key, sep, val = result[i + 1].partition("=")
+                    if not sep:
+                        continue
+                    if key in ENV_DOCKER_IMAGE.vars:
+                        # special case - this contains a complete docker command
+                        val = " ".join(self._sanitize_docker_command(re.split(r"\s", val)))
+                    elif key in keys:
+                        val = "********"
+                    elif parse_embedded_urls:
+                        val = self._sanitize_urls(val)[0]
+                    result[i + 1] = "{}={}".format(key, val)
+                    skip_next = True
+                elif parse_embedded_urls and not item.startswith("-"):
+                    item, changed = self._sanitize_urls(item)
+                    if changed:
+                        result[i] = item
+            except (KeyError, TypeError):
                 pass
 
         return result
