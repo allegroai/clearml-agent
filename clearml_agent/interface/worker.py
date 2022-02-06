@@ -165,7 +165,7 @@ COMMANDS = {
             },
             '--docker': {
                 'help': 'Run execution task inside a docker (v19.03 and above). Optional args <image> <arguments> or '
-                        'specify default docker image in agent.default_docker.image / agent.default_docker.arguments'
+                        'specify default docker image in agent.default_docker.image / agent.default_docker.arguments '
                         'use --gpus/--cpu-only (or set NVIDIA_VISIBLE_DEVICES) to limit gpu visibility for docker',
                 'nargs': '*',
                 'default': False,
@@ -199,14 +199,14 @@ COMMANDS = {
             },
             '--docker': {
                 'help': 'Build the experiment inside a docker (v19.03 and above). Optional args <image> <arguments> or '
-                'specify default docker image in agent.default_docker.image / agent.default_docker.arguments'
+                'specify default docker image in agent.default_docker.image / agent.default_docker.arguments '
                 'use --gpus/--cpu-only (or set NVIDIA_VISIBLE_DEVICES) to limit gpu visibility for docker',
                 'nargs': '*',
                 'default': False,
             },
             '--force-docker': {
-                'help': 'Force using the agent-specified docker image (either explicitly in the --docker argument or'
-                        'using the agent\'s default docker image). If provided, the agent will not use any docker'
+                'help': 'Force using the agent-specified docker image (either explicitly in the --docker argument or '
+                        'using the agent\'s default docker image). If provided, the agent will not use any docker '
                         'container information stored on the task itself (default False)',
                 'default': False,
                 'action': 'store_true',
