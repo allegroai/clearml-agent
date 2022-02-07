@@ -673,9 +673,9 @@ def clone_repository_cached(session, execution, destination):
                     )
                 )
 
-    # checkout in the newly copy destination
-    vcs.location = Text(clone_folder)
-    vcs.checkout()
+            # checkout in the newly copy destination
+            vcs.location = Text(clone_folder)
+            vcs.checkout()
 
     repo_info = vcs.get_repository_copy_info(clone_folder)
 
