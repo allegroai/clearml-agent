@@ -108,7 +108,7 @@ class VCS(object):
         )
         self.url = url
         self.location = Text(location)
-        self.revision = revision
+        self._revision = revision
         self.log = self.session.get_logger(__name__)
 
     @property
@@ -390,7 +390,7 @@ class VCS(object):
         """
         Checkout repository at specified revision
         """
-        self.call("checkout", self.revision, *self.checkout_flags, cwd=self.location)
+        self.call("checkout", self._revision, *self.checkout_flags, cwd=self.location)
 
     @abc.abstractmethod
     def pull(self):
@@ -519,7 +519,7 @@ class VCS(object):
 
 class Git(VCS):
     executable_name = "git"
-    main_branch = "master"
+    main_branch = ("master", "main")
     clone_flags = ("--quiet", "--recursive")
     checkout_flags = ("--force",)
     COMMAND_ENV = {
@@ -531,7 +531,9 @@ class Git(VCS):
 
     @staticmethod
     def remote_branch_name(branch):
-        return "origin/{}".format(branch)
+        return [
+            "origin/{}".format(b) for b in ([branch] if isinstance(branch, str) else branch)
+        ]
 
     def executable_not_found_error_help(self):
         return 'Cannot find "{}" executable. {}'.format(
@@ -553,7 +555,15 @@ class Git(VCS):
         """
         Checkout repository at specified revision
         """
-        self.call("checkout", self.revision, *self.checkout_flags, cwd=self.location)
+        revisions = [self._revision] if isinstance(self._revision, str) else self._revision
+        for i, revision in enumerate(revisions):
+            try:
+                self.call("checkout", revision, *self.checkout_flags, cwd=self.location)
+                break
+            except subprocess.CalledProcessError:
+                if i == len(revisions) - 1:
+                    raise
+
         try:
             self.call("submodule", "update", "--recursive", cwd=self.location)
         except:  # noqa
@@ -593,7 +603,7 @@ class Hg(VCS):
             "pull",
             self.url_with_auth,
             cwd=self.location,
-            *(("-r", self.revision) if self.revision else ())
+            *(("-r", self._revision) if self._revision else ())
         )
 
     info_commands = dict(

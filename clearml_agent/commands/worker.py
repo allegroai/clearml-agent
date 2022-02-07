@@ -2135,32 +2135,32 @@ class Worker(ServiceCommandSection):
 
         cwd = vcs.location if vcs and vcs.location else directory
 
-        if is_cached and not standalone_mode:
-            # reinstalling git / local packages
-            package_api = copy(self.package_api)
-            OnlyExternalRequirements.cwd = package_api.cwd = cwd
-            package_api.requirements_manager = self._get_requirements_manager(
-                base_interpreter=package_api.requirements_manager.get_interpreter(),
-                requirement_substitutions=[OnlyExternalRequirements]
-            )
-            # make sure we run the handlers
-            cached_requirements = \
-                {k: package_api.requirements_manager.replace(requirements[k] or '')
-                 for k in requirements}
-            if str(cached_requirements.get('pip', '')).strip() \
-                    or str(cached_requirements.get('conda', '')).strip():
-                package_api.load_requirements(cached_requirements)
-            # make sure we call the correct freeze
-            requirements_manager = package_api.requirements_manager
-
-        elif not is_cached and not standalone_mode:
-            self.install_requirements(
-                execution,
-                repo_info,
-                requirements_manager=requirements_manager,
-                cached_requirements=requirements,
-                cwd=cwd,
-            )
+        if not standalone_mode:
+            if is_cached:
+                # reinstalling git / local packages
+                package_api = copy(self.package_api)
+                OnlyExternalRequirements.cwd = package_api.cwd = cwd
+                package_api.requirements_manager = self._get_requirements_manager(
+                    base_interpreter=package_api.requirements_manager.get_interpreter(),
+                    requirement_substitutions=[OnlyExternalRequirements]
+                )
+                # make sure we run the handlers
+                cached_requirements = \
+                    {k: package_api.requirements_manager.replace(requirements[k] or '')
+                     for k in requirements}
+                if str(cached_requirements.get('pip', '')).strip() \
+                        or str(cached_requirements.get('conda', '')).strip():
+                    package_api.load_requirements(cached_requirements)
+                # make sure we call the correct freeze
+                requirements_manager = package_api.requirements_manager
+            else:
+                self.install_requirements(
+                    execution,
+                    repo_info,
+                    requirements_manager=requirements_manager,
+                    cached_requirements=requirements,
+                    cwd=cwd,
+                )
 
         # do not update the task packages if we are using conda,
         # it will most likely make the task environment unreproducible
