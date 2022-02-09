@@ -21,6 +21,7 @@ from distutils.spawn import find_executable
 from distutils.util import strtobool
 from functools import partial
 from itertools import chain
+from os.path import basename
 from tempfile import mkdtemp, NamedTemporaryFile
 from time import sleep, time
 from typing import Text, Optional, Any, Tuple, List
@@ -3383,7 +3384,7 @@ class Worker(ServiceCommandSection):
         agent_install_bash_script = []
         if os.environ.get('FORCE_LOCAL_CLEARML_AGENT_WHEEL'):
             local_wheel = os.path.expanduser(os.environ.get('FORCE_LOCAL_CLEARML_AGENT_WHEEL'))
-            docker_wheel = str(Path('/tmp') / Path(local_wheel).name)
+            docker_wheel = '/tmp/{}'.format(basename(local_wheel))
             base_cmd += ['-v', local_wheel + ':' + docker_wheel]
             clearml_agent_wheel = '\"{}\"'.format(docker_wheel)
         elif os.environ.get('FORCE_CLEARML_AGENT_REPO'):
