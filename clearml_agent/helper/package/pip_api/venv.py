@@ -48,7 +48,7 @@ class VirtualenvPip(SystemPip, PackageManager):
         return Argv.conditional_flag(
             self.session.config["agent.package_manager.system_site_packages"],
             "--system-site-packages",
-        )
+        ) + ("--python", self._bin)
 
     def install_flags(self):
         """
