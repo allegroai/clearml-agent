@@ -64,6 +64,10 @@ class VirtualenvPip(SystemPip, PackageManager):
         Only valid if instantiated with path.
         Use self.python as self.bin does not exist.
         """
+        # Log virtualenv information to stdout
+        self.session.command(
+            self.python, "-m", "virtualenv", "--version"
+        )
         self.session.command(
             self.python, "-m", "virtualenv", self.path, *self.create_flags()
         ).check_call()
