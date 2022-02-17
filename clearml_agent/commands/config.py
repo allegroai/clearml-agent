@@ -12,7 +12,7 @@ from clearml_agent.backend_config.defs import LOCAL_CONFIG_FILES
 
 description = """
 Please create new clearml credentials through the settings page in your `clearml-server` web app, 
-or create a free account at https://app.clear.ml/webapp-configuration
+or create a free account at https://app.clear.ml/settings/webapp-configuration
     
 In the settings > workspace  page, press "Create new credentials", then press "Copy to clipboard".
 
