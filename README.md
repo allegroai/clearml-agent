@@ -60,6 +60,8 @@ It is a zero configuration fire-and-forget execution agent, providing a full ML/
 ### Kubernetes Integration (Optional)
 We think Kubernetes is awesome, but it should be a choice.
 We designed `clearml-agent` so you can run bare-metal or inside a pod with any mix that fits your environment.
+
+Find Dockerfiles in [docker](./docker) dir and a helm Chart in https://github.com/allegroai/clearml-helm-charts
 #### Benefits of integrating existing K8s with ClearML-Agent 
 - ClearML-Agent adds the missing scheduling capabilities to K8s
 - Allowing for more flexible automation from code
