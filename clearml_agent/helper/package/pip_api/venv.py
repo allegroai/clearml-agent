@@ -48,7 +48,7 @@ class VirtualenvPip(SystemPip, PackageManager):
         return Argv.conditional_flag(
             self.session.config["agent.package_manager.system_site_packages"],
             "--system-site-packages",
-        )
+        ) + ("--python", self._bin)
 
     def install_flags(self):
         """
@@ -64,6 +64,10 @@ class VirtualenvPip(SystemPip, PackageManager):
         Only valid if instantiated with path.
         Use self.python as self.bin does not exist.
         """
+        # Log virtualenv information to stdout
+        self.session.command(
+            self.python, "-m", "virtualenv", "--version"
+        )
         self.session.command(
             self.python, "-m", "virtualenv", self.path, *self.create_flags()
         ).check_call()
