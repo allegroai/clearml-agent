@@ -84,3 +84,13 @@ class MissingPackageError(CommandFailedError):
     def __str__(self):
         return '{self.__class__.__name__}: ' \
                '"{self.name}" package is required. Please run "pip install {self.name}"'.format(self=self)
+
+
+class CustomBuildScriptFailed(CommandFailedError):
+    def __init__(self, errno, *args, **kwargs):
+        super(CustomBuildScriptFailed, self).__init__(*args, **kwargs)
+        self.errno = errno
+
+
+class SkippedCustomBuildScript(CommandFailedError):
+    pass

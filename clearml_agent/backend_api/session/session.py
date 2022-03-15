@@ -206,7 +206,7 @@ class Session(TokenManager):
                 http_retries_config = dict(**http_retries_config)
                 http_retries_config['connect'] = connect_retries
 
-        return http_retries_config, get_http_session_with_retry(**http_retries_config)
+        return http_retries_config, get_http_session_with_retry(config=self.config or None, **http_retries_config)
 
     def load_vaults(self):
         if not self.check_min_api_version("2.15") or self.feature_set == "basic":

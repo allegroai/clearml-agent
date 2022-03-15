@@ -12,7 +12,7 @@ from clearml_agent.definitions import FileBuffering, CONFIG_FILE
 from clearml_agent.helper.base import reverse_home_folder_expansion, chain_map, named_temporary_file
 from clearml_agent.helper.process import ExitStatus
 from . import interface, session, definitions, commands
-from .errors import ConfigFileNotFound, Sigterm, APIError
+from .errors import ConfigFileNotFound, Sigterm, APIError, CustomBuildScriptFailed
 from .helper.trace import PackageTrace
 from .interface import get_parser
 
@@ -44,6 +44,8 @@ def run_command(parser, args, command_name):
         debug = command._session.debug_mode
         func = getattr(command, command_name)
         return func(**args_dict)
+    except CustomBuildScriptFailed as e:
+        command_class.exit(e.message, e.errno)
     except ConfigFileNotFound:
         message = 'Cannot find configuration file in "{}".\n' \
                   'To create a configuration file, run:\n' \

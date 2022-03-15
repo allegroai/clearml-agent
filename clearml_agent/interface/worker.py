@@ -99,8 +99,10 @@ DAEMON_ARGS = dict({
         'aliases': ['-d'],
     },
     '--stop': {
-        'help': 'Stop the running agent (based on the same set of arguments)',
-        'action': 'store_true',
+        'help': 'Stop the running agent (based on the same set of arguments). '
+                'Optional: provide a list of specific local worker IDs to stop',
+        'nargs': '*',
+        'default': False,
     },
     '--dynamic-gpus': {
         'help': 'Allow to dynamically allocate gpus based on queue properties, '

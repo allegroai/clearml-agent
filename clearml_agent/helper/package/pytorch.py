@@ -174,35 +174,41 @@ class PytorchRequirement(SimpleSubstitution):
         self.log = self._session.get_logger(__name__)
         self.package_manager = self.config["agent.package_manager.type"].lower()
         self.os = os_name or self.get_platform()
-        self.cuda = "cuda{}".format(self.cuda_version).lower()
-        self.python_version_string = str(self.config["agent.default_python"])
-        self.python_major_minor_str = '.'.join(self.python_version_string.split('.')[:2])
-        if '.' not in self.python_major_minor_str:
-            raise PytorchResolutionError(
-                "invalid python version {!r} defined in configuration file, key 'agent.default_python': "
-                "must have both major and minor parts of the version (for example: '3.7')".format(
-                    self.python_version_string
-                )
-            )
-        self.python = "python{}".format(self.python_major_minor_str)
-
-        self.exceptions = [
-            PytorchResolutionError(message)
-            for message in (
-                None,
-                'cuda version "{}" is not supported'.format(self.cuda),
-                'python version "{}" is not supported'.format(
-                    self.python_version_string
-                ),
-            )
-        ]
-
-        try:
-            self.validate_python_version()
-        except PytorchResolutionError as e:
-            self.log.warn("will not be able to install pytorch wheels: %s", e.args[0])
-
+        self.cuda = None
+        self.python_version_string = None
+        self.python_major_minor_str = None
+        self.python = None
+        self.exceptions = []
         self._original_req = []
+
+    def _init_python_ver_cuda_ver(self):
+        if self.cuda is None:
+            self.cuda = "cuda{}".format(self.cuda_version).lower()
+        if self.python_version_string is None:
+            self.python_version_string = str(self.config["agent.default_python"])
+        if self.python_major_minor_str is None:
+            self.python_major_minor_str = '.'.join(self.python_version_string.split('.')[:2])
+            if '.' not in self.python_major_minor_str:
+                raise PytorchResolutionError(
+                    "invalid python version {!r} defined in configuration file, key 'agent.default_python': "
+                    "must have both major and minor parts of the version (for example: '3.7')".format(
+                        self.python_version_string
+                    )
+                )
+        if self.python is None:
+            self.python = "python{}".format(self.python_major_minor_str)
+
+        if not self.exceptions:
+            self.exceptions = [
+                PytorchResolutionError(message)
+                for message in (
+                    None,
+                    'cuda version "{}" is not supported'.format(self.cuda),
+                    'python version "{}" is not supported'.format(
+                        self.python_version_string
+                    ),
+                )
+            ]
 
     @property
     def is_conda(self):
@@ -216,6 +222,8 @@ class PytorchRequirement(SimpleSubstitution):
         """
         Make sure python version has both major and minor versions as required for choosing pytorch wheel
         """
+        self._init_python_ver_cuda_ver()
+
         if self.is_pip and not self.python_major_minor_str:
             raise PytorchResolutionError(
                 "invalid python version {!r} defined in configuration file, key 'agent.default_python': "
@@ -294,6 +302,7 @@ class PytorchRequirement(SimpleSubstitution):
 
     def get_url_for_platform(self, req):
         # check if package is already installed with system packages
+        self.validate_python_version()
         # noinspection PyBroadException
         try:
             if self.config.get("agent.package_manager.system_site_packages", None):

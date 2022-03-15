@@ -16,7 +16,9 @@ from pyhocon import ConfigTree
 import six
 import logging
 from clearml_agent.definitions import PIP_EXTRA_INDICES
-from clearml_agent.helper.base import warning, is_conda, which, join_lines, is_windows_platform
+from clearml_agent.helper.base import (
+    warning, is_conda, which, join_lines, is_windows_platform,
+    convert_cuda_version_to_int_10_base_str, )
 from clearml_agent.helper.process import Argv, PathLike
 from clearml_agent.helper.gpu.gpustat import get_driver_cuda_version
 from clearml_agent.session import Session, normalize_cuda_version
@@ -474,7 +476,7 @@ class RequirementSubstitution(object):
 
     @property
     def cuda_version(self):
-        return self.config['agent.cuda_version']
+        return convert_cuda_version_to_int_10_base_str(self.config['agent.cuda_version'])
 
     @property
     def cudnn_version(self):

@@ -19,7 +19,9 @@ from clearml_agent.external.requirements_parser import parse
 from clearml_agent.external.requirements_parser.requirement import Requirement
 
 from clearml_agent.errors import CommandFailedError
-from clearml_agent.helper.base import rm_tree, NonStrictAttrs, select_for_platform, is_windows_platform, ExecutionInfo
+from clearml_agent.helper.base import (
+    rm_tree, NonStrictAttrs, select_for_platform, is_windows_platform, ExecutionInfo,
+    convert_cuda_version_to_float_single_digit_str, convert_cuda_version_to_int_10_base_str, )
 from clearml_agent.helper.process import Argv, Executable, DEVNULL, CommandSequence, PathLike
 from clearml_agent.helper.package.requirements import SimpleVersion
 from clearml_agent.session import Session
@@ -167,7 +169,7 @@ class CondaAPI(PackageManager):
                 raise ValueError("Could not restore Conda environment, cannot find {}".format(
                     self.conda_pre_build_env_path))
 
-        output = Argv(
+        command = Argv(
             self.conda,
             "create",
             "--yes",
@@ -175,7 +177,9 @@ class CondaAPI(PackageManager):
             "--prefix",
             self.path,
             "python={}".format(self.python),
-        ).get_output(stderr=DEVNULL)
+        )
+        print('Executing Conda: {}'.format(command.serialize()))
+        output = command.get_output(stderr=DEVNULL)
         match = re.search(
             r"\W*(.*activate) ({})".format(re.escape(str(self.path))), output
         )
@@ -457,16 +461,8 @@ class CondaAPI(PackageManager):
             if not cuda_version:
                 cuda_version = 0
             else:
-                cuda_version_full = str(cuda_version)
-                # if we have patch version we parse it here
-                cuda_version_parts = [int(v) for v in cuda_version.split('.')]
-                if len(cuda_version_parts) > 1 or cuda_version_parts[0] < 60:
-                    cuda_version = 10*cuda_version_parts[0]
-                    if len(cuda_version_parts) > 1:
-                        cuda_version += cuda_version_parts[1]
-                else:
-                    cuda_version = cuda_version_parts[0]
-                    cuda_version_full = "{:.1f}".format(float(cuda_version)/10.)
+                cuda_version_full = convert_cuda_version_to_float_single_digit_str(cuda_version)
+                cuda_version = int(convert_cuda_version_to_int_10_base_str(cuda_version))
         except Exception:
             cuda_version = 0
 
