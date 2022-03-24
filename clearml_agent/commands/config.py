@@ -27,9 +27,9 @@ except Exception:
 
 host_description = """
 Editing configuration file: {CONFIG_FILE}
-Enter the url of the clearml-server's Web service, for example: {HOST}
+Enter the url of the clearml-server's Web service, for example: {HOST} or https://app.clear.ml
 """.format(
-    CONFIG_FILE=LOCAL_CONFIG_FILES[0],
+    CONFIG_FILE=LOCAL_CONFIG_FILES[-1],
     HOST=def_host,
 )
 
@@ -84,7 +84,7 @@ def main():
         host = input_url('API Host', api_server)
     else:
         print(host_description)
-        host = input_url('WEB Host', '')
+        host = input_url('WEB Host', 'https://app.clear.ml')
 
     parsed_host = verify_url(host)
     api_host, files_host, web_host = parse_host(parsed_host, allow_input=True)
@@ -116,9 +116,15 @@ def main():
     print('Enter git username for repository cloning (leave blank for SSH key authentication): [] ', end='')
     git_user = input()
     if git_user.strip():
-        print('Enter password for user \'{}\': '.format(git_user), end='')
+        print(
+            "Git personal token is equivalent to a password, to learn how to generate a token:\n"
+            "  GitHub: https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token\n"  # noqa
+            "  Bitbucket: https://support.atlassian.com/bitbucket-cloud/docs/app-passwords/\n"
+            "  GitLab: https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html\n"
+        )
+        print('Enter git password token for user \'{}\': '.format(git_user), end='')
         git_pass = input()
-        print('Git repository cloning will be using user={} password={}'.format(git_user, git_pass))
+        print('Git repository cloning will be using user={} token={}'.format(git_user, git_pass))
     else:
         git_user = None
         git_pass = None
