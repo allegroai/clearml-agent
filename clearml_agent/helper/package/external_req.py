@@ -46,11 +46,10 @@ class ExternalRequirements(SimpleSubstitution):
         post_install_req = self.post_install_req
         self.post_install_req = []
         for req in post_install_req:
-            try:
-                freeze_base = PackageManager.out_of_scope_freeze() or ''
-            except:
-                freeze_base = ''
-
+            if self.is_already_installed(req):
+                print("No need to reinstall \'{}\' from VCS, "
+                      "the exact same version is already installed".format(req.name))
+                continue
             req_line = self._add_vcs_credentials(req, session)
 
             # if we have older pip version we have to make sure we replace back the package name with the

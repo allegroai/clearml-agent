@@ -179,7 +179,7 @@ class MarkerRequirement(object):
             if self.remove_local_file_ref():
                 # print warning
                 logging.getLogger(__name__).warning(
-                    'Local file not found [{}], references removed !'.format(line))
+                    'Local file not found [{}], references removed'.format(line))
 
 
 class SimpleVersion:
@@ -437,6 +437,7 @@ class RequirementSubstitution(object):
         self.config = session.config  # type: ConfigTree
         self.suffix = '.post{config[agent.cuda_version]}.dev{config[agent.cudnn_version]}'.format(config=self.config)
         self.package_manager = self.config['agent.package_manager.type']
+        self._is_already_installed_cb = None
 
     @abstractmethod
     def match(self, req):  # type: (MarkerRequirement) -> bool
@@ -451,6 +452,20 @@ class RequirementSubstitution(object):
         Replace a requirement
         """
         pass
+
+    def set_is_already_installed_cb(self, cb):
+        self._is_already_installed_cb = cb
+
+    def is_already_installed(self, req):
+        if not self._is_already_installed_cb:
+            return False
+        # noinspection PyBroadException
+        try:
+            return self._is_already_installed_cb(req)
+        except BaseException as ex:
+            # debug could not resolve something
+            print("Warning: Requirements post install callback exception (check if package installed): {}".format(ex))
+            return False
 
     def post_scan_add_req(self):  # type: () -> Optional[MarkerRequirement]
         """
@@ -562,6 +577,7 @@ class RequirementsManager(object):
                                                  cache_dir=pip_cache_dir.as_posix())
         self._base_interpreter = base_interpreter
         self._cwd = None
+        self._installed_parsed_packages = set()
 
     def register(self, cls):  # type: (Type[RequirementSubstitution]) -> None
         self.handlers.append(cls(self._session))
@@ -619,7 +635,9 @@ class RequirementsManager(object):
 
         return join_lines(result)
 
-    def post_install(self, session):
+    def post_install(self, session, package_manager=None):
+        if package_manager:
+            self.update_installed_packages_state(package_manager.freeze())
         for h in self.handlers:
             try:
                 h.post_install(session)
@@ -640,6 +658,34 @@ class RequirementsManager(object):
 
     def get_interpreter(self):
         return self._base_interpreter
+
+    def update_installed_packages_state(self, requirements):
+        """
+        Updates internal Installed Packages objects, so that later we can detect
+        if we already have a pre-installed package
+        :param requirements: is the output of a freeze() call, i.e. dict {'pip': "package==version"}
+        """
+        requirements = requirements if not isinstance(requirements, dict) else requirements.get("pip")
+        self._installed_parsed_packages = self.parse_requirements_section_to_marker_requirements(
+                requirements=requirements, cwd=self._cwd)
+        for h in self.handlers:
+            h.set_is_already_installed_cb(self._callback_is_already_installed)
+
+    def _callback_is_already_installed(self, req):
+        for p in (self._installed_parsed_packages or []):
+            if p.name != req.name:
+                continue
+            # if this is version control package, only return true of both installed and requests specify commit ID
+            if req.vcs:
+                return p.vcs and req.revision and req.revision == p.revision
+
+            if not req.specs and not p.specs:
+                return True
+
+            # return if this is the same version
+            return req.specs and p.specs and req.compare_version(p, op="==")
+
+        return False
 
     @staticmethod
     def get_cuda_version(config):  # type: (ConfigTree) -> (Text, Text)

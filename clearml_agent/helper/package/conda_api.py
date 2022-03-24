@@ -424,7 +424,7 @@ class CondaAPI(PackageManager):
             finally:
                 PackageManager._selected_manager = self
 
-        self.requirements_manager.post_install(self.session)
+        self.requirements_manager.post_install(self.session, package_manager=self)
 
     def load_requirements(self, requirements):
         # if we are in read only mode, do not uninstall anything
@@ -642,7 +642,7 @@ class CondaAPI(PackageManager):
             finally:
                 PackageManager._selected_manager = self
 
-        self.requirements_manager.post_install(self.session)
+        self.requirements_manager.post_install(self.session, package_manager=self)
         return True
 
     def _parse_conda_result_bad_packges(self, result_dict):

@@ -2804,7 +2804,7 @@ class Worker(ServiceCommandSection):
                 if self._session.debug_mode and temp_file:
                     rm_file(temp_file.name)
             # call post installation callback
-            requirements_manager.post_install(self._session)
+            requirements_manager.post_install(self._session, package_manager=package_api)
             # mark as successful installation
             repo_requirements_installed = True
 

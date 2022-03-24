@@ -39,7 +39,7 @@ class VirtualenvPip(SystemPip, PackageManager):
         if isinstance(requirements, dict) and requirements.get("pip"):
             requirements["pip"] = self.requirements_manager.replace(requirements["pip"])
         super(VirtualenvPip, self).load_requirements(requirements)
-        self.requirements_manager.post_install(self.session)
+        self.requirements_manager.post_install(self.session, package_manager=self)
 
     def create_flags(self):
         """
