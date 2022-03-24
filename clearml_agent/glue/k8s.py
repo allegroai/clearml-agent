@@ -69,7 +69,7 @@ class K8sIntegration(Worker):
         "apt-get update",
         "apt-get install -y git libsm6 libxext6 libxrender-dev libglib2.0-0",
         "declare LOCAL_PYTHON",
-        "for i in {{10..5}}; do which python3.$i && python3.$i -m pip --version && "
+        "[ ! -z $LOCAL_PYTHON ] || for i in {{15..5}}; do which python3.$i && python3.$i -m pip --version && "
         "export LOCAL_PYTHON=$(which python3.$i) && break ; done",
         "[ ! -z $LOCAL_PYTHON ] || apt-get install -y python3-pip",
         "[ ! -z $LOCAL_PYTHON ] || export LOCAL_PYTHON=python3",
