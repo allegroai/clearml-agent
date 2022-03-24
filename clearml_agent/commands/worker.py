@@ -2174,8 +2174,22 @@ class Worker(ServiceCommandSection):
         if not custom_build_script:
             if self._session.config.get("agent.package_manager.force_repo_requirements_txt", False):
                 requirements = None
-                print("[package_manager.force_repo_requirements_txt=true] "
-                      "Skipping requirements, using repository \"requirements.txt\" ")
+                print("\n[package_manager.force_repo_requirements_txt=true] "
+                      "Skipping requirements, using repository \"requirements.txt\" \n")
+            elif self._session.config.get("agent.package_manager.force_original_requirements", False):
+                try:
+                    requirements = current_task.script.requirements
+                    if isinstance(requirements, dict):
+                        if 'org_pip' in requirements:
+                            requirements['pip'] = requirements['org_pip']
+                            print("\n[package_manager.force_original_requirements=true] "
+                                  "Using original requirements: \n{}\n".format(requirements['org_pip']))
+                        if 'org_conda' in requirements:
+                            requirements['conda'] = requirements['org_conda']
+                            print("\n[package_manager.force_original_requirements=true] "
+                                  "Using original requirements: \n{}\n".format(requirements['org_conda']))
+                except AttributeError:
+                    requirements = None
             else:
                 try:
                     requirements = current_task.script.requirements
