@@ -41,7 +41,7 @@ from clearml_agent.backend_api.services import workers as workers_api
 from clearml_agent.backend_api.session import CallResult
 from clearml_agent.backend_api.session.defs import (
     ENV_ENABLE_ENV_CONFIG_SECTION, ENV_ENABLE_FILES_CONFIG_SECTION,
-    ENV_VENV_CONFIGURED, )
+    ENV_VENV_CONFIGURED, ENV_PROPAGATE_EXITCODE, )
 from clearml_agent.backend_config.defs import UptimeConf
 from clearml_agent.backend_config.utils import apply_environment, apply_files
 from clearml_agent.commands.base import resolve_names, ServiceCommandSection
@@ -639,7 +639,7 @@ class Worker(ServiceCommandSection):
             pass
 
     def run_one_task(self, queue, task_id, worker_args, docker=None, task_session=None):
-        # type: (Text, Text, WorkerParams, Optional[Text]) -> ()
+        # type: (Text, Text, WorkerParams, Optional[Text]) -> int
         """
         Run one task pulled from queue.
         :param queue: ID of queue that task was pulled from
@@ -647,6 +647,8 @@ class Worker(ServiceCommandSection):
         :param worker_args: Worker command line arguments
         :param task_session: The session for running operations on the passed task
         :param docker: Docker image in which the execution task will run
+
+        :return: exit code (0 is success)
         """
         # start new process and execute task id
         # "Running task '{}'".format(task_id)
@@ -847,6 +849,8 @@ class Worker(ServiceCommandSection):
                 if self._services_mode and status == ExitStatus.interrupted:
                     # unregister this worker, it was killed
                     self._unregister()
+
+        return status
 
     def get_task_session(self, user, company):
         """
@@ -2098,7 +2102,7 @@ class Worker(ServiceCommandSection):
             )
             try:
                 self.report_monitor(ResourceMonitor.StatusReport(task=current_task.id))
-                self.run_one_task(queue='', task_id=current_task.id, worker_args=worker_params, docker=docker)
+                status = self.run_one_task(queue='', task_id=current_task.id, worker_args=worker_params, docker=docker)
             finally:
                 self.stop_monitor()
                 self._unregister()
@@ -2106,7 +2110,7 @@ class Worker(ServiceCommandSection):
                 if full_monitoring and self.temp_config_path:
                     safe_remove_file(self._session.config_file)
                     Singleton.close_pid_file()
-            return
+            return status if ENV_PROPAGATE_EXITCODE.get() else 0
 
         self._apply_extra_configuration()
 
