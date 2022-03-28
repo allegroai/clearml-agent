@@ -174,5 +174,11 @@ class OnlyExternalRequirements(ExternalRequirements):
         # Do not store the skipped requirements
         # mark skip package
         if super(OnlyExternalRequirements, self).match(req):
+            if self.is_already_installed(req):
+                print("No need to reinstall \'{}\' from VCS, "
+                      "the exact same version is already installed".format(req.name))
+                return Text('')
+
             return self._add_vcs_credentials(req, self._session)
+
         return Text('')

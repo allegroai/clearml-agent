@@ -1882,6 +1882,9 @@ class Worker(ServiceCommandSection):
                 base_interpreter=package_api.requirements_manager.get_interpreter(),
                 requirement_substitutions=[OnlyExternalRequirements],
             )
+            # manually update the current state,
+            # for the external git reference chance (in the replace callback)
+            package_api.requirements_manager.update_installed_packages_state(package_api.freeze())
             # make sure we run the handlers
             cached_requirements = \
                 {k: package_api.requirements_manager.replace(requirements[k] or '')
@@ -2244,6 +2247,9 @@ class Worker(ServiceCommandSection):
                         base_interpreter=package_api.requirements_manager.get_interpreter(),
                         requirement_substitutions=[OnlyExternalRequirements]
                     )
+                    # manually update the current state,
+                    # for the external git reference chance (in the replace callback)
+                    package_api.requirements_manager.update_installed_packages_state(package_api.freeze())
                     # make sure we run the handlers
                     cached_requirements = \
                         {k: package_api.requirements_manager.replace(requirements[k] or '')
