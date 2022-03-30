@@ -3199,6 +3199,10 @@ class Worker(ServiceCommandSection):
                 if standalone_mode:
                     self.package_api = VirtualenvPip(**package_manager_params)
                 else:
+                    if not Path(executable_name).is_file():
+                        executable_name_path = find_executable(executable_name)
+                        print("Interpreter '{}' found at '{}'".format(executable_name, executable_name_path))
+                        executable_name = executable_name_path
                     # we can change it, no one is going to use it anyhow
                     package_manager_params['path'] = None
                     package_manager_params['interpreter'] = executable_name
