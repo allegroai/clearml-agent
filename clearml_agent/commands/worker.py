@@ -3641,7 +3641,7 @@ class Worker(ServiceCommandSection):
                     "{python_single_digit}.$i -m pip --version && " +
                     "export LOCAL_PYTHON=$(which {python_single_digit}.$i) && break ; done",
                     "[ ! -z $LOCAL_PYTHON ] || export CLEARML_APT_INSTALL=\"$CLEARML_APT_INSTALL {python_single_digit}-pip\"",  # noqa
-                    "[ -z \"$CLEARML_APT_INSTALL\" ] || (apt-get update ; apt-get install -y $CLEARML_APT_INSTALL)",
+                    "[ -z \"$CLEARML_APT_INSTALL\" ] || (apt-get update -y ; apt-get install -y $CLEARML_APT_INSTALL)",
                 ]
 
             if preprocess_bash_script:
