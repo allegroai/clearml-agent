@@ -318,12 +318,14 @@ class PytorchRequirement(SimpleSubstitution):
                 from pip._internal.commands.show import search_packages_info
                 installed_torch = list(search_packages_info([req.name]))
                 # notice the comparison order, the first part will make sure we have a valid installed package
-                if installed_torch and installed_torch[0]['version'] and \
-                        req.compare_version(installed_torch[0]['version']):
+                installed_torch_version = (getattr(installed_torch[0], 'version', None) or installed_torch[0]['version']) \
+                    if installed_torch else None
+                if installed_torch and installed_torch_version and \
+                        req.compare_version(installed_torch_version):
                     print('PyTorch: requested "{}" version {}, using pre-installed version {}'.format(
-                        req.name, req.specs[0] if req.specs else 'unspecified', installed_torch[0]['version']))
+                        req.name, req.specs[0] if req.specs else 'unspecified', installed_torch_version))
                     # package already installed, do nothing
-                    req.specs = [('==', str(installed_torch[0]['version']))]
+                    req.specs = [('==', str(installed_torch_version))]
                     return '{} {} {}'.format(req.name, req.specs[0][0], req.specs[0][1]), True
         except Exception:
             pass
