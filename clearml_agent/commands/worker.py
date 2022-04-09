@@ -2349,7 +2349,7 @@ class Worker(ServiceCommandSection):
         if ENV_TASK_EXTRA_PYTHON_PATH.get():
             python_path = add_python_path(python_path, ENV_TASK_EXTRA_PYTHON_PATH.get())
         if python_path:
-            os.environ['PYTHONPATH'] = python_path
+            os.environ['PYTHONPATH'] = os.pathsep.join(filter(None, (os.environ.get('PYTHONPATH', None), python_path)))
 
         # check if we want to run as another user, only supported on linux
         if ENV_TASK_EXECUTE_AS_USER.get() and is_linux_platform():
