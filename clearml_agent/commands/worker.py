@@ -1109,7 +1109,11 @@ class Worker(ServiceCommandSection):
             if w.id.startswith(worker_name) and w.id != self.worker_id]
         gpus = []
         for w in our_workers:
-            gpus += [int(g) for g in w.split(':')[-1].lower().replace('gpu', '').split(',')]
+            for g in w.split(':')[-1].lower().replace('gpu', '').split(','):
+                try:
+                    gpus += [int(g.strip())]
+                except (ValueError, TypeError):
+                    print("INFO: failed parsing GPU int('{}') - skipping".format(g))
         available_gpus = list(set(gpu_indexes) - set(gpus))
 
         return available_gpus
