@@ -1795,7 +1795,7 @@ class Worker(ServiceCommandSection):
     def _apply_extra_configuration(self):
         # store a few things we updated in runtime (TODO: we should list theme somewhere)
         agent_config = self._session.config["agent"].copy()
-        agent_config_keys = ["cuda_version", "cudnn_version", "default_python", "worker_id", "debug"]
+        agent_config_keys = ["cuda_version", "cudnn_version", "default_python", "worker_id", "worker_name", "debug"]
         try:
             self._session.load_vaults()
         except Exception as ex:
