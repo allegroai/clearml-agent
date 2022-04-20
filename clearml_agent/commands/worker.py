@@ -1124,7 +1124,13 @@ class Worker(ServiceCommandSection):
             raise ValueError("Dynamic GPU allocation is not supported by the ClearML-server")
         available_gpus = [prop["value"] for prop in available_gpus if prop["key"] == 'available_gpus']
         if available_gpus:
-            available_gpus = [int(g) for g in available_gpus[-1].split(',')]
+            gpus = []
+            for g in available_gpus[-1].split(','):
+                try:
+                    gpus += [int(g.strip())]
+                except (ValueError, TypeError):
+                    print("INFO: failed parsing GPU int('{}') - skipping".format(g))
+            available_gpus = gpus
         if not isinstance(gpu_queues, dict):
             gpu_queues = dict(gpu_queues)
 
