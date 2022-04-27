@@ -2980,6 +2980,11 @@ class Worker(ServiceCommandSection):
             - a new working directory (replacing the working_dir in the task's script section)
             - a requirements manager instance
         """
+        os.environ["CLEARML_TASK_SCRIPT_ENTRY"] = execution.entry_point
+        os.environ["CLEARML_TASK_WORKING_DIR"] = execution.working_dir
+        os.environ["CLEARML_VENV_PATH"] = str(venv_folder)
+        os.environ["CLEARML_GIT_ROOT"] = git_root
+
         script = os.path.expanduser(os.path.expandvars(script))
 
         try:
@@ -2997,10 +3002,6 @@ class Worker(ServiceCommandSection):
             task.to_dict(), separators=(',', ':'), default=str
         )
         os.environ["CLEARML_CUSTOM_BUILD_OUTPUT"] = script_output_file.name
-        os.environ["CLEARML_TASK_SCRIPT_ENTRY"] = execution.entry_point
-        os.environ["CLEARML_TASK_WORKING_DIR"] = execution.working_dir
-        os.environ["CLEARML_VENV_PATH"] = str(venv_folder)
-        os.environ["CLEARML_GIT_ROOT"] = git_root
 
         try:
             subprocess.check_call([script])
