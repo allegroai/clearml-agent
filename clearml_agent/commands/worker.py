@@ -1291,12 +1291,9 @@ class Worker(ServiceCommandSection):
             raise ValueError("Running in Docker mode, 'docker' command was not found")
 
         self._worker_tags = kwargs.get('child_report_tags', None)
-        self._impersonate_as_task_owner = kwargs.get('use_owner_token', False)
-        if self._impersonate_as_task_owner:
-            if not self._session.check_min_api_version("2.14"):
-                raise ValueError("Server does not support --use-owner-token option (incompatible API version)")
-            if self._session.feature_set == "basic":
-                raise ValueError("Server does not support --use-owner-token option")
+
+        self._use_owner_token(kwargs.get('use_owner_token', False))
+
         self._standalone_mode = kwargs.get('standalone_mode', False)
         self._services_mode = kwargs.get('services_mode', False)
         # must have docker in services_mode
@@ -3952,6 +3949,14 @@ class Worker(ServiceCommandSection):
     def _valid_docker_container_name(name):
         # type: (str) -> bool
         return re.fullmatch(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]+$", name) is not None
+
+    def _use_owner_token(self, use_owner_token=False):
+        self._impersonate_as_task_owner = use_owner_token
+        if self._impersonate_as_task_owner:
+            if not self._session.check_min_api_version("2.14"):
+                raise ValueError("Server does not support --use-owner-token option (incompatible API version)")
+            if self._session.feature_set == "basic":
+                raise ValueError("Server does not support --use-owner-token option")
 
 
 if __name__ == "__main__":
