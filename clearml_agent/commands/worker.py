@@ -3013,7 +3013,7 @@ class Worker(ServiceCommandSection):
 
         output = Path(script_output_file.name).read_text()
         if not output:
-            raise SkippedCustomBuildScript("Build script {} is not found".format(script))
+            raise SkippedCustomBuildScript("Build script {} did not return any output".format(script))
 
         try:
             output = json.loads(output)
