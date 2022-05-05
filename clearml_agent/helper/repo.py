@@ -529,6 +529,13 @@ class Git(VCS):
         "GIT_SSH_COMMAND": "ssh -oBatchMode=yes",
     }
 
+    def __init__(self, *args, **kwargs):
+        super(Git, self).__init__(*args, **kwargs)
+        try:
+            self.call("config", "--global", "--replace-all", "safe.directory", "*", cwd=self.location)
+        except:  # noqa
+            pass
+
     @staticmethod
     def remote_branch_name(branch):
         return [
