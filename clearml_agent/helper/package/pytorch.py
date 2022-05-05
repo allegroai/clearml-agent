@@ -7,13 +7,14 @@ from furl import furl
 import urllib.parse
 from operator import itemgetter
 from html.parser import HTMLParser
-from typing import Text
+from typing import Text, Optional
 
 import attr
 import requests
 
 import six
-from .requirements import SimpleSubstitution, FatalSpecsResolutionError, SimpleVersion
+from .requirements import SimpleSubstitution, FatalSpecsResolutionError, SimpleVersion, MarkerRequirement
+from ...external.requirements_parser.requirement import Requirement
 
 OS_TO_WHEEL_NAME = {"linux": "linux_x86_64", "windows": "win_amd64"}
 
@@ -179,6 +180,7 @@ class PytorchRequirement(SimpleSubstitution):
         self.python_version_string = None
         self.python_major_minor_str = None
         self.python = None
+        self._fix_setuptools = None
         self.exceptions = []
         self._original_req = []
 
@@ -366,6 +368,10 @@ class PytorchRequirement(SimpleSubstitution):
             else:
                 print('Trying PyTorch CUDA version {} support'.format(torch_url_key))
 
+        # fix broken pytorch setuptools incompatibility
+        if closest_matched_version and SimpleVersion.compare_versions(closest_matched_version, "<", "1.11.0"):
+            self._fix_setuptools = "setuptools < 59"
+
         if not url:
             url = PytorchWheel(
                 torch_version=fix_version(version),
@@ -527,6 +533,16 @@ class PytorchRequirement(SimpleSubstitution):
             pass
 
         return list_of_requirements
+
+    def post_scan_add_req(self):  # type: () -> Optional[MarkerRequirement]
+        """
+        Allows the RequirementSubstitution to add an extra line/requirements after
+        the initial requirements scan is completed.
+        Called only once per requirements.txt object
+        """
+        if self._fix_setuptools:
+            return MarkerRequirement(Requirement.parse(self._fix_setuptools))
+        return None
 
     MAP = {
         "windows": {

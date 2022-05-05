@@ -628,10 +628,23 @@ class RequirementsManager(object):
 
         result = list(result)
         # add post scan add requirements call back
+        double_req_set = None
         for h in self.handlers:
-            req = h.post_scan_add_req()
-            if req:
-                result.append(req.tostr())
+            reqs = h.post_scan_add_req()
+            if reqs:
+                if double_req_set is None:
+                    def safe_parse_name(line):
+                        try:
+                            return Requirement.parse(line).name
+                        except:  # noqa
+                            return None
+                    double_req_set = set([safe_parse_name(r) for r in result if r])
+
+                for r in (reqs if isinstance(reqs, (tuple, list)) else [reqs]):
+                    if r and (not r.name or r.name not in double_req_set):
+                        result.append(r.tostr())
+                    elif r:
+                        print("SKIPPING additional auto installed package: \"{}\"".format(r))
 
         return join_lines(result)
 
