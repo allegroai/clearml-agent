@@ -139,8 +139,8 @@ from clearml_agent.helper.singleton import Singleton
 from clearml_agent.session import Session
 from .events import Events
 
-DOCKER_ROOT_CONF_FILE = "/root/clearml.conf"
-DOCKER_DEFAULT_CONF_FILE = "/root/default_clearml.conf"
+DOCKER_ROOT_CONF_FILE = "/tmp/clearml.conf"  # assuming we can always access/mount this file
+DOCKER_DEFAULT_CONF_FILE = "~/default_clearml.conf"
 
 
 sys_random = random.SystemRandom()
@@ -2002,7 +2002,7 @@ class Worker(ServiceCommandSection):
 
         if entry_point == "clone_task" or entry_point == "reuse_task":
             change = 'ENTRYPOINT if [ ! -s "{trains_conf}" ] ; then ' \
-                     'cp {default_trains_conf} {trains_conf} ; ' \
+                     'cp {default_trains_conf} {trains_conf} && export CLEARML_CONFIG_FILE={trains_conf}; ' \
                      ' fi ; clearml-agent execute --id {task_id} --standalone-mode {clone}'.format(
                         default_trains_conf=DOCKER_DEFAULT_CONF_FILE,
                         trains_conf=DOCKER_ROOT_CONF_FILE,
@@ -2379,6 +2379,10 @@ class Worker(ServiceCommandSection):
         # check if we need to add encoding to the subprocess
         if sys.getfilesystemencoding() == 'ascii' and not os.environ.get("PYTHONIOENCODING"):
             os.environ["PYTHONIOENCODING"] = "utf-8"
+
+        # check if we need to update backwards compatible OS environment
+        if not os.environ.get("TRAINS_CONFIG_FILE") and os.environ.get("CLEARML_CONFIG_FILE"):
+            os.environ["TRAINS_CONFIG_FILE"] = os.environ.get("CLEARML_CONFIG_FILE")
 
         print("Starting Task Execution:\n".format(current_task.id))
         exit_code = -1
@@ -3690,6 +3694,7 @@ class Worker(ServiceCommandSection):
         base_cmd += (
             (['--name', name] if name else []) +
             ['-v', conf_file+':'+DOCKER_ROOT_CONF_FILE] +
+            ['-e', "CLEARML_CONFIG_FILE={}".format(DOCKER_ROOT_CONF_FILE)] +
             (['-v', host_ssh_cache+':'+mount_ssh] if host_ssh_cache else []) +
             (['-v', host_apt_cache+':'+mount_apt_cache] if host_apt_cache else []) +
             (['-v', host_pip_cache+':'+mount_pip_cache] if host_pip_cache else []) +
@@ -3780,12 +3785,17 @@ class Worker(ServiceCommandSection):
         # patch venv folder to new location
         script_dir = script_dir.replace(venv_folder, new_venv_folder)
         # New command line execution
-        command = RunasArgv('bash', '-c', 'HOME=\"{}\" PATH=\"{}\" PYTHONPATH=\"{}\" TRAINS_CONFIG_FILE={} {}'.format(
-            home_folder,
-            os.environ.get('PATH', '').replace(venv_folder, new_venv_folder),
-            os.environ.get('PYTHONPATH', '').replace(venv_folder, new_venv_folder),
-            user_trains_conf,
-            command.serialize().replace(venv_folder, new_venv_folder)))
+        command = RunasArgv(
+            'bash', '-c',
+            'HOME=\"{}\" PATH=\"{}\" PYTHONPATH=\"{}\" '
+            'TRAINS_CONFIG_FILE={} CLEARML_CONFIG_FILE={} {}'.format(
+                home_folder,
+                os.environ.get('PATH', '').replace(venv_folder, new_venv_folder),
+                os.environ.get('PYTHONPATH', '').replace(venv_folder, new_venv_folder),
+                user_trains_conf, user_trains_conf,
+                command.serialize().replace(venv_folder, new_venv_folder)
+            )
+        )
         command.set_uid(user_uid=user_uid, user_gid=user_uid)
 
         return command, script_dir
