@@ -47,8 +47,9 @@ def parse(reqstr, cwd=None):
                 line.startswith('--extra-index-url') or \
                 line.startswith('--no-index'):
             _, extra_index = line.split()
-            PIP_EXTRA_INDICES.append(extra_index)
-            print(f"appended {extra_index} to list of extra pip indices")
+            if extra_index not in PIP_EXTRA_INDICES:
+                PIP_EXTRA_INDICES.append(extra_index)
+                print(f"appended {extra_index} to list of extra pip indices")
             continue
         elif line.startswith('-Z') or line.startswith('--always-unzip'):
             warnings.warn('Unused option --always-unzip. Skipping.')
