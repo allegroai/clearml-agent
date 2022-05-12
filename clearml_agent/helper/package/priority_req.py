@@ -1,3 +1,4 @@
+import re
 from typing import Text
 
 from .base import PackageManager
@@ -11,6 +12,7 @@ class PriorityPackageRequirement(SimpleSubstitution):
 
     def __init__(self, *args, **kwargs):
         super(PriorityPackageRequirement, self).__init__(*args, **kwargs)
+        self._replaced_packages = {}
         # check if we need to replace the packages:
         priority_packages = self.config.get('agent.package_manager.priority_packages', None)
         if priority_packages:
@@ -28,6 +30,8 @@ class PriorityPackageRequirement(SimpleSubstitution):
         Replace a requirement
         :raises: ValueError if version is pre-release
         """
+        self._replaced_packages[req.name] = req.line
+
         if req.name in self.optional_package_names:
             # noinspection PyBroadException
             try:
@@ -38,6 +42,41 @@ class PriorityPackageRequirement(SimpleSubstitution):
             return Text('')
         PackageManager.out_of_scope_install_package(str(req))
         return Text(req)
+
+    def replace_back(self, list_of_requirements):
+        """
+        :param list_of_requirements: {'pip': ['a==1.0', ]}
+        :return: {'pip': ['a==1.0', ]}
+        """
+        # if we replaced setuptools, it means someone requested it, and since freeze will not contain it,
+        # we need to add it manually
+        if not self._replaced_packages or "setuptools" not in self._replaced_packages:
+            return list_of_requirements
+
+        try:
+            for k, lines in list_of_requirements.items():
+                # k is either pip/conda
+                if k not in ('pip', 'conda'):
+                    continue
+                for i, line in enumerate(lines):
+                    if not line or line.lstrip().startswith('#'):
+                        continue
+                    parts = [p for p in re.split(r'\s|=|\.|<|>|~|!|@|#', line) if p]
+                    if not parts:
+                        continue
+                    # if we found setuptools, do nothing
+                    if parts[0] == "setuptools":
+                        return list_of_requirements
+
+            # if we are here it means we have not found setuptools
+            # we should add it:
+            if "pip" in list_of_requirements:
+                list_of_requirements["pip"] = [self._replaced_packages["setuptools"]] + list_of_requirements["pip"]
+
+        except Exception as ex:  # noqa
+            return list_of_requirements
+
+        return list_of_requirements
 
 
 class PackageCollectorRequirement(SimpleSubstitution):

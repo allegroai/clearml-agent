@@ -7,7 +7,7 @@ from furl import furl
 import urllib.parse
 from operator import itemgetter
 from html.parser import HTMLParser
-from typing import Text, Optional
+from typing import Text, Optional, Dict
 
 import attr
 import requests
@@ -512,7 +512,7 @@ class PytorchRequirement(SimpleSubstitution):
                 for i, line in enumerate(lines):
                     if not line or line.lstrip().startswith('#'):
                         continue
-                    parts = [p for p in re.split('\s|=|\.|<|>|~|!|@|#', line) if p]
+                    parts = [p for p in re.split(r'\s|=|\.|<|>|~|!|@|#', line) if p]
                     if not parts:
                         continue
                     for req, new_req in self._original_req:
