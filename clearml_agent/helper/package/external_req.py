@@ -95,7 +95,8 @@ class ExternalRequirements(SimpleSubstitution):
                 vcs._set_ssh_url()
                 new_req_line = 'git+{}{}{}'.format(
                     '' if scheme and '://' in vcs.url else scheme,
-                    vcs.url_with_auth, fragment
+                    vcs_url if session.config.get('agent.force_git_ssh_protocol', None) else vcs.url_with_auth,
+                    fragment
                 )
                 if new_req_line != req_line:
                     furl_line = furl(new_req_line)
