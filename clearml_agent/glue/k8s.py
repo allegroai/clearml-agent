@@ -572,6 +572,12 @@ class K8sIntegration(Worker):
         self, create_clearml_conf, docker_image, docker_args, docker_bash, labels, queue, task_id, template=None
     ):
         template = template or deepcopy(self.template_dict)
+
+        try:
+            namespace = template['metadata']['namespace'] or self.namespace
+        except (KeyError, TypeError, AttributeError):
+            namespace = self.namespace
+
         template.setdefault('apiVersion', 'v1')
         template['kind'] = 'Pod'
         template.setdefault('metadata', {})
@@ -642,7 +648,7 @@ class K8sIntegration(Worker):
             task_id=task_id,
             docker_image=docker_image,
             queue_id=queue,
-            namespace=self.namespace
+            namespace=namespace
         )
         # make sure we provide a list
         if isinstance(kubectl_cmd, str):
