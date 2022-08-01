@@ -22,7 +22,7 @@ WORKER_ARGS = {
         'help': 'git username for repository access',
     },
     '--git-pass': {
-        'help': 'git password for repository access',
+        'help': 'git password (personal access tokens) for repository access',
     },
     '--log-level': {
         'help': 'SDK log level',

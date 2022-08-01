@@ -122,7 +122,7 @@ def main():
             "  Bitbucket: https://support.atlassian.com/bitbucket-cloud/docs/app-passwords/\n"
             "  GitLab: https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html\n"
         )
-        print('Enter git password token for user \'{}\': '.format(git_user), end='')
+        print('Enter git personal token for user \'{}\': '.format(git_user), end='')
         git_pass = input()
         print('Git repository cloning will be using user={} token={}'.format(git_user, git_pass))
     else:
