@@ -2024,7 +2024,10 @@ class Worker(ServiceCommandSection):
             python_ver = task.script.binary
             python_ver = python_ver.split('/')[-1].replace('python', '')
             # if we can cast it, we are good
-            return '{:.1f}'.format(float(python_ver))
+            return '{}.{}'.format(
+                int(python_ver.partition(".")[0]),
+                int(python_ver.partition(".")[-1].partition(".")[0] or 0)
+            )
         except Exception:
             pass
 
