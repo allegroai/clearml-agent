@@ -76,7 +76,7 @@ class Session(_Session):
 
         cpu_only = kwargs.get('cpu_only')
         if cpu_only:
-            os.environ['CUDA_VISIBLE_DEVICES'] = os.environ['NVIDIA_VISIBLE_DEVICES'] = 'none'
+            Session.set_nvidia_visible_env('none')
 
         if kwargs.get('gpus') and not os.environ.get('KUBERNETES_SERVICE_HOST') \
                 and not os.environ.get('KUBERNETES_PORT'):
@@ -85,7 +85,7 @@ class Session(_Session):
                 os.environ.pop('CUDA_VISIBLE_DEVICES', None)
                 os.environ['NVIDIA_VISIBLE_DEVICES'] = kwargs.get('gpus')
             else:
-                os.environ['CUDA_VISIBLE_DEVICES'] = os.environ['NVIDIA_VISIBLE_DEVICES'] = kwargs.get('gpus')
+                Session.set_nvidia_visible_env(kwargs.get('gpus'))
 
         if kwargs.get('only_load_config'):
             from clearml_agent.backend_api.config import load
@@ -326,6 +326,23 @@ class Session(_Session):
 
     def command(self, *args):
         return Argv(*args, log=self.get_logger(Argv.__module__))
+
+    @staticmethod
+    def set_nvidia_visible_env(gpus):
+        if not gpus:
+            gpus = ""
+        visible_env = gpus.replace(".", ":") if isinstance(gpus, str) else \
+            ','.join(str(g).replace(".", ":") for g in gpus)
+
+        os.environ['CUDA_VISIBLE_DEVICES'] = os.environ['NVIDIA_VISIBLE_DEVICES'] = visible_env
+
+    @staticmethod
+    def get_nvidia_visible_env():
+        visible_env = os.environ.get('NVIDIA_VISIBLE_DEVICES') or os.environ.get('CUDA_VISIBLE_DEVICES')
+        if visible_env is None:
+            return None
+        visible_env = str(visible_env).replace(":", ".")
+        return visible_env
 
 
 @attr.s

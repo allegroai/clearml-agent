@@ -82,7 +82,7 @@ class ResourceMonitor(object):
         if not worker_tags and ENV_WORKER_TAGS.get():
             worker_tags = shlex.split(ENV_WORKER_TAGS.get())
         self._worker_tags = worker_tags
-        if os.environ.get('NVIDIA_VISIBLE_DEVICES') == 'none':
+        if Session.get_nvidia_visible_env() == 'none':
             # NVIDIA_VISIBLE_DEVICES set to none, marks cpu_only flag
             # active_gpus == False means no GPU reporting
             self._active_gpus = False
@@ -92,10 +92,9 @@ class ResourceMonitor(object):
             # None means no filtering, report all gpus
             self._active_gpus = None
             try:
-                active_gpus = os.environ.get('NVIDIA_VISIBLE_DEVICES', '') or \
-                              os.environ.get('CUDA_VISIBLE_DEVICES', '')
+                active_gpus = Session.get_nvidia_visible_env() or ""
                 if active_gpus:
-                    self._active_gpus = [int(g.strip()) for g in active_gpus.split(',')]
+                    self._active_gpus = [g.strip() for g in active_gpus.split(',')]
             except Exception:
                 pass
 
@@ -263,7 +262,7 @@ class ResourceMonitor(object):
                 gpu_stat = self._gpustat.new_query()
                 for i, g in enumerate(gpu_stat.gpus):
                     # only monitor the active gpu's, if none were selected, monitor everything
-                    if self._active_gpus and i not in self._active_gpus:
+                    if self._active_gpus and str(i) not in self._active_gpus:
                         continue
                     stats["gpu_temperature_{:d}".format(i)] = g["temperature.gpu"]
                     stats["gpu_utilization_{:d}".format(i)] = g["utilization.gpu"]
