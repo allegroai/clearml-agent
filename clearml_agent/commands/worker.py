@@ -487,10 +487,11 @@ class Worker(ServiceCommandSection):
     )
 
     # poll queues every _polling_interval seconds
-    _polling_interval = 5.0
+    _polling_interval = float(os.environ.get('POLLING_INTERVAL',900.0))
+    print("_polling_interval : ", str(_polling_interval))
     # machine status update intervals, seconds
-    _machine_update_interval = 30.0
-
+    _machine_update_interval = float(os.environ.get('MACHINE_UPDATE_INTERVAL',900.0))
+    print("_machine_update_interval : ", str(_machine_update_interval))
     # message printed before starting task logging,
     # it will be parsed by services_mode, to identify internal docker logging start
     _task_logging_start_message = "Running task '{}'"
