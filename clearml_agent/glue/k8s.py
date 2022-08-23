@@ -27,6 +27,8 @@ from clearml_agent.helper.process import get_bash_output
 from clearml_agent.helper.resource_monitor import ResourceMonitor
 from clearml_agent.interface.base import ObjectID
 
+from .definitions import ENV_START_AGENT_SCRIPT_PATH
+
 
 class K8sIntegration(Worker):
     K8S_PENDING_QUEUE = "k8s_scheduler"
@@ -644,12 +646,15 @@ class K8sIntegration(Worker):
 
         extra_bash_commands = list(create_clearml_conf or [])
 
+        start_agent_script_path = ENV_START_AGENT_SCRIPT_PATH.get() or "~/__start_agent__.sh"
+
         extra_bash_commands.append(
-            "echo '{}' | base64 --decode >> ~/__start_agent__.sh ; "
-            "/bin/bash ~/__start_agent__.sh".format(
-                base64.b64encode(
+            "echo '{content}' | base64 --decode >> {script_path} ; /bin/bash {script_path}".format(
+                content=base64.b64encode(
                     script_encoded.encode('ascii')
-                ).decode('ascii'))
+                ).decode('ascii'),
+                script_path=start_agent_script_path
+            )
         )
 
         # Notice: we always leave with exit code 0, so pods are never restarted
