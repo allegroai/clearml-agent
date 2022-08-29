@@ -1,7 +1,11 @@
 import abc
+import os
 import re
 import shutil
+import stat
 import subprocess
+import sys
+import tempfile
 from distutils.spawn import find_executable
 from hashlib import md5
 from os import environ
@@ -23,7 +27,7 @@ from clearml_agent.helper.base import (
     rm_tree,
     ExecutionInfo,
     normalize_path,
-    create_file_if_not_exists,
+    create_file_if_not_exists, safe_remove_file,
 )
 from clearml_agent.helper.os.locks import FileLock
 from clearml_agent.helper.process import DEVNULL, Argv, PathLike, COMMAND_SUCCESS
@@ -117,6 +121,13 @@ class VCS(object):
         Return URL with configured user/password
         """
         return self.add_auth(self.session.config, self.url)
+
+    @property
+    def url_without_auth(self):
+        """
+        Return URL without configured user/password
+        """
+        return self.add_auth(self.session.config, self.url, reset_auth=True)
 
     @abc.abstractmethod
     def executable_name(self):
@@ -349,7 +360,9 @@ class VCS(object):
         If not in debug mode, filter VCS password from output.
         """
         self._set_ssh_url()
-        clone_command = ("clone", self.url_with_auth, self.location) + self.clone_flags
+        # if we are on linux no need for the full auth url because we use GIT_ASKPASS
+        url = self.url_without_auth if self._use_ask_pass else self.url_with_auth
+        clone_command = ("clone", url, self.location) + self.clone_flags
         # clone all branches regardless of when we want to later checkout
         # if branch:
         #    clone_command += ("-b", branch)
@@ -357,33 +370,34 @@ class VCS(object):
             self.call(*clone_command)
             return
 
-        def normalize_output(result):
-            """
-            Returns result string without user's password.
-            NOTE: ``self.get_stderr``'s result might or might not have the same type as ``e.output`` in case of error.
-            """
-            string_type = (
-                ensure_text
-                if isinstance(result, six.text_type)
-                else ensure_binary
-            )
-            return result.replace(
-                string_type(self.url),
-                string_type(furl(self.url).remove(password=True).tostr()),
-            )
-
-        def print_output(output):
-            print(ensure_text(output))
-
         try:
-            print_output(normalize_output(self.get_stderr(*clone_command)))
+            self._print_output(self._normalize_output(self.get_stderr(*clone_command)))
         except subprocess.CalledProcessError as e:
             # In Python 3, subprocess.CalledProcessError has a `stderr` attribute,
             # but since stderr is redirect to `subprocess.PIPE` it will appear in the usual `output` attribute
             if e.output:
-                e.output = normalize_output(e.output)
-                print_output(e.output)
+                e.output = self._normalize_output(e.output)
+                self._print_output(e.output)
             raise
+
+    def _normalize_output(self, result):
+        """
+        Returns result string without user's password.
+        NOTE: ``self.get_stderr``'s result might or might not have the same type as ``e.output`` in case of error.
+        """
+        string_type = (
+            ensure_text
+            if isinstance(result, six.text_type)
+            else ensure_binary
+        )
+        return result.replace(
+            string_type(self.url),
+            string_type(furl(self.url).remove(password=True).tostr()),
+        )
+
+    @staticmethod
+    def _print_output(output):
+        print(ensure_text(output))
 
     def checkout(self):
         # type: () -> None
@@ -473,10 +487,12 @@ class VCS(object):
         return Argv(self.executable_name, *argv)
 
     @classmethod
-    def add_auth(cls, config, url):
+    def add_auth(cls, config, url, reset_auth=False):
         """
         Add username and password to URL if missing from URL and present in config.
         Does not modify ssh URLs.
+
+        :param reset_auth: If true remove the user/pass from the URL (default False)
         """
         try:
             parsed_url = furl(url)
@@ -493,7 +509,10 @@ class VCS(object):
             and config_pass
             and (not config_domain or config_domain.lower() == parsed_url.host)
         ):
-            parsed_url.set(username=config_user, password=config_pass)
+            if reset_auth:
+                parsed_url.set(username=None, password=None)
+            else:
+                parsed_url.set(username=config_user, password=config_pass)
         return parsed_url.url
 
     @abc.abstractmethod
@@ -531,6 +550,10 @@ class Git(VCS):
 
     def __init__(self, *args, **kwargs):
         super(Git, self).__init__(*args, **kwargs)
+
+        self._use_ask_pass = False if not self.session.config.get('agent.enable_git_ask_pass', None) \
+            else sys.platform == "linux"
+
         try:
             self.call("config", "--global", "--replace-all", "safe.directory", "*", cwd=self.location)
         except:  # noqa
@@ -557,6 +580,66 @@ class Git(VCS):
 
     def pull(self):
         self.call("fetch", "--all", "--recurse-submodules", cwd=self.location)
+
+    def _git_pass_auth_wrapper(self, func, *args, **kwargs):
+        try:
+            url_with_auth = furl(self.url_with_auth)
+            password = url_with_auth.password if url_with_auth else None
+            username = url_with_auth.username if url_with_auth else None
+        except:  # noqa
+            password = None
+            username = None
+
+        # if this is not linux or we do not have a password, just run as is
+        if not self._use_ask_pass or not password or not username:
+            return func(*args, **kwargs)
+
+        # create the password file
+        fp, pass_file = tempfile.mkstemp(prefix='clearml_git_', suffix='.sh')
+        os.close(fp)
+        with open(pass_file, 'wt') as f:
+            # get first letter only (username / password are the argument options)
+            # then echo the correct information
+            f.writelines([
+                '#!/bin/bash\n',
+                'c="$1"\n',
+                'c="${c%"${c#?}"}"\n',
+                'if [ "$c" == "u" ] || [ "$c" == "U" ]; then echo "{}"; else echo "{}"; fi\n'.format(
+                    username.replace('"', '\\"'), password.replace('"', '\\"')
+                )
+            ])
+        # mark executable
+        st = os.stat(pass_file)
+        os.chmod(pass_file, st.st_mode | stat.S_IEXEC)
+        # let GIT use it
+        self.COMMAND_ENV["GIT_ASKPASS"] = pass_file
+        # call git command
+        try:
+            ret = func(*args, **kwargs)
+        finally:
+            # delete temp password file
+            self.COMMAND_ENV.pop("GIT_ASKPASS", None)
+            safe_remove_file(pass_file)
+
+        return ret
+
+    def get_stderr(self, *argv, **kwargs):
+        """
+        Wrapper with git password authentication
+        """
+        return self._git_pass_auth_wrapper(super(Git, self).get_stderr, *argv, **kwargs)
+
+    def call_with_stdin(self, *argv, **kwargs):
+        """
+        Wrapper with git password authentication
+        """
+        return self._git_pass_auth_wrapper(super(Git, self).call_with_stdin, *argv, **kwargs)
+
+    def call(self, *argv, **kwargs):
+        """
+        Wrapper with git password authentication
+        """
+        return self._git_pass_auth_wrapper(super(Git, self).call, *argv, **kwargs)
 
     def checkout(self):  # type: () -> None
         """
