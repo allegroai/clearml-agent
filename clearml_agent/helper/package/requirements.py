@@ -14,6 +14,7 @@ from pathlib2 import Path
 from pyhocon import ConfigTree
 
 import six
+from six.moves.urllib.parse import unquote
 import logging
 from clearml_agent.definitions import PIP_EXTRA_INDICES
 from clearml_agent.helper.base import (
@@ -175,11 +176,13 @@ class MarkerRequirement(object):
             return
         local_path = Path(self.uri[len("file://"):])
         if not local_path.exists():
-            line = self.line
-            if self.remove_local_file_ref():
-                # print warning
-                logging.getLogger(__name__).warning(
-                    'Local file not found [{}], references removed'.format(line))
+            local_path = Path(unquote(self.uri)[len("file://"):])
+            if not local_path.exists():
+                line = self.line
+                if self.remove_local_file_ref():
+                    # print warning
+                    logging.getLogger(__name__).warning(
+                        'Local file not found [{}], references removed'.format(line))
 
 
 class SimpleVersion:
