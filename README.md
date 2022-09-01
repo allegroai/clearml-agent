@@ -197,7 +197,7 @@ with `--cpu-only`).
 
 If no flag is set, and `NVIDIA_VISIBLE_DEVICES` variable doesn't exist, all GPU's will be allocated for
 the `clearml-agent` <br>
-If `--cpu-only` flag is set, or `NVIDIA_VISIBLE_DEVICES` is an empty string (""), no gpu will be allocated for
+If `--cpu-only` flag is set, or `NVIDIA_VISIBLE_DEVICES` is set to "none", no gpu will be allocated for
 the `clearml-agent`
 
 Example: spin two agents, one per gpu on the same machine:
