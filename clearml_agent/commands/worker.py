@@ -3542,6 +3542,7 @@ class Worker(ServiceCommandSection):
         mounted_vcs_cache = temp_config.get("agent.vcs_cache.path")
         mounted_venvs_cache = temp_config.get("agent.venvs_cache.path", "")
         mount_ssh = temp_config.get("agent.docker_internal_mounts.ssh_folder", None)
+        mount_ssh_ro = temp_config.get("agent.docker_internal_mounts.ssh_ro_folder", None)
         mount_apt_cache = temp_config.get("agent.docker_internal_mounts.apt_cache", None)
         mount_pip_cache = temp_config.get("agent.docker_internal_mounts.pip_cache", None)
         mount_poetry_cache = temp_config.get("agent.docker_internal_mounts.poetry_cache", None)
@@ -3573,6 +3574,7 @@ class Worker(ServiceCommandSection):
             preprocess_bash_script=preprocess_bash_script,
             install_opencv_libs=install_opencv_libs,
             mount_ssh=mount_ssh,
+            mount_ssh_ro=mount_ssh_ro,
             mount_apt_cache=mount_apt_cache,
             mount_pip_cache=mount_pip_cache,
             mount_poetry_cache=mount_poetry_cache,
@@ -3626,7 +3628,7 @@ class Worker(ServiceCommandSection):
             auth_token=None,
             worker_tags=None,
             name=None,
-            mount_ssh=None, mount_apt_cache=None, mount_pip_cache=None, mount_poetry_cache=None,
+            mount_ssh=None, mount_ssh_ro=None, mount_apt_cache=None, mount_pip_cache=None, mount_poetry_cache=None,
             env_task_id=None,
     ):
         self.debug("Constructing docker command", context="docker")
@@ -3770,7 +3772,7 @@ class Worker(ServiceCommandSection):
             clearml_agent_wheel = 'clearml-agent{specify_version}'.format(specify_version=specify_version)
 
         mount_ssh = mount_ssh or '/root/.ssh'
-        mount_ssh_ro = "{}_ro".format(mount_ssh.rstrip("/"))
+        mount_ssh_ro = mount_ssh_ro or "{}_ro".format(mount_ssh.rstrip("/"))
         mount_apt_cache = mount_apt_cache or '/var/cache/apt/archives'
         mount_pip_cache = mount_pip_cache or '/root/.cache/pip'
         mount_poetry_cache = mount_poetry_cache or '/root/.cache/pypoetry'
