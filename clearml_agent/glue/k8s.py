@@ -76,8 +76,8 @@ class K8sIntegration(Worker):
         "export LOCAL_PYTHON=$(which python3.$i) && break ; done",
         "[ ! -z $LOCAL_PYTHON ] || apt-get install -y python3-pip",
         "[ ! -z $LOCAL_PYTHON ] || export LOCAL_PYTHON=python3",
-        "$LOCAL_PYTHON -m pip install clearml-agent",
         "{extra_bash_init_cmd}",
+        "$LOCAL_PYTHON -m pip install clearml-agent",
         "{extra_docker_bash_script}",
         "$LOCAL_PYTHON -m clearml_agent execute --full-monitoring --require-queue --id {task_id}"
     ]
