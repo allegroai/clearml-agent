@@ -3503,8 +3503,16 @@ class Worker(ServiceCommandSection):
                     shutil.rmtree(host_ssh_cache, ignore_errors=True)
                 shutil.copytree(Path('~/.ssh').expanduser().as_posix(), host_ssh_cache)
             except Exception:
-                host_ssh_cache = None
-                self.log.warning('Failed creating temporary copy of ~/.ssh for git credential')
+                # if we failed to copy / delete, let's see if we
+                self.log.warning('Failed creating temporary copy of ~/.ssh for git credential, '
+                                 'creating a new temp folder')
+                # noinspection PyBroadException
+                try:
+                    host_ssh_cache = mkdtemp(prefix='clearml_agent.ssh.')
+                    shutil.copytree(Path('~/.ssh').expanduser().as_posix(), host_ssh_cache)
+                except Exception:
+                    self.log.warning('Failed creating temporary copy of ~/.ssh for git credential, removing mount!')
+                    host_ssh_cache = None
 
         # check if the .git credentials exist:
         try:
@@ -3761,6 +3769,12 @@ class Worker(ServiceCommandSection):
             # clearml-agent{specify_version}
             clearml_agent_wheel = 'clearml-agent{specify_version}'.format(specify_version=specify_version)
 
+        mount_ssh = mount_ssh or '/root/.ssh'
+        mount_ssh_ro = "{}_ro".format(mount_ssh.rstrip("/"))
+        mount_apt_cache = mount_apt_cache or '/var/cache/apt/archives'
+        mount_pip_cache = mount_pip_cache or '/root/.cache/pip'
+        mount_poetry_cache = mount_poetry_cache or '/root/.cache/pypoetry'
+
         if not standalone_mode:
             if not bash_script:
                 # Find the highest python version installed, or install from apt-get
@@ -3771,6 +3785,7 @@ class Worker(ServiceCommandSection):
                     "export DEBIAN_FRONTEND=noninteractive",
                     "export CLEARML_APT_INSTALL=\"$CLEARML_APT_INSTALL{}\"".format(
                         ' libsm6 libxext6 libxrender-dev libglib2.0-0' if install_opencv_libs else ""),
+                    "cp -Rf {mount_ssh_ro} -T {mount_ssh}" if host_ssh_cache else "",
                     "[ ! -z $(which git) ] || export CLEARML_APT_INSTALL=\"$CLEARML_APT_INSTALL git\"",
                     "declare LOCAL_PYTHON",
                     "[ ! -z $LOCAL_PYTHON ] || for i in {{15..5}}; do which {python_single_digit}.$i && " +
@@ -3798,7 +3813,9 @@ class Worker(ServiceCommandSection):
                     "$LOCAL_PYTHON -m pip install -U {clearml_agent_wheel} ; ").format(
                 python_single_digit=python_version.split('.')[0],
                 python=python_version, pip_version=PackageManager.get_pip_version(),
-                clearml_agent_wheel=clearml_agent_wheel)
+                clearml_agent_wheel=clearml_agent_wheel,
+                mount_ssh_ro=mount_ssh_ro, mount_ssh=mount_ssh,
+            )
 
         if host_git_credentials:
             for git_credentials in host_git_credentials:
@@ -3809,11 +3826,6 @@ class Worker(ServiceCommandSection):
                 ' ; '.join(line.strip()
                            for line in docker_bash_setup_script.split('\n') if line.strip()) + \
                 ' ; '
-
-        mount_ssh = mount_ssh or '/root/.ssh'
-        mount_apt_cache = mount_apt_cache or '/var/cache/apt/archives'
-        mount_pip_cache = mount_pip_cache or '/root/.cache/pip'
-        mount_poetry_cache = mount_poetry_cache or '/root/.cache/pypoetry'
 
         self.debug(
             "Adding mounts: host_ssh_cache={}, host_apt_cache={}, host_pip_cache={}, host_poetry_cache={}, "
@@ -3828,7 +3840,7 @@ class Worker(ServiceCommandSection):
             (['--name', name] if name else []) +
             ['-v', conf_file+':'+DOCKER_ROOT_CONF_FILE] +
             ['-e', "CLEARML_CONFIG_FILE={}".format(DOCKER_ROOT_CONF_FILE)] +
-            (['-v', host_ssh_cache+':'+mount_ssh] if host_ssh_cache else []) +
+            (['-v', host_ssh_cache+':'+mount_ssh_ro] if host_ssh_cache else []) +
             (['-v', host_apt_cache+':'+mount_apt_cache] if host_apt_cache else []) +
             (['-v', host_pip_cache+':'+mount_pip_cache] if host_pip_cache else []) +
             (['-v', host_poetry_cache + ':'+mount_poetry_cache] if host_poetry_cache else []) +
