@@ -347,7 +347,7 @@ class ServiceCommandSection(BaseCommandSection):
         except AttributeError:
             raise NameResolutionError('Name resolution unavailable for {}'.format(service))
 
-        request = request_cls.from_dict(dict(name=name, only_fields=['name', 'id']))
+        request = request_cls.from_dict(dict(name=re.escape(name), only_fields=['name', 'id']))
         # from_dict will ignore unrecognised keyword arguments - not all GetAll's have only_fields
         response = getattr(self._session.send_api(request), service)
         matches = [db_object for db_object in response if name.lower() == db_object.name.lower()]
