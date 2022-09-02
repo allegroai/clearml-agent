@@ -1379,6 +1379,9 @@ class Worker(ServiceCommandSection):
 
         self._session.print_configuration()
 
+    def resolve_daemon_queue_names(self, queues, create_if_missing=False):
+        return self._resolve_queue_names(queues=queues, create_if_missing=create_if_missing)
+
     def daemon(self, queues, log_level, foreground=False, docker=False, detached=False, order_fairness=False, **kwargs):
         self._apply_extra_configuration()
 
@@ -1421,7 +1424,7 @@ class Worker(ServiceCommandSection):
 
         # if we do not need to create queues, make sure they are valid
         # match previous behaviour when we validated queue names before everything else
-        queues = self._resolve_queue_names(queues, create_if_missing=kwargs.get('create_queue', False))
+        queues = self.resolve_daemon_queue_names(queues, create_if_missing=kwargs.get('create_queue', False))
 
         queues_info = [
             q.to_dict()

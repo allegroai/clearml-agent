@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 from copy import deepcopy
 from pathlib import Path
+from pprint import pformat
 from threading import Thread
 from time import sleep
 from typing import Text, List, Callable, Any, Collection, Optional, Union
@@ -679,6 +680,8 @@ class K8sIntegration(Worker):
         os.close(fp)
         with open(yaml_file, 'wt') as f:
             yaml.dump(template, f)
+
+        self.log.debug("Applying template:\n{}".format(pformat(template, indent=2)))
 
         kubectl_cmd = self.KUBECTL_APPLY_CMD.format(
             task_id=task_id,
