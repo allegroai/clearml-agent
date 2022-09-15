@@ -71,6 +71,7 @@ from clearml_agent.definitions import (
     ENV_AGENT_SKIP_PYTHON_ENV_INSTALL,
     WORKING_STANDALONE_DIR,
     ENV_DEBUG_INFO,
+    ENV_CHILD_AGENTS_COUNT_CMD,
 )
 from clearml_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
 from clearml_agent.errors import (
@@ -3589,15 +3590,13 @@ class Worker(ServiceCommandSection):
     def _get_child_agents_count_for_worker(self):
         """Get the amount of running child agents. In case of any error return 0"""
         parent_worker_label = self._parent_worker_label.format(self.worker_id)
-        cmd = [
-            'docker',
-            'ps',
-            '--filter',
-            'label={}'.format(parent_worker_label),
-            '--format',
-            # get some fields for debugging
-            '{"ID":"{{ .ID }}", "Image": "{{ .Image }}", "Names":"{{ .Names }}", "Labels":"{{ .Labels }}"}'
-        ]
+
+        default_cmd = 'docker ps --filter label={parent_worker_label} --format ' \
+                      '{{"ID":"{{{{ .ID }}}}", "Image": "{{{{ .Image }}}}", ' \
+                      '"Names":"{{{{ .Names }}}}", "Labels":"{{{{ .Labels }}}}"}}'
+        child_agents_cmd = ENV_CHILD_AGENTS_COUNT_CMD.get() or default_cmd
+
+        cmd = shlex.split(child_agents_cmd.format(parent_worker_label=parent_worker_label))
         try:
             output = Argv(*cmd).get_output(
                 stderr=subprocess.STDOUT
