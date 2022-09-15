@@ -14,8 +14,9 @@ from requests.auth import HTTPBasicAuth
 from six.moves.urllib.parse import urlparse, urlunparse
 
 from .callresult import CallResult
-from .defs import ENV_VERBOSE, ENV_HOST, ENV_ACCESS_KEY, ENV_SECRET_KEY, ENV_WEB_HOST, ENV_FILES_HOST, ENV_AUTH_TOKEN, \
-    ENV_NO_DEFAULT_SERVER, ENV_DISABLE_VAULT_SUPPORT, ENV_INITIAL_CONNECT_RETRY_OVERRIDE, ENV_API_DEFAULT_REQ_METHOD
+from .defs import (
+    ENV_VERBOSE, ENV_HOST, ENV_ACCESS_KEY, ENV_SECRET_KEY, ENV_WEB_HOST, ENV_FILES_HOST, ENV_AUTH_TOKEN,
+    ENV_NO_DEFAULT_SERVER, ENV_DISABLE_VAULT_SUPPORT, ENV_INITIAL_CONNECT_RETRY_OVERRIDE, ENV_API_DEFAULT_REQ_METHOD, )
 from .request import Request, BatchRequest
 from .token_manager import TokenManager
 from ..config import load
@@ -109,6 +110,19 @@ class Session(TokenManager):
         self._verbose = verbose if verbose is not None else ENV_VERBOSE.get()
         self._logger = logger
         self.__auth_token = None
+
+        if ENV_API_DEFAULT_REQ_METHOD.get(default=None):
+            # Make sure we update the config object, so we pass it into the new containers when we map them
+            self.config["api.http.default_method"] = ENV_API_DEFAULT_REQ_METHOD.get()
+            # notice the default setting of Request.def_method are already set by the OS environment
+        elif self.config.get("api.http.default_method", None):
+            def_method = str(self.config.get("api.http.default_method", None)).strip()
+            if def_method.upper() not in ("GET", "POST", "PUT"):
+                raise ValueError(
+                    "api.http.default_method variable must be 'get' or 'post' (any case is allowed)."
+                )
+            Request.def_method = def_method
+            Request._method = Request.def_method
 
         if ENV_AUTH_TOKEN.get(
             value_cb=lambda key, value: print("Using environment access token {}=********".format(key))
@@ -251,7 +265,7 @@ class Session(TokenManager):
         service,
         action,
         version=None,
-        method="get",
+        method=Request.def_method,
         headers=None,
         auth=None,
         data=None,
@@ -328,7 +342,7 @@ class Session(TokenManager):
         service,
         action,
         version=None,
-        method="get",
+        method=Request.def_method,
         headers=None,
         data=None,
         json=None,
@@ -371,7 +385,7 @@ class Session(TokenManager):
         headers=None,
         data=None,
         json=None,
-        method="get",
+        method=Request.def_method,
     ):
         """
         Send a raw batch API request. Batch requests always use application/json-lines content type.
@@ -615,7 +629,7 @@ class Session(TokenManager):
         try:
             data = {"expiration_sec": exp} if exp else {}
             res = self._send_request(
-                method=ENV_API_DEFAULT_REQ_METHOD.get(default="get"),
+                method=Request.def_method,
                 service="auth",
                 action="login",
                 auth=auth,

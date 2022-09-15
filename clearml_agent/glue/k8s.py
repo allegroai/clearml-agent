@@ -27,8 +27,8 @@ from clearml_agent.helper.dicts import merge_dicts
 from clearml_agent.helper.process import get_bash_output
 from clearml_agent.helper.resource_monitor import ResourceMonitor
 from clearml_agent.interface.base import ObjectID
-
-from .definitions import ENV_START_AGENT_SCRIPT_PATH
+from clearml_agent.backend_api.session import Request
+from clearml_agent.glue.definitions import ENV_START_AGENT_SCRIPT_PATH
 
 
 class K8sIntegration(Worker):
@@ -299,7 +299,7 @@ class K8sIntegration(Worker):
                             service='tasks',
                             action='update',
                             json={"task": task_id, "status_message": "K8S glue status: {}".format(msg)},
-                            method='get',
+                            method=Request.def_method,
                             async_enable=False,
                         )
                         if not result.ok:

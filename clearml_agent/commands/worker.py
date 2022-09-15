@@ -38,7 +38,7 @@ from clearml_agent.backend_api.services import auth as auth_api
 from clearml_agent.backend_api.services import queues as queues_api
 from clearml_agent.backend_api.services import tasks as tasks_api
 from clearml_agent.backend_api.services import workers as workers_api
-from clearml_agent.backend_api.session import CallResult
+from clearml_agent.backend_api.session import CallResult, Request
 from clearml_agent.backend_api.session.defs import (
     ENV_ENABLE_ENV_CONFIG_SECTION, ENV_ENABLE_FILES_CONFIG_SECTION,
     ENV_VENV_CONFIGURED, ENV_PROPAGATE_EXITCODE, )
@@ -272,7 +272,7 @@ def get_task(session, task_id, **kwargs):
         action='get_all',
         version='2.14',
         json={"id": [task_id], "search_hidden": True, **kwargs},
-        method='get',
+        method=Request.def_method,
         async_enable=False,
     )
     result = CallResult.from_result(
@@ -304,7 +304,7 @@ def get_next_task(session, queue, get_task_info=False):
         action='get_next_task',
         version='2.14',
         json=request,
-        method='get',
+        method=Request.def_method,
         async_enable=False,
     )
     if not result.ok:
@@ -325,7 +325,7 @@ def get_task_container(session, task_id):
             action='get_all',
             version='2.14',
             json={'id': [task_id], 'only_fields': ['container'], 'search_hidden': True},
-            method='get',
+            method=Request.def_method,
             async_enable=False,
         )
         try:
@@ -366,7 +366,7 @@ def set_task_container(session, task_id, docker_image=None, docker_arguments=Non
             action='edit',
             version='2.13',
             json={'task': task_id, 'container': container, 'force': True},
-            method='get',
+            method=Request.def_method,
             async_enable=False,
         )
         return result.ok

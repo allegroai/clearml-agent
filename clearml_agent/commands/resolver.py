@@ -1,6 +1,8 @@
 import json
 import re
 import shlex
+
+from clearml_agent.backend_api.session import Request
 from clearml_agent.helper.package.requirements import (
     RequirementsManager, MarkerRequirement,
     compare_version_rules, )
@@ -26,7 +28,7 @@ def resolve_default_container(session, task_id, container_config):
                               'script.repository', 'script.branch',
                               'project', 'container'],
               'search_hidden': True},
-        method='get',
+        method=Request.def_method,
         async_enable=False,
     )
     try:
@@ -53,7 +55,7 @@ def resolve_default_container(session, task_id, container_config):
                 'id': [task_info.get('project')],
                 'only_fields': ['name'],
             },
-            method='get',
+            method=Request.def_method,
             async_enable=False,
         )
         try:

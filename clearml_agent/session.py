@@ -288,7 +288,7 @@ class Session(_Session):
     def get(self, service, action, version=None, headers=None,
             data=None, json=None, async_enable=False, **kwargs):
         return self._manual_request(service=service, action=action,
-                                    version=version, method="get", headers=headers,
+                                    version=version, method=Request.def_method, headers=headers,
                                     data=data, async_enable=async_enable,
                                     json=json or kwargs)
 
@@ -299,7 +299,7 @@ class Session(_Session):
                                     data=data, async_enable=async_enable,
                                     json=json or kwargs)
 
-    def _manual_request(self, service, action, version=None, method="get", headers=None,
+    def _manual_request(self, service, action, version=None, method=Request.def_method, headers=None,
             data=None, json=None, async_enable=False, **kwargs):
 
         res = self.send_request(service=service, action=action,
