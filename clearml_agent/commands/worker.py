@@ -3455,7 +3455,7 @@ class Worker(ServiceCommandSection):
                     '-v', '{}:{}'.format(ENV_SSH_AUTH_SOCK.get(), ENV_SSH_AUTH_SOCK.get()),
                     '-e', ssh_auth_sock_env,
                 ]
-        elif ENV_AGENT_DISABLE_SSH_MOUNT.get():
+        elif ENV_AGENT_DISABLE_SSH_MOUNT.get() or self._session.config.get("agent.disable_ssh_mount", None):
             self._host_ssh_cache = None
         else:
             self._host_ssh_cache = mkdtemp(prefix='clearml_agent.ssh.')
