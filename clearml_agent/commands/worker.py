@@ -24,7 +24,7 @@ from itertools import chain
 from os.path import basename
 from tempfile import mkdtemp, NamedTemporaryFile
 from time import sleep, time
-from typing import Text, Optional, Any, Tuple, List, Collection, Pattern
+from typing import Text, Optional, Any, Tuple, List
 
 import attr
 import psutil
@@ -3700,12 +3700,12 @@ class Worker(ServiceCommandSection):
             docker_arguments = list(docker_arguments) \
                 if isinstance(docker_arguments, (list, tuple)) else [docker_arguments]
             docker_arguments = self._filter_docker_args(docker_arguments)
-            base_cmd.extend(a for a in docker_arguments if a)
+            base_cmd += [a for a in docker_arguments if a]
 
         if extra_docker_arguments:
             extra_docker_arguments = [extra_docker_arguments] \
                 if isinstance(extra_docker_arguments, six.string_types) else extra_docker_arguments
-            base_cmd.extend(str(a) for a in extra_docker_arguments if a)
+            base_cmd += [str(a) for a in extra_docker_arguments if a]
 
         # set docker labels
         base_cmd += ['-l', self._worker_label.format(worker_id)]
