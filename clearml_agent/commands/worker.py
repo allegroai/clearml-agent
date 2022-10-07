@@ -24,7 +24,7 @@ from itertools import chain
 from os.path import basename
 from tempfile import mkdtemp, NamedTemporaryFile
 from time import sleep, time
-from typing import Text, Optional, Any, Tuple, List
+from typing import Text, Optional, Any, Tuple, List, Collection, Pattern
 
 import attr
 import psutil
@@ -72,6 +72,7 @@ from clearml_agent.definitions import (
     WORKING_STANDALONE_DIR,
     ENV_DEBUG_INFO,
     ENV_CHILD_AGENTS_COUNT_CMD,
+    ENV_DOCKER_ARGS_FILTERS,
 )
 from clearml_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
 from clearml_agent.errors import (
@@ -685,6 +686,16 @@ class Worker(ServiceCommandSection):
         # None - not initialized
         # str - not supported, version string indicates last server version
         self._runtime_props_support = None
+
+        # allow docker sanitization, needs backend support
+        if ENV_DOCKER_ARGS_FILTERS.get():
+            self._docker_args_filters = \
+                [re.compile(f) for f in shlex.split(ENV_DOCKER_ARGS_FILTERS.get())]
+        elif self._session.config.get('agent.docker_args_filters', None):
+            self._docker_args_filters = \
+                [re.compile(f) for f in self._session.config.get('agent.docker_args_filters', [])]
+        else:
+            self._docker_args_filters = []
 
     @classmethod
     def _verify_command_states(cls, kwargs):
@@ -3605,6 +3616,31 @@ class Worker(ServiceCommandSection):
 
         return len(output.splitlines()) if output else 0
 
+    def _filter_docker_args(self, docker_args):
+        # type: (List[str]) -> List[str]
+        """
+        Filter docker args matching specific flags.
+        Supports list of Regular expressions, e.g self._docker_args_filters = ["^--env$", "^-e$"]
+
+        :argument docker_args: List of docker argument strings (flags and values)
+        """
+        # if no filtering, do nothing
+        if not docker_args or not self._docker_args_filters:
+            return docker_args
+
+        args = docker_args[:]
+        results = []
+        while args:
+            cmd = args.pop(0).strip()
+            if any(f.match(cmd) for f in self._docker_args_filters):
+                results.append(cmd)
+                if "=" not in cmd and args and not args[0].startswith("-"):
+                    try:
+                        results.append(args.pop(0).strip())
+                    except IndexError:
+                        pass
+        return results
+
     def _get_docker_cmd(
             self,
             worker_id, parent_worker_id,
@@ -3658,12 +3694,13 @@ class Worker(ServiceCommandSection):
         if docker_arguments:
             docker_arguments = list(docker_arguments) \
                 if isinstance(docker_arguments, (list, tuple)) else [docker_arguments]
-            base_cmd += [a for a in docker_arguments if a]
+            docker_arguments = self._filter_docker_args(docker_arguments)
+            base_cmd.extend(a for a in docker_arguments if a)
 
         if extra_docker_arguments:
             extra_docker_arguments = [extra_docker_arguments] \
                 if isinstance(extra_docker_arguments, six.string_types) else extra_docker_arguments
-            base_cmd += [str(a) for a in extra_docker_arguments if a]
+            base_cmd.extend(str(a) for a in extra_docker_arguments if a)
 
         # set docker labels
         base_cmd += ['-l', self._worker_label.format(worker_id)]
