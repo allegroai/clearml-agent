@@ -92,9 +92,10 @@ class ResourceMonitor(object):
             # None means no filtering, report all gpus
             self._active_gpus = None
             try:
-                active_gpus = Session.get_nvidia_visible_env() or ""
-                if active_gpus:
-                    self._active_gpus = [g.strip() for g in active_gpus.split(',')]
+                active_gpus = Session.get_nvidia_visible_env()
+                # None means no filtering, report all gpus
+                if active_gpus and active_gpus != "all":
+                    self._active_gpus = [g.strip() for g in str(active_gpus).split(',')]
             except Exception:
                 pass
 
