@@ -3280,6 +3280,11 @@ class Worker(ServiceCommandSection):
             first_time=first_time,
         )
 
+        # print message so users know they can enable cache
+        if not self.package_api.is_cached_enabled():
+            print('::: Python virtual environment cache is disabled. '
+                  'To accelerate spin-up time set `agent.venvs_cache.path=~/.clearml/venvs-cache` :::\n')
+
         # check if we have a cached folder
         if cached_requirements and not skip_pip_venv_install and self.package_api.get_cached_venv(
             requirements=cached_requirements,

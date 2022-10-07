@@ -213,6 +213,13 @@ class PackageManager(object):
             return
         return self._get_cache_manager().get_last_copied_entry()
 
+    def is_cached_enabled(self):
+        if not self._cache_manager:
+            cache_folder = ENV_VENV_CACHE_PATH.get() or self.session.config.get(self._config_cache_folder, None)
+            if not cache_folder:
+                return False
+        return True
+
     @classmethod
     def _generate_reqs_hash_keys(cls, requirements_list, docker_cmd, python_version, cuda_version):
         # type: (Union[Dict, List[Dict]], Optional[Union[dict, str]], Optional[str], Optional[str]) -> List[str]
