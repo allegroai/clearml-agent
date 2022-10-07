@@ -3591,9 +3591,7 @@ class Worker(ServiceCommandSection):
         """Get the amount of running child agents. In case of any error return 0"""
         parent_worker_label = self._parent_worker_label.format(self.worker_id)
 
-        default_cmd = 'docker ps --filter label={parent_worker_label} --format ' \
-                      '{{"ID":"{{{{ .ID }}}}", "Image": "{{{{ .Image }}}}", ' \
-                      '"Names":"{{{{ .Names }}}}", "Labels":"{{{{ .Labels }}}}"}}'
+        default_cmd = 'docker ps --filter label={parent_worker_label} --format {{{{.ID}}}}'
         child_agents_cmd = ENV_CHILD_AGENTS_COUNT_CMD.get() or default_cmd
 
         cmd = shlex.split(child_agents_cmd.format(parent_worker_label=parent_worker_label))
