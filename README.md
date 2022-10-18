@@ -24,7 +24,7 @@ ML-Ops scheduler & orchestration solution supporting Linux, macOS and Windows**
 * Launch-and-Forget service containers
 * [Cloud autoscaling](https://clear.ml/docs/latest/docs/guides/services/aws_autoscaler)
 * [Customizable cleanup](https://clear.ml/docs/latest/docs/guides/services/cleanup_service)
-*
+
 Advanced [pipeline building and execution](https://clear.ml/docs/latest/docs/guides/frameworks/pytorch/notebooks/table/tabular_training_pipeline)
 
 It is a zero configuration fire-and-forget execution agent, providing a full ML/DL cluster solution.
