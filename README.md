@@ -334,10 +334,10 @@ HPO examples
 
 Experiment Pipeline examples
 
-- [First step experiment](https://github.com/allegroai/clearml/blob/master/examples/automation/task_piping_example.py)
-    - This example will "process data", and once done, will launch a copy of the 'second step' experiment-template
-- [Second step experiment](https://github.com/allegroai/clearml/blob/master/examples/automation/toy_base_task.py)
-    - In order to create an experiment-template in the system, this code must be executed once manually
+- [Build DAG from Tasks](https://github.com/allegroai/clearml/blob/master/examples/pipeline/pipeline_from_tasks.py)
+    - This example will build a DAG processing flow from existing Tasks and launch them on remote machines
+- [Logic Driven Pipeline](https://github.com/allegroai/clearml/blob/master/examples/pipeline/pipeline_from_decorator.py)
+    - This example will run any component function as a standalone Task on a remote machine, it will auto-parallelize jobs, cache results and automatically serialize data between remote machines.
 
 ### License
 
