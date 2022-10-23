@@ -30,9 +30,9 @@ import attr
 import psutil
 import six
 from pathlib2 import Path
-from pyhocon import ConfigTree, ConfigFactory
 from six.moves.urllib.parse import quote
 
+from clearml_agent.external.pyhocon import ConfigTree, ConfigFactory
 from clearml_agent.backend_api.services import auth as auth_api
 from clearml_agent.backend_api.services import queues as queues_api
 from clearml_agent.backend_api.services import tasks as tasks_api
@@ -3284,7 +3284,7 @@ class Worker(ServiceCommandSection):
 
         # print message so users know they can enable cache
         if not self.package_api.is_cached_enabled():
-            print('::: Python virtual environment cache is disabled. '
+            print('::: Python virtual environment cache is DISABLED. '
                   'To accelerate spin-up time set `agent.venvs_cache.path=~/.clearml/venvs-cache` :::\n')
 
         # check if we have a cached folder
