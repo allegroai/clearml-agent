@@ -20,14 +20,12 @@ from datetime import datetime
 from distutils.spawn import find_executable
 from distutils.util import strtobool
 from functools import partial
-from itertools import chain
 from os.path import basename
 from tempfile import mkdtemp, NamedTemporaryFile
 from time import sleep, time
 from typing import Text, Optional, Any, Tuple, List
 
 import attr
-import psutil
 import six
 from pathlib2 import Path
 from six.moves.urllib.parse import quote
@@ -636,21 +634,12 @@ class Worker(ServiceCommandSection):
                     self._pip_extra_index_url.insert(0, e)
         except Exception:
             self.log.warning('Failed adding extra-index-url to pip environment: {}'.format(extra_url))
-        # update pip install command
-        pip_install_cmd = ["pip", "install"]
-        if self._pip_extra_index_url:
-            pip_install_cmd.extend(
-                chain.from_iterable(
-                    ("--extra-index-url", x) for x in self._pip_extra_index_url
-                )
-            )
-        self.pip_install_cmd = tuple(pip_install_cmd)
+
         self.worker_id = self._session.config["agent.worker_id"] or "{}:{}".format(
             self._session.config["agent.worker_name"], os.getpid()
         )
         self.parent_worker_id = None  # maybe add os env for overriding
-        self._last_stats = defaultdict(lambda: 0)
-        self._last_report_timestamp = psutil.time.time()
+
         self.temp_config_path = None
         self.queues = ()
         self.venv_folder = None  # type: Optional[Text]
