@@ -278,6 +278,8 @@ class SimpleVersion:
             return version_a_key > version_b_key
         if op == '<':
             return version_a_key < version_b_key
+        if op == '!=':
+            return version_a_key != version_b_key
         raise ValueError('Unrecognized comparison operator [{}]'.format(op))
 
     @classmethod
