@@ -9,9 +9,10 @@ from typing import Optional
 import jwt
 import requests
 import six
-from pyhocon import ConfigTree, ConfigFactory
 from requests.auth import HTTPBasicAuth
 from six.moves.urllib.parse import urlparse, urlunparse
+
+from clearml_agent.external.pyhocon import ConfigTree, ConfigFactory
 
 from .callresult import CallResult
 from .defs import (

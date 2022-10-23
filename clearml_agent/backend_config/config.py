@@ -7,16 +7,17 @@ import sys
 from os.path import expanduser
 from typing import Any
 
-import pyhocon
 import six
 from pathlib2 import Path
-from pyhocon import ConfigTree, ConfigFactory
 from pyparsing import (
     ParseFatalException,
     ParseException,
     RecursiveGrammarException,
     ParseSyntaxException,
 )
+
+from clearml_agent.external import pyhocon
+from clearml_agent.external.pyhocon import ConfigTree, ConfigFactory
 
 from .defs import (
     Environment,

@@ -4,7 +4,7 @@ from os.path import expandvars, expanduser
 from pathlib import Path
 from typing import List, TYPE_CHECKING
 
-from pyhocon import HOCONConverter, ConfigTree
+from clearml_agent.external.pyhocon import HOCONConverter, ConfigTree
 
 if TYPE_CHECKING:
     from .config import Config

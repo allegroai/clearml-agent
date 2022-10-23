@@ -10,8 +10,8 @@ from typing import Any, Callable
 
 import attr
 from pathlib2 import Path
-from pyhocon import ConfigFactory, HOCONConverter, ConfigTree
 
+from clearml_agent.external.pyhocon import ConfigFactory, HOCONConverter, ConfigTree
 from clearml_agent.backend_api.session import Session as _Session, Request
 from clearml_agent.backend_api.session.client import APIClient
 from clearml_agent.backend_config.defs import LOCAL_CONFIG_FILE_OVERRIDE_VAR, LOCAL_CONFIG_FILES

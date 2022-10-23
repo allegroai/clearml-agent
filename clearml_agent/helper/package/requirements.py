@@ -11,7 +11,7 @@ from os import path
 from typing import Text, List, Type, Optional, Tuple, Dict
 
 from pathlib2 import Path
-from pyhocon import ConfigTree
+from clearml_agent.external.pyhocon import ConfigTree
 
 import six
 from six.moves.urllib.parse import unquote

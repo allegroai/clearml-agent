@@ -1,10 +1,10 @@
 from __future__ import print_function
 
 from six.moves import input
-from pyhocon import ConfigFactory, ConfigMissingException
 from pathlib2 import Path
 from six.moves.urllib.parse import urlparse
 
+from clearml_agent.external.pyhocon import ConfigFactory, ConfigMissingException
 from clearml_agent.backend_api.session import Session
 from clearml_agent.backend_api.session.defs import ENV_HOST
 from clearml_agent.backend_config.defs import LOCAL_CONFIG_FILES

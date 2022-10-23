@@ -20,13 +20,13 @@ from typing import Text, Dict, Any, Optional, AnyStr, IO, Union
 
 import attr
 import furl
-import pyhocon
 import yaml
 from attr import fields_dict
 from pathlib2 import Path
 
 import six
 from six.moves import reduce
+from clearml_agent.external import pyhocon
 from clearml_agent.errors import CommandFailedError
 from clearml_agent.helper.dicts import filter_keys
 
