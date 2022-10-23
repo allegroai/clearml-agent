@@ -19,6 +19,7 @@ from clearml_agent.definitions import ENVIRONMENT_CONFIG, ENV_TASK_EXECUTE_AS_US
 from clearml_agent.errors import APIError
 from clearml_agent.helper.base import HOCONEncoder
 from clearml_agent.helper.process import Argv
+from clearml_agent.helper.docker_agrs import DockerArgsSanitizer
 from .version import __version__
 
 POETRY = "poetry"
@@ -232,7 +233,8 @@ class Session(_Session):
     def print_configuration(
             self,
             remove_secret_keys=("secret", "pass", "token", "account_key", "contents"),
-            skip_value_keys=("environment", )
+            skip_value_keys=("environment", ),
+            docker_args_sanitize_keys=("extra_docker_arguments", ),
     ):
         # remove all the secrets from the print
         def recursive_remove_secrets(dictionary, secret_keys=(), empty_keys=()):
@@ -249,6 +251,8 @@ class Session(_Session):
                 if isinstance(dictionary.get(k, None), dict):
                     recursive_remove_secrets(dictionary[k], secret_keys=secret_keys, empty_keys=empty_keys)
                 elif isinstance(dictionary.get(k, None), (list, tuple)):
+                    if k in (docker_args_sanitize_keys or []):
+                        dictionary[k] = DockerArgsSanitizer.sanitize_docker_command(self, dictionary[k])
                     for item in dictionary[k]:
                         if isinstance(item, dict):
                             recursive_remove_secrets(item, secret_keys=secret_keys, empty_keys=empty_keys)
@@ -256,7 +260,7 @@ class Session(_Session):
         config = deepcopy(self.config.to_dict())
         # remove the env variable, it's not important
         config.pop('env', None)
-        if remove_secret_keys or skip_value_keys:
+        if remove_secret_keys or skip_value_keys or docker_args_sanitize_keys:
             recursive_remove_secrets(config, secret_keys=remove_secret_keys, empty_keys=skip_value_keys)
         # remove logging.loggers.urllib3.level from the print
         try:

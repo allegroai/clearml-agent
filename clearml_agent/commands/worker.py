@@ -32,7 +32,6 @@ import six
 from pathlib2 import Path
 from pyhocon import ConfigTree, ConfigFactory
 from six.moves.urllib.parse import quote
-from six.moves.urllib.parse import urlparse, urlunparse
 
 from clearml_agent.backend_api.services import auth as auth_api
 from clearml_agent.backend_api.services import queues as queues_api
@@ -140,6 +139,7 @@ from clearml_agent.helper.repo import clone_repository_cached, RepoInfo, VCS, fi
 from clearml_agent.helper.resource_monitor import ResourceMonitor
 from clearml_agent.helper.runtime_verification import check_runtime, print_uptime_properties
 from clearml_agent.helper.singleton import Singleton
+from clearml_agent.helper.docker_agrs import DockerArgsSanitizer
 from clearml_agent.session import Session
 from .events import Events
 
@@ -799,7 +799,7 @@ class Worker(ServiceCommandSection):
                 lines=
                 ['Running Task {} inside {}docker: {} arguments: {}\n'.format(
                     task_id, "default " if default_docker else '',
-                    docker_image, self._sanitize_docker_command(docker_arguments or []))]
+                    docker_image, DockerArgsSanitizer.sanitize_docker_command(self._session, docker_arguments or []))]
                 + (['custom_setup_bash_script:\n{}'.format(docker_setup_script)] if docker_setup_script else []),
                 level="INFO",
                 session=task_session,
@@ -862,7 +862,7 @@ class Worker(ServiceCommandSection):
                 '--standalone-mode' if self._standalone_mode else '',
                 task_id)
 
-            display_docker_command = self._sanitize_docker_command(full_docker_cmd)
+            display_docker_command = DockerArgsSanitizer.sanitize_docker_command(self._session, full_docker_cmd)
 
             # send the actual used command line to the backend
             self.send_logs(
@@ -2603,7 +2603,9 @@ class Worker(ServiceCommandSection):
         print("Executing task id [%s]:" % current_task.id)
         sanitized_execution = attr.evolve(
             execution,
-            docker_cmd=" ".join(self._sanitize_docker_command(shlex.split(execution.docker_cmd or ""))),
+            docker_cmd=" ".join(DockerArgsSanitizer.sanitize_docker_command(
+                self._session, shlex.split(execution.docker_cmd or ""))
+            ),
         )
         for pair in attr.asdict(sanitized_execution).items():
             print("{} = {}".format(*pair))
@@ -3418,7 +3420,7 @@ class Worker(ServiceCommandSection):
 
         print("Running in Docker{} mode (v19.03 and above) - using default docker image: {} {}\n".format(
             ' *standalone*' if self._standalone_mode else '', self._docker_image,
-            self._sanitize_docker_command(self._docker_arguments) or ''))
+            DockerArgsSanitizer.sanitize_docker_command(self._session, self._docker_arguments) or ''))
 
         temp_config = deepcopy(self._session.config)
         mounted_cache_dir = temp_config.get(
@@ -4077,76 +4079,6 @@ class Worker(ServiceCommandSection):
                 q_id = self._resolve_name(q if isinstance(q, str) else q.name, "queues")
             queue_ids.append(q_id)
         return queue_ids
-
-    @staticmethod
-    def _sanitize_urls(s: str) -> Tuple[str, bool]:
-        """ Replaces passwords in URLs with asterisks """
-        regex = re.compile("^([^:]*:)[^@]+(.*)$")
-        tokens = re.split(r"\s", s)
-        changed = False
-        for k in range(len(tokens)):
-            if "@" in tokens[k]:
-                res = urlparse(tokens[k])
-                if regex.match(res.netloc):
-                    changed = True
-                    tokens[k] = urlunparse((
-                        res.scheme,
-                        regex.sub("\\1********\\2", res.netloc),
-                        res.path,
-                        res.params,
-                        res.query,
-                        res.fragment
-                    ))
-        return " ".join(tokens) if changed else s, changed
-
-    def _sanitize_docker_command(self, docker_command):
-        # type: (List[str]) -> List[str]
-        if not docker_command:
-            return docker_command
-        if not self._session.config.get('agent.hide_docker_command_env_vars.enabled', False):
-            return docker_command
-
-        keys = set(self._session.config.get('agent.hide_docker_command_env_vars.extra_keys', []))
-        keys.update(
-            ENV_AGENT_GIT_PASS.vars,
-            ENV_AGENT_SECRET_KEY.vars,
-            ENV_AWS_SECRET_KEY.vars,
-            ENV_AZURE_ACCOUNT_KEY.vars,
-            ENV_AGENT_AUTH_TOKEN.vars,
-        )
-
-        parse_embedded_urls = bool(self._session.config.get(
-            'agent.hide_docker_command_env_vars.parse_embedded_urls', True
-        ))
-
-        skip_next = False
-        result = docker_command[:]
-        for i, item in enumerate(docker_command):
-            if skip_next:
-                skip_next = False
-                continue
-            try:
-                if item in ("-e", "--env"):
-                    key, sep, val = result[i + 1].partition("=")
-                    if not sep:
-                        continue
-                    if key in ENV_DOCKER_IMAGE.vars:
-                        # special case - this contains a complete docker command
-                        val = " ".join(self._sanitize_docker_command(re.split(r"\s", val)))
-                    elif key in keys:
-                        val = "********"
-                    elif parse_embedded_urls:
-                        val = self._sanitize_urls(val)[0]
-                    result[i + 1] = "{}={}".format(key, val)
-                    skip_next = True
-                elif parse_embedded_urls and not item.startswith("-"):
-                    item, changed = self._sanitize_urls(item)
-                    if changed:
-                        result[i] = item
-            except (KeyError, TypeError):
-                pass
-
-        return result
 
     @staticmethod
     def _valid_docker_container_name(name):
