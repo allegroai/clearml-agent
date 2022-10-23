@@ -191,15 +191,19 @@ class Config(object):
             config, self._read_extra_env_config_values(), copy_trees=True
         )
 
-        if self._overrides_configs:
-            config = functools.reduce(
-                lambda cfg, override: ConfigTree.merge_configs(cfg, override, copy_trees=True),
-                self._overrides_configs,
-                config,
-            )
+        config = self.resolve_override_configs(config)
 
         config["env"] = env
         return config
+
+    def resolve_override_configs(self, initial=None):
+        if not self._overrides_configs:
+            return initial
+        return functools.reduce(
+            lambda cfg, override: ConfigTree.merge_configs(cfg, override, copy_trees=True),
+            self._overrides_configs,
+            initial or ConfigTree(),
+        )
 
     def _read_extra_env_config_values(self) -> ConfigTree:
         """ Loads extra configuration from environment-injected values """
