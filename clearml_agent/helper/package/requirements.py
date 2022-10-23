@@ -100,7 +100,8 @@ class MarkerRequirement(object):
             return ','.join(starmap(operator.add, self.specs))
 
         op, version = self.specs[0]
-        for v in self._sub_versions_pep440:
+        # noinspection PyProtectedMember
+        for v in SimpleVersion._sub_versions_pep440:
             version = version.replace(v, '.')
         if num_parts:
             version = (version.strip('.').split('.') + ['0'] * num_parts)[:max_num_parts]
@@ -364,7 +365,7 @@ def compare_version_rules(specs_a, specs_b):
     # specs_a/b are a list of tuples: [('==', '1.2.3'), ] or [('>=', '1.2'), ('<', '1.3')]
     # section definition:
     class Section(object):
-        def __init__(self, left=None, left_eq=False, right=None, right_eq=False):
+        def __init__(self, left="-999999999", left_eq=False, right="999999999", right_eq=False):
             self.left, self.left_eq, self.right, self.right_eq = left, left_eq, right, right_eq
     # first create a list of in/out sections for each spec
     # >, >= are left rule
@@ -435,6 +436,11 @@ def compare_version_rules(specs_a, specs_b):
 class RequirementSubstitution(object):
 
     _pip_extra_index_url = PIP_EXTRA_INDICES
+
+    @classmethod
+    def set_add_install_extra_index(cls, extra_index_url):
+        if extra_index_url not in cls._pip_extra_index_url:
+            cls._pip_extra_index_url.append(extra_index_url)
 
     def __init__(self, session):
         # type: (Session) -> ()
