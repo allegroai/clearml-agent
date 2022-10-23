@@ -16,7 +16,6 @@ from typing import Union, Text, Sequence, Any, TypeVar, Callable
 
 import psutil
 from furl import furl
-from future.builtins import super
 from pathlib2 import Path
 
 import six
