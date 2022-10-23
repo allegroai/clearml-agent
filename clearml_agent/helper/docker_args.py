@@ -1,4 +1,5 @@
 import re
+import shlex
 from typing import Tuple, List, TYPE_CHECKING
 from urllib.parse import urlunparse, urlparse
 
@@ -9,6 +10,7 @@ from clearml_agent.definitions import (
     ENV_AZURE_ACCOUNT_KEY,
     ENV_AGENT_AUTH_TOKEN,
     ENV_DOCKER_IMAGE,
+    ENV_DOCKER_ARGS_HIDE_ENV,
 )
 
 if TYPE_CHECKING:
@@ -21,10 +23,16 @@ class DockerArgsSanitizer:
         # type: (Session, List[str]) -> List[str]
         if not docker_command:
             return docker_command
-        if not session.config.get('agent.hide_docker_command_env_vars.enabled', False):
+
+        enabled = (
+            session.config.get('agent.hide_docker_command_env_vars.enabled', False) or ENV_DOCKER_ARGS_HIDE_ENV.get()
+        )
+        if not enabled:
             return docker_command
 
         keys = set(session.config.get('agent.hide_docker_command_env_vars.extra_keys', []))
+        if ENV_DOCKER_ARGS_HIDE_ENV.get():
+            keys.update(shlex.split(ENV_DOCKER_ARGS_HIDE_ENV.get().strip()))
         keys.update(
             ENV_AGENT_GIT_PASS.vars,
             ENV_AGENT_SECRET_KEY.vars,

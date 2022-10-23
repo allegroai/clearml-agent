@@ -137,7 +137,7 @@ from clearml_agent.helper.repo import clone_repository_cached, RepoInfo, VCS, fi
 from clearml_agent.helper.resource_monitor import ResourceMonitor
 from clearml_agent.helper.runtime_verification import check_runtime, print_uptime_properties
 from clearml_agent.helper.singleton import Singleton
-from clearml_agent.helper.docker_agrs import DockerArgsSanitizer
+from clearml_agent.helper.docker_args import DockerArgsSanitizer
 from clearml_agent.session import Session
 from .events import Events
 

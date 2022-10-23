@@ -19,7 +19,7 @@ from clearml_agent.definitions import ENVIRONMENT_CONFIG, ENV_TASK_EXECUTE_AS_US
 from clearml_agent.errors import APIError
 from clearml_agent.helper.base import HOCONEncoder
 from clearml_agent.helper.process import Argv
-from clearml_agent.helper.docker_agrs import DockerArgsSanitizer
+from clearml_agent.helper.docker_args import DockerArgsSanitizer
 from .version import __version__
 
 POETRY = "poetry"
