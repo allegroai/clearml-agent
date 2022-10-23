@@ -185,8 +185,6 @@ class K8sIntegration(Worker):
         if clearml_conf_file:
             with open(os.path.expandvars(os.path.expanduser(str(clearml_conf_file))), 'rt') as f:
                 self.conf_file_content = f.read()
-            # make sure we use system packages!
-            self.conf_file_content += '\nagent.package_manager.system_site_packages=true\n'
 
         self._agent_label = None
 
@@ -419,12 +417,12 @@ class K8sIntegration(Worker):
                 self._session, task_id, docker_image=container['image'], docker_arguments=container['arguments']
             )
 
-        # get the clearml.conf encoded file
+        # get the clearml.conf encoded file, make sure we use system packages!
         # noinspection PyProtectedMember
-        hocon_config_encoded = (
-            self.conf_file_content
-            or Path(self._session._config_file).read_text()
-        ).encode("ascii")
+        config_content = (
+            self.conf_file_content or Path(self._session._config_file).read_text() or ""
+        ) + '\nagent.package_manager.system_site_packages=true\n'
+        hocon_config_encoded = config_content.encode("ascii")
 
         create_clearml_conf = ["echo '{}' | base64 --decode >> ~/clearml.conf".format(
             base64.b64encode(
