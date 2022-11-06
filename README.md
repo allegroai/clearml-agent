@@ -24,7 +24,7 @@ ML-Ops scheduler & orchestration solution supporting Linux, macOS and Windows**
 * Launch-and-Forget service containers
 * [Cloud autoscaling](https://clear.ml/docs/latest/docs/guides/services/aws_autoscaler)
 * [Customizable cleanup](https://clear.ml/docs/latest/docs/guides/services/cleanup_service)
-
+*
 Advanced [pipeline building and execution](https://clear.ml/docs/latest/docs/guides/frameworks/pytorch/notebooks/table/tabular_training_pipeline)
 
 It is a zero configuration fire-and-forget execution agent, providing a full ML/DL cluster solution.
@@ -33,12 +33,12 @@ It is a zero configuration fire-and-forget execution agent, providing a full ML/
 
 1. ClearML Server [self-hosted](https://github.com/allegroai/clearml-server)
    or [free tier hosting](https://app.clear.ml)
-2. `pip install clearml-agent` ([install](#installing-the-clearml-agent) the ClearML Agent on any CPU/GPU machine:
+2. `pip install clearml-agent` ([install](#installing-the-clearml-agent) the ClearML Agent on any GPU machine:
    on-premises / cloud / ...)
 3. Create a [job](https://github.com/allegroai/clearml/docs/clearml-task.md) or
    Add [ClearML](https://github.com/allegroai/clearml) to your code with just 2 lines
 4. Change the [parameters](#using-the-clearml-agent) in the UI & schedule for [execution](#using-the-clearml-agent) (or
-   automate with a [pipelines](#automl-and-orchestration-pipelines-))
+   automate with an [AutoML pipeline](#automl-and-orchestration-pipelines-))
 5. :chart_with_downwards_trend: :chart_with_upwards_trend: :eyes:  :beer:
 
 "All the Deep/Machine-Learning DevOps your research needs, and then some... Because ain't nobody got time for that"
@@ -313,31 +313,28 @@ clearml-agent daemon --services-mode --detached --queue services --create-queue 
 
 **Note**: It is the user's responsibility to make sure the proper tasks are pushed into the specified queue.
 
-### Orchestration and Pipelines <a name="automl-pipes"></a>
+### AutoML and Orchestration Pipelines <a name="automl-pipes"></a>
 
-The ClearML Agent can also be used to orchestrate and automate Pipelines in conjunction with the
+The ClearML Agent can also be used to implement AutoML orchestration and Experiment Pipelines in conjunction with the
 ClearML package.
 
-Sample automation examples can be found in the
-ClearML [pipelines](https://github.com/allegroai/clearml/tree/master/examples/pipeline) / [automation](https://github.com/allegroai/clearml/tree/master/examples/automation) folder.
+Sample AutoML & Orchestration examples can be found in the
+ClearML [example/automation](https://github.com/allegroai/clearml/tree/master/examples/automation) folder.
 
-HPO examples
+AutoML examples
 
 - [Toy Keras training experiment](https://github.com/allegroai/clearml/blob/master/examples/optimization/hyper-parameter-optimization/base_template_keras_simple.py)
     - In order to create an experiment-template in the system, this code must be executed once manually
-- [Manual Search over the above Keras experiment-template](https://github.com/allegroai/clearml/blob/master/examples/automation/manual_random_param_search_example.py)
+- [Random Search over the above Keras experiment-template](https://github.com/allegroai/clearml/blob/master/examples/automation/manual_random_param_search_example.py)
     - This example will create multiple copies of the Keras experiment-template, with different hyper-parameter
       combinations
-- [Optimized Bayesian search over the above Keras experiment-template](https://github.com/allegroai/clearml/blob/master/examples/optimization/hyper-parameter-optimization/hyper_parameter_optimizer.py)
-    - This example will create multiple copies of the Keras experiment-template, with different hyper-parameter combinations launch them on remote machines, monitor the metric (i.e. loss) decide which one has the best potential and abort the others
-
 
 Experiment Pipeline examples
 
-- [Build DAG from Tasks](https://github.com/allegroai/clearml/blob/master/examples/pipeline/pipeline_from_tasks.py)
-    - This example will build a DAG processing flow from existing Tasks and launch them on remote machines
-- [Logic Driven Pipeline](https://github.com/allegroai/clearml/blob/master/examples/pipeline/pipeline_from_decorator.py)
-    - This example will run any component function as a standalone Task on a remote machine, it will auto-parallelize jobs, cache results and automatically serialize data between remote machines.
+- [First step experiment](https://github.com/allegroai/clearml/blob/master/examples/automation/task_piping_example.py)
+    - This example will "process data", and once done, will launch a copy of the 'second step' experiment-template
+- [Second step experiment](https://github.com/allegroai/clearml/blob/master/examples/automation/toy_base_task.py)
+    - In order to create an experiment-template in the system, this code must be executed once manually
 
 ### License
 
