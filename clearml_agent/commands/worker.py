@@ -1553,7 +1553,7 @@ class Worker(ServiceCommandSection):
                     print("FATAL ERROR:")
                     print(tb)
 
-                    if self._session.config["agent.crash_on_exception"]:
+                    if self._session.config.get("agent.crash_on_exception", False):
                         raise e
 
                     crash_file, name = safe_mkstemp(prefix=".clearml_agent-crash", suffix=".log")
