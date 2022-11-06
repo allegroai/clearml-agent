@@ -1548,10 +1548,14 @@ class Worker(ServiceCommandSection):
                         gpu_indexes=gpu_indexes,
                         gpu_queues=dynamic_gpus,
                     )
-                except Exception:
+                except Exception as e:
                     tb = six.text_type(traceback.format_exc())
                     print("FATAL ERROR:")
                     print(tb)
+
+                    if self._session.config.get("agent.crash_on_exception", False):
+                        raise e
+
                     crash_file, name = safe_mkstemp(prefix=".clearml_agent-crash", suffix=".log")
                     try:
                         with crash_file:
