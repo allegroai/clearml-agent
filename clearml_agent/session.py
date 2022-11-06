@@ -133,7 +133,7 @@ class Session(_Session):
         # override with environment variables
         # cuda_version & cudnn_version are overridden with os.environ here, and normalized in the next section
         for config_key, env_config in ENVIRONMENT_CONFIG.items():
-            # check if the propery is of a list:
+            # check if the property is of a list:
             if config_key.endswith('.0'):
                 if all(not i.get() for i in env_config.values()):
                     continue
