@@ -1166,7 +1166,7 @@ class Worker(ServiceCommandSection):
                         print("No tasks in Queues, sleeping for {:.1f} seconds".format(self._polling_interval))
                     sleep(self._polling_interval)
 
-                if self._session.config["agent.reload_config"]:
+                if self._session.config.get("agent.reload_config", False):
                     self.reload_config()
         finally:
             # if we are in dynamic gpus mode, shutdown all active runs
@@ -1197,7 +1197,7 @@ class Worker(ServiceCommandSection):
         except Exception:
             return None
 
-        worker_name = self._session.config["agent.worker_name"] + ':gpu'
+        worker_name = self._session.config.get("agent.worker_name", "") + ':gpu'
         our_workers = [
             w.id for w in response.workers
             if w.id.startswith(worker_name) and w.id != self.worker_id]
@@ -1661,7 +1661,9 @@ class Worker(ServiceCommandSection):
 
         # noinspection PyBroadException
         try:
-            config_data = self._session.config.as_plain_ordered_dict() if config is None else config.as_plain_ordered_dict()
+            config_data = (
+                self._session.config.as_plain_ordered_dict() if config is None else config.as_plain_ordered_dict()
+            )
             if clean_api_credentials:
                 api = config_data.get("api")
                 if api:
