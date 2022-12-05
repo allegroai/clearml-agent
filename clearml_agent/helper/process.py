@@ -25,7 +25,7 @@ from clearml_agent.helper.base import bash_c, is_windows_platform, select_for_pl
 PathLike = Union[Text, Path]
 
 
-def get_bash_output(cmd, strip=False, stderr=subprocess.STDOUT, stdin=False):
+def get_bash_output(cmd, strip=False, stderr=subprocess.STDOUT, stdin=False, raise_error=False):
     try:
         output = (
             subprocess.check_output(
@@ -37,6 +37,8 @@ def get_bash_output(cmd, strip=False, stderr=subprocess.STDOUT, stdin=False):
             .strip()
         )
     except subprocess.CalledProcessError:
+        if raise_error:
+            raise
         output = None
     return output if not strip or not output else output.strip()
 
