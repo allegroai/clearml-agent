@@ -41,6 +41,7 @@ from clearml_agent.backend_api.session.defs import (
     ENV_VENV_CONFIGURED, ENV_PROPAGATE_EXITCODE, )
 from clearml_agent.backend_config.defs import UptimeConf
 from clearml_agent.backend_config.utils import apply_environment, apply_files
+from clearml_agent.backend_config.converters import text_to_int
 from clearml_agent.commands.base import resolve_names, ServiceCommandSection
 from clearml_agent.commands.resolver import resolve_default_container
 from clearml_agent.definitions import (
@@ -685,6 +686,10 @@ class Worker(ServiceCommandSection):
                 [re.compile(f) for f in self._session.config.get('agent.docker_args_filters', [])]
         else:
             self._docker_args_filters = []
+
+        self._task_ping_interval_sec = max(
+            0, text_to_int(self._session.config.get("agent.task_ping_interval_sec", 120.0))
+        )
 
     @classmethod
     def _verify_command_states(cls, kwargs):
@@ -1737,6 +1742,7 @@ class Worker(ServiceCommandSection):
         stopping = False
         status = None
         process = None
+        last_task_ping = 0
         try:
             _last_machine_update_ts = time()
             stop_reason = None
@@ -1771,6 +1777,17 @@ class Worker(ServiceCommandSection):
                     stdout.flush()
                 if stderr:
                     stderr.flush()
+
+                if self._task_ping_interval_sec and time() - last_task_ping > self._task_ping_interval_sec:
+                    # noinspection PyBroadException
+                    try:
+                        res = (session or self._session).send(tasks_api.PingRequest(task=task_id))
+                        if not res:
+                            self.log.error("Failed sending ping for task %s: %s", task_id, res.response)
+                    except Exception as ex:
+                        self.log.error("Failed sending ping: %s", str(ex))
+                    finally:
+                        self._task_ping_interval_sec = time()
 
                 # get diff from previous poll
                 printed_lines, stdout_pos_count = _print_file(stdout_path, stdout_pos_count)
