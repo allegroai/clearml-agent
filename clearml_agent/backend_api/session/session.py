@@ -114,7 +114,7 @@ class Session(TokenManager):
 
         if ENV_API_DEFAULT_REQ_METHOD.get(default=None):
             # Make sure we update the config object, so we pass it into the new containers when we map them
-            self.config["api.http.default_method"] = ENV_API_DEFAULT_REQ_METHOD.get()
+            self.config.put("api.http.default_method", ENV_API_DEFAULT_REQ_METHOD.get())
             # notice the default setting of Request.def_method are already set by the OS environment
         elif self.config.get("api.http.default_method", None):
             def_method = str(self.config.get("api.http.default_method", None)).strip()
