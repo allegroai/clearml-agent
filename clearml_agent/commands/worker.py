@@ -958,6 +958,7 @@ class Worker(ServiceCommandSection):
             if not (result.ok() and result.response):
                 return
             new_session = copy(session)
+            new_session.api_client = None
             new_session.set_auth_token(result.response.token)
             return new_session
 
