@@ -43,6 +43,10 @@ def get_bash_output(cmd, strip=False, stderr=subprocess.STDOUT, stdin=False, rai
     return output if not strip or not output else output.strip()
 
 
+def stringify_bash_output(value):
+    return '' if not value else (value if isinstance(value, str) else value.decode('utf-8'))
+
+
 def terminate_process(pid, timeout=10., ignore_zombie=True, include_children=False):
     # noinspection PyBroadException
     try:
