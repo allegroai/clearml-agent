@@ -816,14 +816,6 @@ class K8sIntegration(Worker):
                     except (KeyError, TypeError, AttributeError):
                         print("No tasks in queue {}".format(queue))
                         continue
-                    events_service.send_log_events(
-                        self.worker_id,
-                        task_id=task_id,
-                        lines="task {} pulled from {} by worker {}".format(
-                            task_id, queue, self.worker_id
-                        ),
-                        level="INFO",
-                    )
 
                     task_session = None
                     if self._impersonate_as_task_owner:
@@ -842,6 +834,16 @@ class K8sIntegration(Worker):
                                 )
                             )
                             continue
+
+                    events_service.send_log_events(
+                        self.worker_id,
+                        task_id=task_id,
+                        lines="task {} pulled from {} by worker {}".format(
+                            task_id, queue, self.worker_id
+                        ),
+                        level="INFO",
+                        session=task_session,
+                    )
 
                     self.report_monitor(ResourceMonitor.StatusReport(queues=queues, queue=queue, task=task_id))
                     self.run_one_task(queue, task_id, worker_params, task_session)

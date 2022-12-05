@@ -3798,7 +3798,6 @@ class Worker(ServiceCommandSection):
         except:
             pass
 
-        agent_install_bash_script = []
         if os.environ.get('FORCE_LOCAL_CLEARML_AGENT_WHEEL'):
             local_wheel = os.path.expanduser(os.environ.get('FORCE_LOCAL_CLEARML_AGENT_WHEEL'))
             docker_wheel = '/tmp/{}'.format(basename(local_wheel))
@@ -3838,9 +3837,6 @@ class Worker(ServiceCommandSection):
 
             if preprocess_bash_script:
                 bash_script = preprocess_bash_script + bash_script
-
-            if agent_install_bash_script:
-                bash_script += agent_install_bash_script
 
             docker_bash_script = " ; ".join([line for line in bash_script if line]) \
                 if not isinstance(bash_script, str) else bash_script
