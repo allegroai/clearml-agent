@@ -737,7 +737,7 @@ class Worker(ServiceCommandSection):
             pass
 
     def run_one_task(self, queue, task_id, worker_args, docker=None, task_session=None):
-        # type: (Text, Text, WorkerParams, Optional[Text]) -> int
+        # type: (Text, Text, WorkerParams, Optional[Text], Optional[Session]) -> int
         """
         Run one task pulled from queue.
         :param queue: ID of queue that task was pulled from
@@ -782,10 +782,18 @@ class Worker(ServiceCommandSection):
             except Exception:
                 task_container = {}
 
-            default_docker = not bool(task_container.get('image'))
-            docker_image = task_container.get('image') or self._docker_image
-            docker_arguments = task_container.get(
-                'arguments', self._docker_arguments if default_docker else None)
+            default_docker = (
+                self._session.config.get('agent.disable_task_docker_override', False)
+                or not bool(task_container.get('image'))
+            )
+            if default_docker:
+                docker_image = self._docker_image
+                docker_arguments = self._docker_arguments
+            else:
+                docker_image = task_container.get('image') or self._docker_image
+                docker_arguments = task_container.get(
+                    'arguments', self._docker_arguments if default_docker else None)
+
             docker_setup_script = task_container.get('setup_shell_script')
 
             self.send_logs(
@@ -2079,7 +2087,10 @@ class Worker(ServiceCommandSection):
             # noinspection PyBroadException
             try:
                 task_container = get_task_container(self._session, task_id)
-                if task_container.get('image'):
+                if (
+                    task_container.get('image')
+                    and not self._session.config.get('agent.disable_task_docker_override', False)
+                ):
                     docker_image = task_container.get('image')
                     print('Ignoring default docker image, using task docker image {}'.format(docker_image))
                     docker_arguments = task_container.get('arguments')
