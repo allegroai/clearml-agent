@@ -3875,10 +3875,10 @@ class Worker(ServiceCommandSection):
             update_scheme += (
                     docker_bash_script + " ; " +
                     "[ ! -z $LOCAL_PYTHON ] || export LOCAL_PYTHON={python} ; " +
-                    "$LOCAL_PYTHON -m pip install -U \"pip{pip_version}\" ; " +
+                    "$LOCAL_PYTHON -m pip install -U {pip_version} ; " +
                     "$LOCAL_PYTHON -m pip install -U {clearml_agent_wheel} ; ").format(
                 python_single_digit=python_version.split('.')[0],
-                python=python_version, pip_version=PackageManager.get_pip_version(),
+                python=python_version, pip_version=" ".join(PackageManager.get_pip_versions(wrap='\"')),
                 clearml_agent_wheel=clearml_agent_wheel,
                 mount_ssh_ro=mount_ssh_ro, mount_ssh=mount_ssh,
             )
