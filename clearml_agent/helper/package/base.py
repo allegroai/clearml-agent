@@ -177,7 +177,7 @@ class PackageManager(object):
                 cls._pip_version.append("==" + version)
 
     @classmethod
-    def get_pip_versions(cls, pip="pip", wrap='"'):
+    def get_pip_versions(cls, pip="pip", wrap=''):
         return [
             (wrap + pip + version + wrap)
             for version in cls._pip_version or [pip]
