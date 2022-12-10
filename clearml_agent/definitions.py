@@ -154,6 +154,11 @@ ENV_CHILD_AGENTS_COUNT_CMD = EnvironmentConfig('CLEARML_AGENT_CHILD_AGENTS_COUNT
 ENV_DOCKER_ARGS_FILTERS = EnvironmentConfig('CLEARML_AGENT_DOCKER_ARGS_FILTERS')
 ENV_DOCKER_ARGS_HIDE_ENV = EnvironmentConfig('CLEARML_AGENT_DOCKER_ARGS_HIDE_ENV')
 
+ENV_FORCE_SYSTEM_SITE_PACKAGES = EnvironmentConfig('CLEARML_AGENT_FORCE_SYSTEM_SITE_PACKAGES', type=bool)
+""" Force system_site_packages: true when running tasks in containers (i.e. docker mode or k8s glue) """
+
+
+
 ENV_CUSTOM_BUILD_SCRIPT = EnvironmentConfig('CLEARML_AGENT_CUSTOM_BUILD_SCRIPT')
 """
     Specifies a custom environment setup script to be executed instead of installing a virtual environment.

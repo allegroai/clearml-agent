@@ -57,10 +57,7 @@ from clearml_agent.definitions import (
     ENV_WORKER_ID,
     ENV_WORKER_TAGS,
     ENV_DOCKER_SKIP_GPUS_FLAG,
-    ENV_AGENT_SECRET_KEY,
     ENV_AGENT_AUTH_TOKEN,
-    ENV_AWS_SECRET_KEY,
-    ENV_AZURE_ACCOUNT_KEY,
     ENV_AGENT_DISABLE_SSH_MOUNT,
     ENV_SSH_AUTH_SOCK,
     ENV_AGENT_SKIP_PIP_VENV_INSTALL,
@@ -71,6 +68,7 @@ from clearml_agent.definitions import (
     ENV_DEBUG_INFO,
     ENV_CHILD_AGENTS_COUNT_CMD,
     ENV_DOCKER_ARGS_FILTERS,
+    ENV_FORCE_SYSTEM_SITE_PACKAGES,
 )
 from clearml_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
 from clearml_agent.errors import (
@@ -3458,7 +3456,6 @@ class Worker(ServiceCommandSection):
         temp_config.put("sdk.storage.cache.default_base_dir", mounted_cache_dir)
         temp_config.put("agent.pip_download_cache.path", mounted_pip_dl_dir)
         temp_config.put("agent.vcs_cache.path", mounted_vcs_cache)
-        temp_config.put("agent.package_manager.system_site_packages", True)
         temp_config.put("agent.package_manager.conda_env_as_base_docker", False)
         temp_config.put("agent.default_python", "")
         temp_config.put("agent.python_binary", "")
@@ -3469,6 +3466,11 @@ class Worker(ServiceCommandSection):
                                            self._session.config.get("agent.git_user", None)))
         temp_config.put("agent.git_pass", (ENV_AGENT_GIT_PASS.get() or
                                            self._session.config.get("agent.git_pass", None)))
+
+        force_system_site_packages = ENV_FORCE_SYSTEM_SITE_PACKAGES.get()
+        force_system_site_packages = force_system_site_packages if force_system_site_packages is not None else True
+        if force_system_site_packages:
+            temp_config.put("agent.package_manager.system_site_packages", True)
 
         if temp_config.get("agent.venvs_cache.path", None):
             temp_config.put("agent.venvs_cache.path", '/root/.clearml/venvs-cache')

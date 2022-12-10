@@ -22,7 +22,12 @@ import yaml
 from clearml_agent.backend_api.session import Request
 from clearml_agent.commands.events import Events
 from clearml_agent.commands.worker import Worker, get_task_container, set_task_container, get_next_task
-from clearml_agent.definitions import ENV_DOCKER_IMAGE, ENV_AGENT_GIT_USER, ENV_AGENT_GIT_PASS
+from clearml_agent.definitions import (
+    ENV_DOCKER_IMAGE,
+    ENV_AGENT_GIT_USER,
+    ENV_AGENT_GIT_PASS,
+    ENV_FORCE_SYSTEM_SITE_PACKAGES,
+)
 from clearml_agent.errors import APIError
 from clearml_agent.glue.definitions import ENV_START_AGENT_SCRIPT_PATH
 from clearml_agent.helper.base import safe_remove_file
@@ -136,8 +141,11 @@ class K8sIntegration(Worker):
         self.k8s_pending_queue_name = k8s_pending_queue_name or self.K8S_PENDING_QUEUE
         self.k8s_pending_queue_id = None
         self.container_bash_script = container_bash_script or self.CONTAINER_BASH_SCRIPT
-        # Always do system packages, because by we will be running inside a docker
-        self._session.config.put("agent.package_manager.system_site_packages", True)
+        force_system_packages = ENV_FORCE_SYSTEM_SITE_PACKAGES.get()
+        self._force_system_site_packages = force_system_packages if force_system_packages is not None else True
+        if self._force_system_site_packages:
+            # Use system packages, because by we will be running inside a docker
+            self._session.config.put("agent.package_manager.system_site_packages", True)
         # Add debug logging
         if debug:
             self.log.logger.disabled = False
@@ -455,7 +463,7 @@ class K8sIntegration(Worker):
         git_user = ENV_AGENT_GIT_USER.get() or self._session.config.get("agent.git_user", None)
         git_pass = ENV_AGENT_GIT_PASS.get() or self._session.config.get("agent.git_pass", None)
         extra_config_values = [
-            'agent.package_manager.system_site_packages: true',
+            'agent.package_manager.system_site_packages: true' if self._force_system_site_packages else '',
             'agent.git_user: "{}"'.format(git_user) if git_user else '',
             'agent.git_pass: "{}"'.format(git_pass) if git_pass else '',
         ]
