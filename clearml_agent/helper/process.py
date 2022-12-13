@@ -117,10 +117,11 @@ def terminate_all_child_processes(pid=None, timeout=10., include_parent=True):
 
 
 def get_docker_id(docker_cmd_contains):
+    # noinspection PyBroadException
     try:
         containers_running = get_bash_output(cmd='docker ps --no-trunc --format \"{{.ID}}: {{.Command}}\"')
         for docker_line in containers_running.split('\n'):
-            parts = docker_line.split(':')
+            parts = docker_line.split(':', 1)
             if docker_cmd_contains in parts[-1]:
                 # we found our docker, return it
                 return parts[0]

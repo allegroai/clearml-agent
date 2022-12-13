@@ -2103,8 +2103,9 @@ class Worker(ServiceCommandSection):
 
         end_of_build_marker = "build.done=true"
         docker_cmd_suffix = ' build --id {task_id} --install-globally; ' \
-                            'echo "" >> {conf_file} ; ' \
-                            'echo {end_of_build_marker} >> {conf_file} ; ' \
+                            'ORG=$(stat -c "%u:%g" {conf_file}) ; chown $(whoami):$(whoami) {conf_file} ; ' \
+                            'echo "" >> {conf_file} ; echo {end_of_build_marker} >> {conf_file} ; ' \
+                            'chown $ORG {conf_file} ; ' \
                             'bash'.format(
                                 task_id=task_id,
                                 end_of_build_marker=end_of_build_marker,
@@ -2123,10 +2124,16 @@ class Worker(ServiceCommandSection):
 
         # now we need to wait until the line shows on our configuration file.
         while True:
-            while temp_config.stat().st_mtime == base_time_stamp:
-                sleep(5.0)
-            with open(temp_config.as_posix()) as f:
-                lines = [l.strip() for l in f.readlines()]
+            # noinspection PyBroadException
+            try:
+                while temp_config.stat().st_mtime == base_time_stamp:
+                    sleep(5.0)
+                with open(temp_config.as_posix()) as f:
+                    lines = [l.strip() for l in f.readlines()]
+            except Exception as ex:
+                # print("Failed reading status file [{}], retrying in 2 seconds".format(ex))
+                sleep(2.0)
+
             if 'build.done=true' in lines:
                 break
             base_time_stamp = temp_config.stat().st_mtime
@@ -2834,8 +2841,8 @@ class Worker(ServiceCommandSection):
         # Todo: add support for poetry caching
         if not self.poetry.enabled:
             # add to cache
-            print('Adding venv into cache: {}'.format(add_venv_folder_cache))
             if add_venv_folder_cache:
+                print('Adding venv into cache: {}'.format(add_venv_folder_cache))
                 self.package_api.add_cached_venv(
                     requirements=[freeze, previous_reqs],
                     docker_cmd=execution_info.docker_cmd if execution_info else None,
