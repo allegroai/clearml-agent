@@ -686,7 +686,7 @@ class Worker(ServiceCommandSection):
             self._docker_args_filters = []
 
         self._task_ping_interval_sec = max(
-            0, text_to_int(self._session.config.get("agent.task_ping_interval_sec", 120.0))
+            0, text_to_int(self._session.config.get("agent.task_ping_interval_sec", 60.0))
         )
 
     @classmethod
@@ -1784,7 +1784,8 @@ class Worker(ServiceCommandSection):
                 if stderr:
                     stderr.flush()
 
-                if self._task_ping_interval_sec and time() - last_task_ping > self._task_ping_interval_sec:
+                if not stopping and self._task_ping_interval_sec and \
+                        time() - last_task_ping > self._task_ping_interval_sec:
                     # noinspection PyBroadException
                     try:
                         res = (session or self._session).send(tasks_api.PingRequest(task=task_id))
@@ -1793,7 +1794,7 @@ class Worker(ServiceCommandSection):
                     except Exception as ex:
                         self.log.error("Failed sending ping: %s", str(ex))
                     finally:
-                        self._task_ping_interval_sec = time()
+                        last_task_ping = time()
 
                 # get diff from previous poll
                 printed_lines, stdout_pos_count = _print_file(stdout_path, stdout_pos_count)
@@ -2161,6 +2162,8 @@ class Worker(ServiceCommandSection):
         print('Committing docker container to: {}'.format(target))
         print(commit_docker(container_name=target, docker_id=docker_id, apply_change=change))
         shutdown_docker_process(docker_id=docker_id)
+
+        safe_remove_file(temp_config.as_posix())
 
         return
 
