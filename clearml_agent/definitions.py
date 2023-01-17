@@ -87,6 +87,7 @@ ENVIRONMENT_CONFIG = {
     "agent.cpu_only": EnvironmentConfig(
         names=("CLEARML_CPU_ONLY", "TRAINS_CPU_ONLY", "CPU_ONLY"), type=bool
     ),
+    "agent.crash_on_exception": EnvironmentConfig("CLEAMRL_AGENT_CRASH_ON_EXCEPTION", type=bool),
     "sdk.aws.s3.key": EnvironmentConfig("AWS_ACCESS_KEY_ID"),
     "sdk.aws.s3.secret": ENV_AWS_SECRET_KEY,
     "sdk.aws.s3.region": EnvironmentConfig("AWS_DEFAULT_REGION"),
@@ -126,6 +127,7 @@ DEFAULT_VENV_UPDATE_URL = (
     "https://raw.githubusercontent.com/Yelp/venv-update/v3.2.4/venv_update.py"
 )
 WORKING_REPOSITORY_DIR = "task_repository"
+WORKING_STANDALONE_DIR = "code"
 DEFAULT_VCS_CACHE = normalize_path(CONFIG_DIR, "vcs-cache")
 PIP_EXTRA_INDICES = [
 ]
@@ -134,6 +136,7 @@ ENV_DOCKER_IMAGE = EnvironmentConfig('CLEARML_DOCKER_IMAGE', 'TRAINS_DOCKER_IMAG
 ENV_WORKER_ID = EnvironmentConfig('CLEARML_WORKER_ID', 'TRAINS_WORKER_ID')
 ENV_WORKER_TAGS = EnvironmentConfig('CLEARML_WORKER_TAGS')
 ENV_AGENT_SKIP_PIP_VENV_INSTALL = EnvironmentConfig('CLEARML_AGENT_SKIP_PIP_VENV_INSTALL')
+ENV_AGENT_SKIP_PYTHON_ENV_INSTALL = EnvironmentConfig('CLEARML_AGENT_SKIP_PYTHON_ENV_INSTALL', type=bool)
 ENV_DOCKER_SKIP_GPUS_FLAG = EnvironmentConfig('CLEARML_DOCKER_SKIP_GPUS_FLAG', 'TRAINS_DOCKER_SKIP_GPUS_FLAG')
 ENV_AGENT_GIT_USER = EnvironmentConfig('CLEARML_AGENT_GIT_USER', 'TRAINS_AGENT_GIT_USER')
 ENV_AGENT_GIT_PASS = EnvironmentConfig('CLEARML_AGENT_GIT_PASS', 'TRAINS_AGENT_GIT_PASS')
@@ -146,6 +149,47 @@ ENV_DOCKER_HOST_MOUNT = EnvironmentConfig('CLEARML_AGENT_K8S_HOST_MOUNT', 'CLEAR
                                           'TRAINS_AGENT_K8S_HOST_MOUNT', 'TRAINS_AGENT_DOCKER_HOST_MOUNT')
 ENV_VENV_CACHE_PATH = EnvironmentConfig('CLEARML_AGENT_VENV_CACHE_PATH')
 ENV_EXTRA_DOCKER_ARGS = EnvironmentConfig('CLEARML_AGENT_EXTRA_DOCKER_ARGS', type=list)
+ENV_DEBUG_INFO = EnvironmentConfig('CLEARML_AGENT_DEBUG_INFO')
+ENV_CHILD_AGENTS_COUNT_CMD = EnvironmentConfig('CLEARML_AGENT_CHILD_AGENTS_COUNT_CMD')
+ENV_DOCKER_ARGS_FILTERS = EnvironmentConfig('CLEARML_AGENT_DOCKER_ARGS_FILTERS')
+ENV_DOCKER_ARGS_HIDE_ENV = EnvironmentConfig('CLEARML_AGENT_DOCKER_ARGS_HIDE_ENV')
+
+ENV_FORCE_SYSTEM_SITE_PACKAGES = EnvironmentConfig('CLEARML_AGENT_FORCE_SYSTEM_SITE_PACKAGES', type=bool)
+""" Force system_site_packages: true when running tasks in containers (i.e. docker mode or k8s glue) """
+
+
+
+ENV_CUSTOM_BUILD_SCRIPT = EnvironmentConfig('CLEARML_AGENT_CUSTOM_BUILD_SCRIPT')
+"""
+    Specifies a custom environment setup script to be executed instead of installing a virtual environment.
+    If provided, this script is executed following Git cloning. Script command may include environment variable and
+    will be expanded before execution (e.g. "$CLEARML_GIT_ROOT/script.sh").
+    The script can also be specified using the `agent.custom_build_script` configuration setting.
+    
+    When running the script, the following environment variables will be set:
+    - CLEARML_CUSTOM_BUILD_TASK_CONFIG_JSON: specifies a path to a temporary files containing the complete task
+     contents in JSON format
+    - CLEARML_TASK_SCRIPT_ENTRY: task entrypoint script as defined in the task's script section
+    - CLEARML_TASK_WORKING_DIR: task working directory as defined in the task's script section
+    - CLEARML_VENV_PATH: path to the agent's default virtual environment path (as defined in the configuration)
+    - CLEARML_GIT_ROOT: path to the cloned Git repository
+    - CLEARML_CUSTOM_BUILD_OUTPUT: a path to a non-existing file that may be created by the script. If created,
+     this file must be in the following JSON format:
+         ```json
+         {
+           "binary": "/absolute/path/to/python-executable",
+           "entry_point": "/absolute/path/to/task-entrypoint-script",
+           "working_dir": "/absolute/path/to/task-working/dir"
+         }
+         ```
+     If provided, the agent will use these instead of the predefined task script section to execute the task and will
+     skip virtual environment creation.
+    
+    In case the custom script returns with a non-zero exit code, the agent will fail with the same exit code.
+    In case the custom script is specified but does not exist, or if the custom script does not write valid content
+    into the file specified in CLEARML_CUSTOM_BUILD_OUTPUT, the agent will emit a warning and continue with the
+    standard flow.
+"""
 
 
 class FileBuffering(IntEnum):

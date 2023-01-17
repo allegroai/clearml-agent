@@ -66,11 +66,16 @@ class DataModel(object):
         }
 
     def validate(self, schema=None):
-        jsonschema.validate(
-            self.to_dict(),
-            schema or self._schema,
-            types=dict(array=(list, tuple), integer=six.integer_types),
+        schema = schema or self._schema
+        validator = jsonschema.validators.validator_for(schema)
+        validator_cls = jsonschema.validators.extend(
+            validator=validator,
+            type_checker=validator.TYPE_CHECKER.redefine_many({
+                "array": lambda s, instance: isinstance(instance, (list, tuple)),
+                "integer": lambda s, instance: isinstance(instance, six.integer_types),
+            }),
         )
+        jsonschema.validate(self.to_dict(), schema, cls=validator_cls)
 
     def __repr__(self):
         return '<{}.{}: {}>'.format(

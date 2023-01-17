@@ -2,17 +2,21 @@ from __future__ import unicode_literals
 
 import re
 import sys
+import platform
 from furl import furl
 import urllib.parse
 from operator import itemgetter
 from html.parser import HTMLParser
-from typing import Text
+from typing import Text, Optional, Dict
 
 import attr
 import requests
 
 import six
-from .requirements import SimpleSubstitution, FatalSpecsResolutionError, SimpleVersion
+from .requirements import (
+    SimpleSubstitution, FatalSpecsResolutionError, SimpleVersion, MarkerRequirement,
+    compare_version_rules, )
+from ...external.requirements_parser.requirement import Requirement
 
 OS_TO_WHEEL_NAME = {"linux": "linux_x86_64", "windows": "win_amd64"}
 
@@ -51,17 +55,16 @@ class PytorchWheel(object):
     python = attr.ib(type=str, converter=lambda x: str(x).replace(".", ""))
     torch_version = attr.ib(type=str, converter=fix_version)
 
-    url_template = (
-        "http://download.pytorch.org/whl/"
-        "{0.cuda_version}/torch-{0.torch_version}-cp{0.python}-cp{0.python}m{0.unicode}-{0.os_name}.whl"
-    )
+    url_template_prefix = "http://download.pytorch.org/whl/"
+    url_template = "{0.cuda_version}/torch-{0.torch_version}" \
+                   "-cp{0.python}-cp{0.python}m{0.unicode}-{0.os_name}.whl"
 
     def __attrs_post_init__(self):
         self.unicode = "u" if self.python.startswith("2") else ""
 
     def make_url(self):
         # type: () -> Text
-        return self.url_template.format(self)
+        return (self.url_template_prefix + self.url_template).format(self)
 
 
 class PytorchResolutionError(FatalSpecsResolutionError):
@@ -168,41 +171,72 @@ class PytorchRequirement(SimpleSubstitution):
     name = "torch"
     packages = ("torch", "torchvision", "torchaudio", "torchcsprng", "torchtext")
 
+    extra_index_url_template = 'https://download.pytorch.org/whl/cu{}/'
+    nightly_extra_index_url_template = 'https://download.pytorch.org/whl/nightly/cu{}/'
+    torch_index_url_lookup = {}
+
     def __init__(self, *args, **kwargs):
         os_name = kwargs.pop("os_override", None)
         super(PytorchRequirement, self).__init__(*args, **kwargs)
         self.log = self._session.get_logger(__name__)
         self.package_manager = self.config["agent.package_manager.type"].lower()
         self.os = os_name or self.get_platform()
-        self.cuda = "cuda{}".format(self.cuda_version).lower()
-        self.python_version_string = str(self.config["agent.default_python"])
-        self.python_major_minor_str = '.'.join(self.python_version_string.split('.')[:2])
-        if '.' not in self.python_major_minor_str:
-            raise PytorchResolutionError(
-                "invalid python version {!r} defined in configuration file, key 'agent.default_python': "
-                "must have both major and minor parts of the version (for example: '3.7')".format(
-                    self.python_version_string
-                )
-            )
-        self.python = "python{}".format(self.python_major_minor_str)
-
-        self.exceptions = [
-            PytorchResolutionError(message)
-            for message in (
-                None,
-                'cuda version "{}" is not supported'.format(self.cuda),
-                'python version "{}" is not supported'.format(
-                    self.python_version_string
-                ),
-            )
-        ]
-
-        try:
-            self.validate_python_version()
-        except PytorchResolutionError as e:
-            self.log.warn("will not be able to install pytorch wheels: %s", e.args[0])
-
+        self.cuda = None
+        self.python_version_string = None
+        self.python_major_minor_str = None
+        self.python = None
+        self._fix_setuptools = None
+        self.exceptions = []
         self._original_req = []
+        # allow override pytorch lookup pages
+        if self.config.get("agent.package_manager.extra_index_url_template", None):
+            self.extra_index_url_template = \
+                self.config.get("agent.package_manager.extra_index_url_template", None)
+        if self.config.get("agent.package_manager.nightly_extra_index_url_template", None):
+            self.nightly_extra_index_url_template = \
+                self.config.get("agent.package_manager.nightly_extra_index_url_template", None)
+        # allow override pytorch lookup pages
+        if self.config.get("agent.package_manager.torch_page", None):
+            SimplePytorchRequirement.page_lookup_template = \
+                self.config.get("agent.package_manager.torch_page", None)
+        if self.config.get("agent.package_manager.torch_nightly_page", None):
+            SimplePytorchRequirement.nightly_page_lookup_template = \
+                self.config.get("agent.package_manager.torch_nightly_page", None)
+        if self.config.get("agent.package_manager.torch_url_template_prefix", None):
+            PytorchWheel.url_template_prefix = \
+                self.config.get("agent.package_manager.torch_url_template_prefix", None)
+        if self.config.get("agent.package_manager.torch_url_template", None):
+            PytorchWheel.url_template = \
+                self.config.get("agent.package_manager.torch_url_template", None)
+
+    def _init_python_ver_cuda_ver(self):
+        if self.cuda is None:
+            self.cuda = "cuda{}".format(self.cuda_version).lower()
+        if self.python_version_string is None:
+            self.python_version_string = str(self.config["agent.default_python"])
+        if self.python_major_minor_str is None:
+            self.python_major_minor_str = '.'.join(self.python_version_string.split('.')[:2])
+            if '.' not in self.python_major_minor_str:
+                raise PytorchResolutionError(
+                    "invalid python version {!r} defined in configuration file, key 'agent.default_python': "
+                    "must have both major and minor parts of the version (for example: '3.7')".format(
+                        self.python_version_string
+                    )
+                )
+        if self.python is None:
+            self.python = "python{}".format(self.python_major_minor_str)
+
+        if not self.exceptions:
+            self.exceptions = [
+                PytorchResolutionError(message)
+                for message in (
+                    None,
+                    'cuda version "{}" is not supported'.format(self.cuda),
+                    'python version "{}" is not supported'.format(
+                        self.python_version_string
+                    ),
+                )
+            ]
 
     @property
     def is_conda(self):
@@ -216,6 +250,8 @@ class PytorchRequirement(SimpleSubstitution):
         """
         Make sure python version has both major and minor versions as required for choosing pytorch wheel
         """
+        self._init_python_ver_cuda_ver()
+
         if self.is_pip and not self.python_major_minor_str:
             raise PytorchResolutionError(
                 "invalid python version {!r} defined in configuration file, key 'agent.default_python': "
@@ -237,10 +273,15 @@ class PytorchRequirement(SimpleSubstitution):
             return "macos"
         raise RuntimeError("unrecognized OS")
 
+    @staticmethod
+    def get_arch():
+        return str(platform.machine()).lower()
+
     def _get_link_from_torch_page(self, req, torch_url):
         links_parser = LinksHTMLParser()
         links_parser.feed(requests.get(torch_url, timeout=10).text)
         platform_wheel = "win" if self.get_platform() == "windows" else self.get_platform()
+        arch_wheel = self.get_arch()
         py_ver = self.python_major_minor_str.replace('.', '')
         url = None
         last_v = None
@@ -261,8 +302,11 @@ class PytorchRequirement(SimpleSubstitution):
                 continue
             if len(parts) < 3 or not parts[2].endswith(py_ver):
                 continue
-            if len(parts) < 5 or platform_wheel not in parts[4]:
+            if len(parts) < 5 or platform_wheel not in parts[4].lower():
                 continue
+            if len(parts) < 5 or arch_wheel not in parts[4].lower():
+                continue
+
             # yes this is for linux python 2.7 support, this is the only python 2.7 we support...
             if py_ver and py_ver[0] == '2' and len(parts) > 3 and not parts[3].endswith('u'):
                 continue
@@ -294,18 +338,21 @@ class PytorchRequirement(SimpleSubstitution):
 
     def get_url_for_platform(self, req):
         # check if package is already installed with system packages
+        self.validate_python_version()
         # noinspection PyBroadException
         try:
             if self.config.get("agent.package_manager.system_site_packages", None):
                 from pip._internal.commands.show import search_packages_info
                 installed_torch = list(search_packages_info([req.name]))
                 # notice the comparison order, the first part will make sure we have a valid installed package
-                if installed_torch and installed_torch[0]['version'] and \
-                        req.compare_version(installed_torch[0]['version']):
+                installed_torch_version = (getattr(installed_torch[0], 'version', None) or installed_torch[0]['version']) \
+                    if installed_torch else None
+                if installed_torch and installed_torch_version and \
+                        req.compare_version(installed_torch_version):
                     print('PyTorch: requested "{}" version {}, using pre-installed version {}'.format(
-                        req.name, req.specs[0] if req.specs else 'unspecified', installed_torch[0]['version']))
+                        req.name, req.specs[0] if req.specs else 'unspecified', installed_torch_version))
                     # package already installed, do nothing
-                    req.specs = [('==', str(installed_torch[0]['version']))]
+                    req.specs = [('==', str(installed_torch_version))]
                     return '{} {} {}'.format(req.name, req.specs[0][0], req.specs[0][1]), True
         except Exception:
             pass
@@ -345,6 +392,11 @@ class PytorchRequirement(SimpleSubstitution):
                     'Could not locate PyTorch version {} matching CUDA version {}'.format(req, self.cuda_version))
             else:
                 print('Trying PyTorch CUDA version {} support'.format(torch_url_key))
+
+        # fix broken pytorch setuptools incompatibility
+        if req.name == "torch" and closest_matched_version and \
+                SimpleVersion.compare_versions(closest_matched_version, "<", "1.11.0"):
+            self._fix_setuptools = "setuptools < 59"
 
         if not url:
             url = PytorchWheel(
@@ -423,6 +475,36 @@ class PytorchRequirement(SimpleSubstitution):
         return self.match_version(req, base).replace(" ", "\n")
 
     def replace(self, req):
+        # check if package is already installed with system packages
+        self.validate_python_version()
+
+        # try to check if we can just use the new index URL, if we do not we will revert to old method
+        try:
+            extra_index_url = self.get_torch_index_url(self.cuda_version)
+            if extra_index_url:
+                # check if the torch version cannot be above 1.11 , we need to fix setup tools
+                try:
+                    if req.name == "torch" and not compare_version_rules(req.specs, [(">=", "1.11.0")]):
+                        self._fix_setuptools = "setuptools < 59"
+                except Exception:  # noqa
+                    pass
+                # now we just need to add the correct extra index url for the cuda version
+                self.set_add_install_extra_index(extra_index_url[0])
+
+                if req.specs and len(req.specs) == 1 and req.specs[0][0] == "==":
+                    # remove any +cu extension and let pip resolve that
+                    line = "{} {}".format(req.name, req.format_specs(max_num_parts=3))
+                    if req.marker:
+                        line += " ; {}".format(req.marker)
+                else:
+                    # return the original line
+                    line = req.line
+
+                return line
+
+        except Exception:  # noqa
+            pass
+
         try:
             new_req = self._replace(req)
             if new_req:
@@ -486,7 +568,7 @@ class PytorchRequirement(SimpleSubstitution):
                 for i, line in enumerate(lines):
                     if not line or line.lstrip().startswith('#'):
                         continue
-                    parts = [p for p in re.split('\s|=|\.|<|>|~|!|@|#', line) if p]
+                    parts = [p for p in re.split(r'\s|=|\.|<|>|~|!|@|#', line) if p]
                     if not parts:
                         continue
                     for req, new_req in self._original_req:
@@ -507,6 +589,61 @@ class PytorchRequirement(SimpleSubstitution):
             pass
 
         return list_of_requirements
+
+    def post_scan_add_req(self):  # type: () -> Optional[MarkerRequirement]
+        """
+        Allows the RequirementSubstitution to add an extra line/requirements after
+        the initial requirements scan is completed.
+        Called only once per requirements.txt object
+        """
+        if self._fix_setuptools:
+            return MarkerRequirement(Requirement.parse(self._fix_setuptools))
+        return None
+
+    @classmethod
+    def get_torch_index_url(cls, cuda_version, nightly=False):
+        # noinspection PyBroadException
+        try:
+            cuda = int(cuda_version)
+        except Exception:
+            cuda = 0
+
+        if nightly:
+            for c in range(cuda, max(-1, cuda-15), -1):
+                # then try the nightly builds, it might be there...
+                torch_url = cls.nightly_extra_index_url_template.format(c)
+                # noinspection PyBroadException
+                try:
+                    if requests.get(torch_url, timeout=10).ok:
+                        print('Torch nightly CUDA {} index page found'.format(c))
+                        cls.torch_index_url_lookup[c] = torch_url
+                        return cls.torch_index_url_lookup[c], c
+                except Exception:
+                    pass
+            return
+
+        # first check if key is valid
+        if cuda in cls.torch_index_url_lookup:
+            return cls.torch_index_url_lookup[cuda], cuda
+
+        # then try a new cuda version page
+        for c in range(cuda, max(-1, cuda-15), -1):
+            torch_url = cls.extra_index_url_template.format(c)
+            # noinspection PyBroadException
+            try:
+                if requests.get(torch_url, timeout=10).ok:
+                    print('Torch CUDA {} index page found'.format(c))
+                    cls.torch_index_url_lookup[c] = torch_url
+                    return cls.torch_index_url_lookup[c], c
+            except Exception:
+                pass
+
+        keys = sorted(cls.torch_index_url_lookup.keys(), reverse=True)
+        for k in keys:
+            if k <= cuda:
+                return cls.torch_index_url_lookup[k], k
+        # return default - zero
+        return cls.torch_index_url_lookup[0], 0
 
     MAP = {
         "windows": {

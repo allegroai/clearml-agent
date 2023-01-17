@@ -3,8 +3,6 @@ from __future__ import print_function
 import json
 import time
 
-from future.builtins import super
-
 from clearml_agent.commands.base import ServiceCommandSection
 from clearml_agent.helper.base import return_list
 

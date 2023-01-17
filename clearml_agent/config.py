@@ -1,6 +1,6 @@
-from pyhocon import ConfigTree
-
 import six
+
+from clearml_agent.external.pyhocon import ConfigTree
 from clearml_agent.helper.base import Singleton
 
 

@@ -4,7 +4,7 @@ import re
 import attr
 import six
 
-import pyhocon
+from clearml_agent.external import pyhocon
 
 from .action import Action
 

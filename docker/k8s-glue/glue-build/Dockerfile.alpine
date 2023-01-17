@@ -1,0 +1,75 @@
+ARG TAG=3.7.12-alpine3.15
+
+FROM python:${TAG} as build
+
+RUN apk add --no-cache \
+    gcc \
+    musl-dev \
+    libffi-dev
+
+RUN python3 \
+    -m pip \
+    install \
+    --prefix=/install \
+    --no-cache-dir \
+    -U \
+    clearml-agent \
+    cryptography>=2.9
+
+FROM python:${TAG} as target
+
+WORKDIR /app
+
+ARG KUBECTL_VERSION=1.22.4
+
+# Not sure about these ENV vars
+# ENV LC_ALL=en_US.UTF-8
+# ENV LANG=en_US.UTF-8
+# ENV LANGUAGE=en_US.UTF-8
+# ENV PYTHONIOENCODING=UTF-8
+
+COPY --from=build /install /usr/local
+
+ADD https://storage.googleapis.com/kubernetes-release/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl /usr/bin/
+
+RUN chmod +x /usr/bin/kubectl
+
+RUN apk add --no-cache \
+    bash
+
+COPY k8s_glue_example.py .
+
+# AWS CLI
+# https://github.com/kyleknap/aws-cli/blob/source-proposal/proposals/source-install.md#alpine-linux
+# https://github.com/aws/aws-cli/issues/4685
+# https://github.com/aws/aws-cli/pull/6352
+
+# https://github.com/GoogleCloudPlatform/cloud-sdk-docker/blob/master/alpine/Dockerfile
+
+FROM target as gcp
+
+ARG CLOUD_SDK_VERSION=371.0.0
+ENV CLOUD_SDK_VERSION=$CLOUD_SDK_VERSION
+ENV PATH /google-cloud-sdk/bin:$PATH
+
+WORKDIR /
+
+RUN apk --no-cache add \
+        curl \
+        python3 \
+        py3-crcmod \
+        py3-openssl \
+        bash \
+        libc6-compat \
+        openssh-client \
+        git \
+        gnupg \
+    && curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-${CLOUD_SDK_VERSION}-linux-x86_64.tar.gz && \
+    tar xzf google-cloud-sdk-${CLOUD_SDK_VERSION}-linux-x86_64.tar.gz && \
+    rm google-cloud-sdk-${CLOUD_SDK_VERSION}-linux-x86_64.tar.gz && \
+    gcloud config set core/disable_usage_reporting true && \
+    gcloud config set component_manager/disable_update_check true && \
+    gcloud config set metrics/environment github_docker_image && \
+    gcloud --version
+
+WORKDIR /app

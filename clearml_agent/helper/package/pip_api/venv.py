@@ -12,7 +12,7 @@ from ..requirements import RequirementsManager
 
 class VirtualenvPip(SystemPip, PackageManager):
     def __init__(self, session, python, requirements_manager, path, interpreter=None, execution_info=None, **kwargs):
-        # type: (Session, float, RequirementsManager, PathLike, PathLike, ExecutionInfo, Any) -> ()
+        # type: (Session, str, RequirementsManager, PathLike, PathLike, ExecutionInfo, Any) -> ()
         """
         Program interface to virtualenv pip.
         Must be given either path to virtualenv or source command.
@@ -39,7 +39,7 @@ class VirtualenvPip(SystemPip, PackageManager):
         if isinstance(requirements, dict) and requirements.get("pip"):
             requirements["pip"] = self.requirements_manager.replace(requirements["pip"])
         super(VirtualenvPip, self).load_requirements(requirements)
-        self.requirements_manager.post_install(self.session)
+        self.requirements_manager.post_install(self.session, package_manager=self)
 
     def create_flags(self):
         """

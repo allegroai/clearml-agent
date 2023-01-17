@@ -46,11 +46,10 @@ class ExternalRequirements(SimpleSubstitution):
         post_install_req = self.post_install_req
         self.post_install_req = []
         for req in post_install_req:
-            try:
-                freeze_base = PackageManager.out_of_scope_freeze() or ''
-            except:
-                freeze_base = ''
-
+            if self.is_already_installed(req):
+                print("No need to reinstall \'{}\' from VCS, "
+                      "the exact same version is already installed".format(req.name))
+                continue
             req_line = self._add_vcs_credentials(req, session)
 
             # if we have older pip version we have to make sure we replace back the package name with the
@@ -96,7 +95,8 @@ class ExternalRequirements(SimpleSubstitution):
                 vcs._set_ssh_url()
                 new_req_line = 'git+{}{}{}'.format(
                     '' if scheme and '://' in vcs.url else scheme,
-                    vcs.url_with_auth, fragment
+                    vcs_url if session.config.get('agent.force_git_ssh_protocol', None) else vcs.url_with_auth,
+                    fragment
                 )
                 if new_req_line != req_line:
                     furl_line = furl(new_req_line)
@@ -175,5 +175,11 @@ class OnlyExternalRequirements(ExternalRequirements):
         # Do not store the skipped requirements
         # mark skip package
         if super(OnlyExternalRequirements, self).match(req):
+            if self.is_already_installed(req):
+                print("No need to reinstall \'{}\' from VCS, "
+                      "the exact same version is already installed".format(req.name))
+                return Text('')
+
             return self._add_vcs_credentials(req, self._session)
+
         return Text('')

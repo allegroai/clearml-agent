@@ -10,8 +10,8 @@ from typing import Any, Callable
 
 import attr
 from pathlib2 import Path
-from pyhocon import ConfigFactory, HOCONConverter, ConfigTree
 
+from clearml_agent.external.pyhocon import ConfigFactory, HOCONConverter, ConfigTree
 from clearml_agent.backend_api.session import Session as _Session, Request
 from clearml_agent.backend_api.session.client import APIClient
 from clearml_agent.backend_config.defs import LOCAL_CONFIG_FILE_OVERRIDE_VAR, LOCAL_CONFIG_FILES
@@ -19,6 +19,7 @@ from clearml_agent.definitions import ENVIRONMENT_CONFIG, ENV_TASK_EXECUTE_AS_US
 from clearml_agent.errors import APIError
 from clearml_agent.helper.base import HOCONEncoder
 from clearml_agent.helper.process import Argv
+from clearml_agent.helper.docker_args import DockerArgsSanitizer
 from .version import __version__
 
 POETRY = "poetry"
@@ -76,7 +77,7 @@ class Session(_Session):
 
         cpu_only = kwargs.get('cpu_only')
         if cpu_only:
-            os.environ['CUDA_VISIBLE_DEVICES'] = os.environ['NVIDIA_VISIBLE_DEVICES'] = 'none'
+            Session.set_nvidia_visible_env('none')
 
         if kwargs.get('gpus') and not os.environ.get('KUBERNETES_SERVICE_HOST') \
                 and not os.environ.get('KUBERNETES_PORT'):
@@ -85,7 +86,7 @@ class Session(_Session):
                 os.environ.pop('CUDA_VISIBLE_DEVICES', None)
                 os.environ['NVIDIA_VISIBLE_DEVICES'] = kwargs.get('gpus')
             else:
-                os.environ['CUDA_VISIBLE_DEVICES'] = os.environ['NVIDIA_VISIBLE_DEVICES'] = kwargs.get('gpus')
+                Session.set_nvidia_visible_env(kwargs.get('gpus'))
 
         if kwargs.get('only_load_config'):
             from clearml_agent.backend_api.config import load
@@ -105,7 +106,7 @@ class Session(_Session):
                 if os.path.exists(os.path.expanduser(os.path.expandvars(f))):
                     self._config_file = f
                     break
-        self.api_client = APIClient(session=self, api_version="2.5")
+        self._api_client = None
         # HACK make sure we have python version to execute,
         # if nothing was specific, use the one that runs us
         def_python = ConfigValue(self.config, "agent.default_python")
@@ -132,7 +133,7 @@ class Session(_Session):
         # override with environment variables
         # cuda_version & cudnn_version are overridden with os.environ here, and normalized in the next section
         for config_key, env_config in ENVIRONMENT_CONFIG.items():
-            # check if the propery is of a list:
+            # check if the property is of a list:
             if config_key.endswith('.0'):
                 if all(not i.get() for i in env_config.values()):
                     continue
@@ -165,6 +166,16 @@ class Session(_Session):
 
         if not kwargs.get('only_load_config'):
             self.create_cache_folders()
+
+    @property
+    def api_client(self):
+        if self._api_client is None:
+            self._api_client = APIClient(session=self, api_version="2.5")
+        return self._api_client
+
+    @api_client.setter
+    def api_client(self, value):
+        self._api_client = value
 
     @staticmethod
     def get_logger(name):
@@ -232,7 +243,8 @@ class Session(_Session):
     def print_configuration(
             self,
             remove_secret_keys=("secret", "pass", "token", "account_key", "contents"),
-            skip_value_keys=("environment", )
+            skip_value_keys=("environment", ),
+            docker_args_sanitize_keys=("extra_docker_arguments", ),
     ):
         # remove all the secrets from the print
         def recursive_remove_secrets(dictionary, secret_keys=(), empty_keys=()):
@@ -249,6 +261,8 @@ class Session(_Session):
                 if isinstance(dictionary.get(k, None), dict):
                     recursive_remove_secrets(dictionary[k], secret_keys=secret_keys, empty_keys=empty_keys)
                 elif isinstance(dictionary.get(k, None), (list, tuple)):
+                    if k in (docker_args_sanitize_keys or []):
+                        dictionary[k] = DockerArgsSanitizer.sanitize_docker_command(self, dictionary[k])
                     for item in dictionary[k]:
                         if isinstance(item, dict):
                             recursive_remove_secrets(item, secret_keys=secret_keys, empty_keys=empty_keys)
@@ -256,7 +270,7 @@ class Session(_Session):
         config = deepcopy(self.config.to_dict())
         # remove the env variable, it's not important
         config.pop('env', None)
-        if remove_secret_keys or skip_value_keys:
+        if remove_secret_keys or skip_value_keys or docker_args_sanitize_keys:
             recursive_remove_secrets(config, secret_keys=remove_secret_keys, empty_keys=skip_value_keys)
         # remove logging.loggers.urllib3.level from the print
         try:
@@ -288,7 +302,7 @@ class Session(_Session):
     def get(self, service, action, version=None, headers=None,
             data=None, json=None, async_enable=False, **kwargs):
         return self._manual_request(service=service, action=action,
-                                    version=version, method="get", headers=headers,
+                                    version=version, method=Request.def_method, headers=headers,
                                     data=data, async_enable=async_enable,
                                     json=json or kwargs)
 
@@ -299,7 +313,7 @@ class Session(_Session):
                                     data=data, async_enable=async_enable,
                                     json=json or kwargs)
 
-    def _manual_request(self, service, action, version=None, method="get", headers=None,
+    def _manual_request(self, service, action, version=None, method=Request.def_method, headers=None,
             data=None, json=None, async_enable=False, **kwargs):
 
         res = self.send_request(service=service, action=action,
@@ -326,6 +340,23 @@ class Session(_Session):
 
     def command(self, *args):
         return Argv(*args, log=self.get_logger(Argv.__module__))
+
+    @staticmethod
+    def set_nvidia_visible_env(gpus):
+        if not gpus:
+            gpus = ""
+        visible_env = gpus.replace(".", ":") if isinstance(gpus, str) else \
+            ','.join(str(g).replace(".", ":") for g in gpus)
+
+        os.environ['CUDA_VISIBLE_DEVICES'] = os.environ['NVIDIA_VISIBLE_DEVICES'] = visible_env
+
+    @staticmethod
+    def get_nvidia_visible_env():
+        visible_env = os.environ.get('NVIDIA_VISIBLE_DEVICES') or os.environ.get('CUDA_VISIBLE_DEVICES')
+        if visible_env is None:
+            return None
+        visible_env = str(visible_env).replace(":", ".")
+        return visible_env
 
 
 @attr.s

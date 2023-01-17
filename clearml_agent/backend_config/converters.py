@@ -14,6 +14,14 @@ except ImportError:
 ConverterType = TypeVar("ConverterType", bound=Callable[[Any], Any])
 
 
+def text_to_int(value, default=0):
+    # type: (Any, int) -> int
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
+
 def base64_to_text(value):
     # type: (Any) -> Text
     return base64.b64decode(value).decode("utf-8")

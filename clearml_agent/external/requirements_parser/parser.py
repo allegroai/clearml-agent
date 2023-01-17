@@ -1,5 +1,8 @@
 import os
+import re
 import warnings
+
+from clearml_agent.definitions import PIP_EXTRA_INDICES
 
 from .requirement import Requirement
 
@@ -42,9 +45,14 @@ def parse(reqstr, cwd=None):
                     yield requirement
         elif line.startswith('-f') or line.startswith('--find-links') or \
                 line.startswith('-i') or line.startswith('--index-url') or \
-                line.startswith('--extra-index-url') or \
                 line.startswith('--no-index'):
             warnings.warn('Private repos not supported. Skipping.')
+        elif line.startswith('--extra-index-url'):
+            extra_index = line[len('--extra-index-url'):].strip()
+            extra_index = re.sub(r"\s+#.*$", "", extra_index)  # strip comments
+            if extra_index and extra_index not in PIP_EXTRA_INDICES:
+                PIP_EXTRA_INDICES.append(extra_index)
+                print(f"appended {extra_index} to list of extra pip indices")
             continue
         elif line.startswith('-Z') or line.startswith('--always-unzip'):
             warnings.warn('Unused option --always-unzip. Skipping.')

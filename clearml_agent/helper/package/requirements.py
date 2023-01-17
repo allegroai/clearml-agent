@@ -11,12 +11,15 @@ from os import path
 from typing import Text, List, Type, Optional, Tuple, Dict
 
 from pathlib2 import Path
-from pyhocon import ConfigTree
+from clearml_agent.external.pyhocon import ConfigTree
 
 import six
+from six.moves.urllib.parse import unquote
 import logging
 from clearml_agent.definitions import PIP_EXTRA_INDICES
-from clearml_agent.helper.base import warning, is_conda, which, join_lines, is_windows_platform
+from clearml_agent.helper.base import (
+    warning, is_conda, which, join_lines, is_windows_platform,
+    convert_cuda_version_to_int_10_base_str, )
 from clearml_agent.helper.process import Argv, PathLike
 from clearml_agent.helper.gpu.gpustat import get_driver_cuda_version
 from clearml_agent.session import Session, normalize_cuda_version
@@ -97,7 +100,8 @@ class MarkerRequirement(object):
             return ','.join(starmap(operator.add, self.specs))
 
         op, version = self.specs[0]
-        for v in self._sub_versions_pep440:
+        # noinspection PyProtectedMember
+        for v in SimpleVersion._sub_versions_pep440:
             version = version.replace(v, '.')
         if num_parts:
             version = (version.strip('.').split('.') + ['0'] * num_parts)[:max_num_parts]
@@ -173,11 +177,13 @@ class MarkerRequirement(object):
             return
         local_path = Path(self.uri[len("file://"):])
         if not local_path.exists():
-            line = self.line
-            if self.remove_local_file_ref():
-                # print warning
-                logging.getLogger(__name__).warning(
-                    'Local file not found [{}], references removed !'.format(line))
+            local_path = Path(unquote(self.uri)[len("file://"):])
+            if not local_path.exists():
+                line = self.line
+                if self.remove_local_file_ref():
+                    # print warning
+                    logging.getLogger(__name__).warning(
+                        'Local file not found [{}], references removed'.format(line))
 
 
 class SimpleVersion:
@@ -273,6 +279,8 @@ class SimpleVersion:
             return version_a_key > version_b_key
         if op == '<':
             return version_a_key < version_b_key
+        if op == '!=':
+            return version_a_key != version_b_key
         raise ValueError('Unrecognized comparison operator [{}]'.format(op))
 
     @classmethod
@@ -357,7 +365,7 @@ def compare_version_rules(specs_a, specs_b):
     # specs_a/b are a list of tuples: [('==', '1.2.3'), ] or [('>=', '1.2'), ('<', '1.3')]
     # section definition:
     class Section(object):
-        def __init__(self, left=None, left_eq=False, right=None, right_eq=False):
+        def __init__(self, left="-999999999", left_eq=False, right="999999999", right_eq=False):
             self.left, self.left_eq, self.right, self.right_eq = left, left_eq, right, right_eq
     # first create a list of in/out sections for each spec
     # >, >= are left rule
@@ -429,12 +437,18 @@ class RequirementSubstitution(object):
 
     _pip_extra_index_url = PIP_EXTRA_INDICES
 
+    @classmethod
+    def set_add_install_extra_index(cls, extra_index_url):
+        if extra_index_url not in cls._pip_extra_index_url:
+            cls._pip_extra_index_url.append(extra_index_url)
+
     def __init__(self, session):
         # type: (Session) -> ()
         self._session = session
         self.config = session.config  # type: ConfigTree
         self.suffix = '.post{config[agent.cuda_version]}.dev{config[agent.cudnn_version]}'.format(config=self.config)
         self.package_manager = self.config['agent.package_manager.type']
+        self._is_already_installed_cb = None
 
     @abstractmethod
     def match(self, req):  # type: (MarkerRequirement) -> bool
@@ -449,6 +463,20 @@ class RequirementSubstitution(object):
         Replace a requirement
         """
         pass
+
+    def set_is_already_installed_cb(self, cb):
+        self._is_already_installed_cb = cb
+
+    def is_already_installed(self, req):
+        if not self._is_already_installed_cb:
+            return False
+        # noinspection PyBroadException
+        try:
+            return self._is_already_installed_cb(req)
+        except BaseException as ex:
+            # debug could not resolve something
+            print("Warning: Requirements post install callback exception (check if package installed): {}".format(ex))
+            return False
 
     def post_scan_add_req(self):  # type: () -> Optional[MarkerRequirement]
         """
@@ -474,7 +502,7 @@ class RequirementSubstitution(object):
 
     @property
     def cuda_version(self):
-        return self.config['agent.cuda_version']
+        return convert_cuda_version_to_int_10_base_str(self.config['agent.cuda_version'])
 
     @property
     def cudnn_version(self):
@@ -560,6 +588,7 @@ class RequirementsManager(object):
                                                  cache_dir=pip_cache_dir.as_posix())
         self._base_interpreter = base_interpreter
         self._cwd = None
+        self._installed_parsed_packages = set()
 
     def register(self, cls):  # type: (Type[RequirementSubstitution]) -> None
         self.handlers.append(cls(self._session))
@@ -610,14 +639,29 @@ class RequirementsManager(object):
 
         result = list(result)
         # add post scan add requirements call back
+        double_req_set = None
         for h in self.handlers:
-            req = h.post_scan_add_req()
-            if req:
-                result.append(req.tostr())
+            reqs = h.post_scan_add_req()
+            if reqs:
+                if double_req_set is None:
+                    def safe_parse_name(line):
+                        try:
+                            return Requirement.parse(line).name
+                        except:  # noqa
+                            return None
+                    double_req_set = set([safe_parse_name(r) for r in result if r])
+
+                for r in (reqs if isinstance(reqs, (tuple, list)) else [reqs]):
+                    if r and (not r.name or r.name not in double_req_set):
+                        result.append(r.tostr())
+                    elif r:
+                        print("SKIPPING additional auto installed package: \"{}\"".format(r))
 
         return join_lines(result)
 
-    def post_install(self, session):
+    def post_install(self, session, package_manager=None):
+        if package_manager:
+            self.update_installed_packages_state(package_manager.freeze())
         for h in self.handlers:
             try:
                 h.post_install(session)
@@ -638,6 +682,34 @@ class RequirementsManager(object):
 
     def get_interpreter(self):
         return self._base_interpreter
+
+    def update_installed_packages_state(self, requirements):
+        """
+        Updates internal Installed Packages objects, so that later we can detect
+        if we already have a pre-installed package
+        :param requirements: is the output of a freeze() call, i.e. dict {'pip': "package==version"}
+        """
+        requirements = requirements if not isinstance(requirements, dict) else requirements.get("pip")
+        self._installed_parsed_packages = self.parse_requirements_section_to_marker_requirements(
+                requirements=requirements, cwd=self._cwd)
+        for h in self.handlers:
+            h.set_is_already_installed_cb(self._callback_is_already_installed)
+
+    def _callback_is_already_installed(self, req):
+        for p in (self._installed_parsed_packages or []):
+            if p.name != req.name:
+                continue
+            # if this is version control package, only return true of both installed and requests specify commit ID
+            if req.vcs:
+                return p.vcs and req.revision and req.revision == p.revision
+
+            if not req.specs and not p.specs:
+                return True
+
+            # return if this is the same version
+            return req.specs and p.specs and req.compare_version(p, op="==")
+
+        return False
 
     @staticmethod
     def get_cuda_version(config):  # type: (ConfigTree) -> (Text, Text)

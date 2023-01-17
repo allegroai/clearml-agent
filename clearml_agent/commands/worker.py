@@ -20,27 +20,28 @@ from datetime import datetime
 from distutils.spawn import find_executable
 from distutils.util import strtobool
 from functools import partial
-from itertools import chain
+from os.path import basename
 from tempfile import mkdtemp, NamedTemporaryFile
 from time import sleep, time
 from typing import Text, Optional, Any, Tuple, List
 
 import attr
-import psutil
 import six
 from pathlib2 import Path
-from pyhocon import ConfigTree, ConfigFactory
 from six.moves.urllib.parse import quote
-from six.moves.urllib.parse import urlparse, urlunparse
 
+from clearml_agent.external.pyhocon import ConfigTree, ConfigFactory
 from clearml_agent.backend_api.services import auth as auth_api
 from clearml_agent.backend_api.services import queues as queues_api
 from clearml_agent.backend_api.services import tasks as tasks_api
 from clearml_agent.backend_api.services import workers as workers_api
-from clearml_agent.backend_api.session import CallResult
-from clearml_agent.backend_api.session.defs import ENV_ENABLE_ENV_CONFIG_SECTION, ENV_ENABLE_FILES_CONFIG_SECTION
+from clearml_agent.backend_api.session import CallResult, Request
+from clearml_agent.backend_api.session.defs import (
+    ENV_ENABLE_ENV_CONFIG_SECTION, ENV_ENABLE_FILES_CONFIG_SECTION,
+    ENV_VENV_CONFIGURED, ENV_PROPAGATE_EXITCODE, )
 from clearml_agent.backend_config.defs import UptimeConf
 from clearml_agent.backend_config.utils import apply_environment, apply_files
+from clearml_agent.backend_config.converters import text_to_int
 from clearml_agent.commands.base import resolve_names, ServiceCommandSection
 from clearml_agent.commands.resolver import resolve_default_container
 from clearml_agent.definitions import (
@@ -56,18 +57,27 @@ from clearml_agent.definitions import (
     ENV_WORKER_ID,
     ENV_WORKER_TAGS,
     ENV_DOCKER_SKIP_GPUS_FLAG,
-    ENV_AGENT_SECRET_KEY,
     ENV_AGENT_AUTH_TOKEN,
-    ENV_AWS_SECRET_KEY,
-    ENV_AZURE_ACCOUNT_KEY,
     ENV_AGENT_DISABLE_SSH_MOUNT,
     ENV_SSH_AUTH_SOCK,
     ENV_AGENT_SKIP_PIP_VENV_INSTALL,
     ENV_EXTRA_DOCKER_ARGS,
-
+    ENV_CUSTOM_BUILD_SCRIPT,
+    ENV_AGENT_SKIP_PYTHON_ENV_INSTALL,
+    WORKING_STANDALONE_DIR,
+    ENV_DEBUG_INFO,
+    ENV_CHILD_AGENTS_COUNT_CMD,
+    ENV_DOCKER_ARGS_FILTERS,
+    ENV_FORCE_SYSTEM_SITE_PACKAGES,
 )
 from clearml_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
-from clearml_agent.errors import APIError, CommandFailedError, Sigterm
+from clearml_agent.errors import (
+    APIError,
+    CommandFailedError,
+    Sigterm,
+    SkippedCustomBuildScript,
+    CustomBuildScriptFailed,
+)
 from clearml_agent.helper.base import (
     return_list,
     print_parameters,
@@ -126,11 +136,12 @@ from clearml_agent.helper.repo import clone_repository_cached, RepoInfo, VCS, fi
 from clearml_agent.helper.resource_monitor import ResourceMonitor
 from clearml_agent.helper.runtime_verification import check_runtime, print_uptime_properties
 from clearml_agent.helper.singleton import Singleton
+from clearml_agent.helper.docker_args import DockerArgsSanitizer
 from clearml_agent.session import Session
 from .events import Events
 
-DOCKER_ROOT_CONF_FILE = "/root/clearml.conf"
-DOCKER_DEFAULT_CONF_FILE = "/root/default_clearml.conf"
+DOCKER_ROOT_CONF_FILE = "/tmp/clearml.conf"  # assuming we can always access/mount this file
+DOCKER_DEFAULT_CONF_FILE = "~/default_clearml.conf"
 
 
 sys_random = random.SystemRandom()
@@ -217,7 +228,7 @@ class LiteralScriptManager(object):
             location = None
         location = location or (repo_info and repo_info.root)
         if not location:
-            location = Path(self.venv_folder, "code")
+            location = Path(self.venv_folder, WORKING_STANDALONE_DIR)
             location.mkdir(exist_ok=True, parents=True)
         log.debug("selected execution directory: %s", location)
         return Text(location), self.write(task, location, execution.entry_point)
@@ -260,7 +271,7 @@ def get_task(session, task_id, **kwargs):
         action='get_all',
         version='2.14',
         json={"id": [task_id], "search_hidden": True, **kwargs},
-        method='get',
+        method=Request.def_method,
         async_enable=False,
     )
     result = CallResult.from_result(
@@ -292,7 +303,7 @@ def get_next_task(session, queue, get_task_info=False):
         action='get_next_task',
         version='2.14',
         json=request,
-        method='get',
+        method=Request.def_method,
         async_enable=False,
     )
     if not result.ok:
@@ -313,7 +324,7 @@ def get_task_container(session, task_id):
             action='get_all',
             version='2.14',
             json={'id': [task_id], 'only_fields': ['container'], 'search_hidden': True},
-            method='get',
+            method=Request.def_method,
             async_enable=False,
         )
         try:
@@ -354,7 +365,7 @@ def set_task_container(session, task_id, docker_image=None, docker_arguments=Non
             action='edit',
             version='2.13',
             json={'task': task_id, 'container': container, 'force': True},
-            method='get',
+            method=Request.def_method,
             async_enable=False,
         )
         return result.ok
@@ -396,6 +407,10 @@ class TaskStopSignal(object):
         self.worker_id = command.worker_id
         self._task_reset_state_counter = 0
         self.task_id = task_id
+        self._support_callback = None
+        self._active_callback_timestamp = None
+        self._active_callback_timeout = None
+        self._abort_callback_max_timeout = float(self.session.config.get('agent.abort_callback_max_timeout', 1800))
 
     def test(self):
         # type: () -> TaskStopReason
@@ -413,11 +428,84 @@ class TaskStopSignal(object):
             # make sure we break nothing
             return TaskStopSignal.default
 
+    def _wait_for_abort_callback(self):
+        if not self._support_callback:
+            return None
+
+        if self._active_callback_timestamp:
+            if time() - self._active_callback_timestamp < self._active_callback_timeout:
+                # print("waiting for callback to complete")
+                self.command.log("waiting for callback to complete")
+                # check state
+                cb_completed = None
+                try:
+                    task_info = self.session.get(
+                        service="tasks", action="get_all", version="2.13", id=[self.task_id],
+                        only_fields=["status", "status_message", "runtime._abort_callback_completed"])
+                    cb_completed = task_info['tasks'][0]['runtime'].get('_abort_callback_completed', None)
+                except:  # noqa
+                    pass
+
+                if not bool(cb_completed):
+                    return False
+
+                msg = "Task abort callback completed in {:.2f} seconds".format(
+                    time() - self._active_callback_timestamp)
+            else:
+                msg = "Task abort callback timed out [timeout: {}, elapsed: {:.2f}]".format(
+                    self._active_callback_timeout, time() - self._active_callback_timestamp)
+
+            self.command.send_logs(self.task_id, ["### " + msg + " ###"], session=self.session)
+            return True
+
+        # check if abort callback is turned on
+        cb_completed = None
+        # TODO: add retries on network error with timeout
+        try:
+            task_info = self.session.get(
+                service="tasks", action="get_all", version="2.13", id=[self.task_id],
+                only_fields=["status", "status_message", "runtime._abort_callback_timeout",
+                             "runtime._abort_poll_freq", "runtime._abort_callback_completed"])
+            abort_timeout = task_info['tasks'][0]['runtime'].get('_abort_callback_timeout', 0)
+            poll_timeout = task_info['tasks'][0]['runtime'].get('_abort_poll_freq', 0)
+            cb_completed = task_info['tasks'][0]['runtime'].get('_abort_callback_completed', None)
+        except:  # noqa
+            abort_timeout = None
+            poll_timeout = None
+
+        if not abort_timeout:
+            # no callback set we can leave
+            return None
+
+        try:
+            timeout = min(float(abort_timeout) + float(poll_timeout), self._abort_callback_max_timeout)
+        except:  # noqa
+            self.command.log("Failed parsing runtime timeout shutdown callback [{}, {}]".format(
+                abort_timeout, poll_timeout))
+            return None
+
+        self.command.send_logs(
+            self.task_id,
+            ["### Task abort callback timeout set, waiting for max {} sec ###".format(timeout)],
+            session=self.session
+        )
+
+        self._active_callback_timestamp = time()
+        self._active_callback_timeout = timeout
+        return bool(cb_completed)
+
+    def was_abort_function_called(self):
+        return bool(self._active_callback_timestamp)
+
     def _test(self):
         # type: () -> TaskStopReason
         """
         "Unsafe" version of test()
         """
+        if self._support_callback is None:
+            # test if backend support callback
+            self._support_callback = self.session.check_min_api_version("2.13")
+
         task_info = get_task(
             self.session, self.task_id, only_fields=["status", "status_message"]
         )
@@ -429,10 +517,16 @@ class TaskStopSignal(object):
                 "task status_message has '%s', task will terminate",
                 self.stopping_message,
             )
+            # actively waiting for task to complete
+            if self._wait_for_abort_callback() is False:
+                return TaskStopReason.no_stop
             return TaskStopReason.stopped
 
         if status in self.unexpected_statuses:  # ## and "worker" not in message:
             self.command.log("unexpected status change, task will terminate")
+            # actively waiting for task to complete
+            if self._wait_for_abort_callback() is False:
+                return TaskStopReason.no_stop
             return TaskStopReason.status_changed
 
         if status == self.statuses.created:
@@ -441,13 +535,18 @@ class TaskStopSignal(object):
                 >= self._number_of_consecutive_reset_tests
             ):
                 self.command.log("task was reset, task will terminate")
+                # actively waiting for task to complete
+                if self._wait_for_abort_callback() is False:
+                    return TaskStopReason.no_stop
                 return TaskStopReason.reset
+
             self._task_reset_state_counter += 1
             warning_msg = "Warning: Task {} was reset! if state is consistent we shall terminate ({}/{}).".format(
                 self.task_id,
                 self._task_reset_state_counter,
                 self._number_of_consecutive_reset_tests,
             )
+
             if self.events_service:
                 self.events_service.send_log_events(
                     self.worker_id,
@@ -516,6 +615,7 @@ class Worker(ServiceCommandSection):
 
     def __init__(self, *args, **kwargs):
         super(Worker, self).__init__(*args, **kwargs)
+        self._debug_context = ENV_DEBUG_INFO.get()
         self.monitor = None
         self.log = self._session.get_logger(__name__)
         self.register_signal_handler()
@@ -533,20 +633,12 @@ class Worker(ServiceCommandSection):
                     self._pip_extra_index_url.insert(0, e)
         except Exception:
             self.log.warning('Failed adding extra-index-url to pip environment: {}'.format(extra_url))
-        # update pip install command
-        pip_install_cmd = ["pip", "install"]
-        if self._pip_extra_index_url:
-            pip_install_cmd.extend(
-                chain.from_iterable(
-                    ("--extra-index-url", x) for x in self._pip_extra_index_url
-                )
-            )
-        self.pip_install_cmd = tuple(pip_install_cmd)
+
         self.worker_id = self._session.config["agent.worker_id"] or "{}:{}".format(
             self._session.config["agent.worker_name"], os.getpid()
         )
-        self._last_stats = defaultdict(lambda: 0)
-        self._last_report_timestamp = psutil.time.time()
+        self.parent_worker_id = None  # maybe add os env for overriding
+
         self.temp_config_path = None
         self.queues = ()
         self.venv_folder = None  # type: Optional[Text]
@@ -582,6 +674,20 @@ class Worker(ServiceCommandSection):
         # None - not initialized
         # str - not supported, version string indicates last server version
         self._runtime_props_support = None
+
+        # allow docker sanitization, needs backend support
+        if ENV_DOCKER_ARGS_FILTERS.get():
+            self._docker_args_filters = \
+                [re.compile(f) for f in shlex.split(ENV_DOCKER_ARGS_FILTERS.get())]
+        elif self._session.config.get('agent.docker_args_filters', None):
+            self._docker_args_filters = \
+                [re.compile(f) for f in self._session.config.get('agent.docker_args_filters', [])]
+        else:
+            self._docker_args_filters = []
+
+        self._task_ping_interval_sec = max(
+            0, text_to_int(self._session.config.get("agent.task_ping_interval_sec", 60.0))
+        )
 
     @classmethod
     def _verify_command_states(cls, kwargs):
@@ -629,7 +735,7 @@ class Worker(ServiceCommandSection):
             pass
 
     def run_one_task(self, queue, task_id, worker_args, docker=None, task_session=None):
-        # type: (Text, Text, WorkerParams, Optional[Text]) -> ()
+        # type: (Text, Text, WorkerParams, Optional[Text], Optional[Session]) -> int
         """
         Run one task pulled from queue.
         :param queue: ID of queue that task was pulled from
@@ -637,6 +743,8 @@ class Worker(ServiceCommandSection):
         :param worker_args: Worker command line arguments
         :param task_session: The session for running operations on the passed task
         :param docker: Docker image in which the execution task will run
+
+        :return: exit code (0 is success)
         """
         # start new process and execute task id
         # "Running task '{}'".format(task_id)
@@ -672,10 +780,18 @@ class Worker(ServiceCommandSection):
             except Exception:
                 task_container = {}
 
-            default_docker = not bool(task_container.get('image'))
-            docker_image = task_container.get('image') or self._docker_image
-            docker_arguments = task_container.get(
-                'arguments', self._docker_arguments if default_docker else None)
+            default_docker = (
+                self._session.config.get('agent.disable_task_docker_override', False)
+                or not bool(task_container.get('image'))
+            )
+            if default_docker:
+                docker_image = self._docker_image
+                docker_arguments = self._docker_arguments
+            else:
+                docker_image = task_container.get('image') or self._docker_image
+                docker_arguments = task_container.get(
+                    'arguments', self._docker_arguments if default_docker else None)
+
             docker_setup_script = task_container.get('setup_shell_script')
 
             self.send_logs(
@@ -683,7 +799,7 @@ class Worker(ServiceCommandSection):
                 lines=
                 ['Running Task {} inside {}docker: {} arguments: {}\n'.format(
                     task_id, "default " if default_docker else '',
-                    docker_image, self._sanitize_docker_command(docker_arguments or []))]
+                    docker_image, DockerArgsSanitizer.sanitize_docker_command(self._session, docker_arguments or []))]
                 + (['custom_setup_bash_script:\n{}'.format(docker_setup_script)] if docker_setup_script else []),
                 level="INFO",
                 session=task_session,
@@ -697,6 +813,9 @@ class Worker(ServiceCommandSection):
             )
             if self._impersonate_as_task_owner:
                 docker_params["auth_token"] = task_session.token
+            elif self._session.access_key is None or self._session.secret_key is None:
+                # We're using a token right now
+                docker_params["auth_token"] = self._session.token
             if self._worker_tags:
                 docker_params["worker_tags"] = self._worker_tags
             if self._services_mode:
@@ -719,7 +838,7 @@ class Worker(ServiceCommandSection):
                     else:
                         print("Warning: generated docker container name is invalid: {}".format(name))
 
-            full_docker_cmd = self.docker_image_func(**docker_params)
+            full_docker_cmd = self.docker_image_func(env_task_id=task_id, **docker_params)
 
             # if we are using the default docker, update back the Task:
             if default_docker:
@@ -743,7 +862,7 @@ class Worker(ServiceCommandSection):
                 '--standalone-mode' if self._standalone_mode else '',
                 task_id)
 
-            display_docker_command = self._sanitize_docker_command(full_docker_cmd)
+            display_docker_command = DockerArgsSanitizer.sanitize_docker_command(self._session, full_docker_cmd)
 
             # send the actual used command line to the backend
             self.send_logs(
@@ -835,6 +954,8 @@ class Worker(ServiceCommandSection):
                     # unregister this worker, it was killed
                     self._unregister()
 
+        return status
+
     def get_task_session(self, user, company):
         """
         Get task session for the user by cloning the agent session
@@ -848,6 +969,7 @@ class Worker(ServiceCommandSection):
             if not (result.ok() and result.response):
                 return
             new_session = copy(session)
+            new_session.api_client = None
             new_session.set_auth_token(result.response.token)
             return new_session
 
@@ -926,7 +1048,7 @@ class Worker(ServiceCommandSection):
                 # update available gpus
                 if gpu_queues:
                     available_gpus = self._dynamic_gpu_get_available(gpu_indexes)
-                    # if something went wrong or we have no free gpus
+                    # if something went wrong, or we have no free gpus
                     # start over from the highest priority queue
                     if not available_gpus:
                         if self._daemon_foreground or worker_params.debug:
@@ -1012,7 +1134,7 @@ class Worker(ServiceCommandSection):
 
                         self.report_monitor(ResourceMonitor.StatusReport(queues=queues, queue=queue, task=task_id))
 
-                        org_gpus = os.environ.get('NVIDIA_VISIBLE_DEVICES')
+                        org_gpus = Session.get_nvidia_visible_env()
                         dynamic_gpus_worker_id = self.worker_id
                         # the following is only executed in dynamic gpus mode
                         if gpu_queues and gpu_queues.get(queue):
@@ -1023,10 +1145,10 @@ class Worker(ServiceCommandSection):
                             available_gpus = available_gpus[gpu_queues.get(queue)[1]:]
                             self.set_runtime_properties(
                                 key='available_gpus', value=','.join(str(g) for g in available_gpus))
-                            os.environ['CUDA_VISIBLE_DEVICES'] = \
-                                os.environ['NVIDIA_VISIBLE_DEVICES'] = ','.join(str(g) for g in gpus)
+                            Session.set_nvidia_visible_env(gpus)
                             list_task_gpus_ids.update({str(g): task_id for g in gpus})
-                            self.worker_id = ':'.join(self.worker_id.split(':')[:-1] + ['gpu'+','.join(str(g) for g in gpus)])
+                            self.worker_id = ':'.join(
+                                self.worker_id.split(':')[:-1] + ['gpu'+','.join(str(g) for g in gpus)])
 
                         self.send_logs(
                             task_id=task_id,
@@ -1039,8 +1161,7 @@ class Worker(ServiceCommandSection):
 
                         if gpu_queues:
                             self.worker_id = dynamic_gpus_worker_id
-                            os.environ['CUDA_VISIBLE_DEVICES'] = \
-                                os.environ['NVIDIA_VISIBLE_DEVICES'] = org_gpus
+                            Session.set_nvidia_visible_env(org_gpus)
 
                         self.report_monitor(ResourceMonitor.StatusReport(queues=self.queues))
 
@@ -1048,7 +1169,7 @@ class Worker(ServiceCommandSection):
                         runtime_props = None
 
                         # if we are using priority start pulling from the first always,
-                        # if we are doing round robin, pull from the next one
+                        # if we are doing roundrobin, pull from the next one
                         if priority_order:
                             break
                 else:
@@ -1057,7 +1178,7 @@ class Worker(ServiceCommandSection):
                         print("No tasks in Queues, sleeping for {:.1f} seconds".format(self._polling_interval))
                     sleep(self._polling_interval)
 
-                if self._session.config["agent.reload_config"]:
+                if self._session.config.get("agent.reload_config", False):
                     self.reload_config()
         finally:
             # if we are in dynamic gpus mode, shutdown all active runs
@@ -1080,19 +1201,26 @@ class Worker(ServiceCommandSection):
                 self._unregister()
 
     def _dynamic_gpu_get_available(self, gpu_indexes):
+        # cast to string
+        gpu_indexes = [str(g) for g in gpu_indexes]
         # noinspection PyBroadException
         try:
             response = self._session.send_api(workers_api.GetAllRequest(last_seen=600))
         except Exception:
             return None
 
-        worker_name = self._session.config["agent.worker_name"] + ':gpu'
+        worker_name = self._session.config.get("agent.worker_name", "") + ':gpu'
         our_workers = [
             w.id for w in response.workers
             if w.id.startswith(worker_name) and w.id != self.worker_id]
         gpus = []
         for w in our_workers:
-            gpus += [int(g) for g in w.split(':')[-1].lower().replace('gpu', '').split(',')]
+            for g in w.split(':')[-1].lower().replace('gpu', '').split(','):
+                try:
+                    # verify "int.int"
+                    gpus += [str(g).strip()] if float(g.strip()) >= 0 else []
+                except (ValueError, TypeError):
+                    print("INFO: failed parsing GPU int('{}') - skipping".format(g))
         available_gpus = list(set(gpu_indexes) - set(gpus))
 
         return available_gpus
@@ -1103,7 +1231,15 @@ class Worker(ServiceCommandSection):
             raise ValueError("Dynamic GPU allocation is not supported by the ClearML-server")
         available_gpus = [prop["value"] for prop in available_gpus if prop["key"] == 'available_gpus']
         if available_gpus:
-            available_gpus = [int(g) for g in available_gpus[-1].split(',')]
+            gpus = []
+            for g in available_gpus[-1].split(','):
+                try:
+                    # verify "int.int"
+                    gpus += [str(g).strip()] if float(g.strip()) >= 0 else []
+                except (ValueError, TypeError):
+                    print("INFO: failed parsing GPU int('{}') - skipping".format(g))
+            available_gpus = gpus
+
         if not isinstance(gpu_queues, dict):
             gpu_queues = dict(gpu_queues)
 
@@ -1256,19 +1392,20 @@ class Worker(ServiceCommandSection):
 
         self._session.print_configuration()
 
+    def resolve_daemon_queue_names(self, queues, create_if_missing=False):
+        return self._resolve_queue_names(queues=queues, create_if_missing=create_if_missing)
+
     def daemon(self, queues, log_level, foreground=False, docker=False, detached=False, order_fairness=False, **kwargs):
+        self._apply_extra_configuration()
 
         # check that we have docker command if we need it
         if docker not in (False, None) and not check_if_command_exists("docker"):
             raise ValueError("Running in Docker mode, 'docker' command was not found")
 
         self._worker_tags = kwargs.get('child_report_tags', None)
-        self._impersonate_as_task_owner = kwargs.get('use_owner_token', False)
-        if self._impersonate_as_task_owner:
-            if not self._session.check_min_api_version("2.14"):
-                raise ValueError("Server does not support --use-owner-token option (incompatible API version)")
-            if self._session.feature_set == "basic":
-                raise ValueError("Server does not support --use-owner-token option")
+
+        self._use_owner_token(kwargs.get('use_owner_token', False))
+
         self._standalone_mode = kwargs.get('standalone_mode', False)
         self._services_mode = kwargs.get('services_mode', False)
         # must have docker in services_mode
@@ -1291,12 +1428,16 @@ class Worker(ServiceCommandSection):
 
         # We are not running a daemon we are killing one.
         # find the pid send termination signal and leave
-        if kwargs.get('stop', False):
-            return 1 if not self._kill_daemon(dynamic_gpus=dynamic_gpus) else 0
+        if kwargs.get('stop', False) is not False:
+            return_code = 0
+            for worker_id in kwargs.get('stop') or [None]:
+                if not self._kill_daemon(dynamic_gpus=dynamic_gpus, worker_id=worker_id):
+                    return_code = 1
+            return return_code
 
         # if we do not need to create queues, make sure they are valid
         # match previous behaviour when we validated queue names before everything else
-        queues = self._resolve_queue_names(queues, create_if_missing=kwargs.get('create_queue', False))
+        queues = self.resolve_daemon_queue_names(queues, create_if_missing=kwargs.get('create_queue', False))
 
         queues_info = [
             q.to_dict()
@@ -1419,10 +1560,14 @@ class Worker(ServiceCommandSection):
                         gpu_indexes=gpu_indexes,
                         gpu_queues=dynamic_gpus,
                     )
-                except Exception:
+                except Exception as e:
                     tb = six.text_type(traceback.format_exc())
                     print("FATAL ERROR:")
                     print(tb)
+
+                    if self._session.config.get("agent.crash_on_exception", False):
+                        raise e
+
                     crash_file, name = safe_mkstemp(prefix=".clearml_agent-crash", suffix=".log")
                     try:
                         with crash_file:
@@ -1458,12 +1603,14 @@ class Worker(ServiceCommandSection):
             if '-' in gpu_indexes:
                 gpu_indexes = list(range(int(gpu_indexes.split('-')[0]), 1 + int(gpu_indexes.split('-')[1])))
             else:
-                gpu_indexes = [int(g) for g in gpu_indexes.split(',')]
+                gpu_indexes = [str(g).replace(":", ".").strip() for g in gpu_indexes.split(',')]
+            # verify (basically numbers with single "." dot)
+            gpu_indexes = [str(g) for g in gpu_indexes if float(g) >= 0]
         except Exception:
             raise ValueError(
                 'Failed parsing --gpus "{}". '
                 '--dynamic_gpus must be use with '
-                'specific gpus for example "0-7" or "0,1,2,3"'.format(kwargs.get('gpus')))
+                'specific gpus for example "0-7" or "0,1,2,3" or "0:0,0:1,1:0,1:1"'.format(kwargs.get('gpus')))
 
         dynamic_gpus = []
         for s in queue_names:
@@ -1526,7 +1673,9 @@ class Worker(ServiceCommandSection):
 
         # noinspection PyBroadException
         try:
-            config_data = self._session.config.as_plain_ordered_dict() if config is None else config.as_plain_ordered_dict()
+            config_data = (
+                self._session.config.as_plain_ordered_dict() if config is None else config.as_plain_ordered_dict()
+            )
             if clean_api_credentials:
                 api = config_data.get("api")
                 if api:
@@ -1599,6 +1748,7 @@ class Worker(ServiceCommandSection):
         stopping = False
         status = None
         process = None
+        last_task_ping = 0
         try:
             _last_machine_update_ts = time()
             stop_reason = None
@@ -1633,6 +1783,18 @@ class Worker(ServiceCommandSection):
                     stdout.flush()
                 if stderr:
                     stderr.flush()
+
+                if not stopping and self._task_ping_interval_sec and \
+                        time() - last_task_ping > self._task_ping_interval_sec:
+                    # noinspection PyBroadException
+                    try:
+                        res = (session or self._session).send(tasks_api.PingRequest(task=task_id))
+                        if not res:
+                            self.log.error("Failed sending ping for task %s: %s", task_id, res.response)
+                    except Exception as ex:
+                        self.log.error("Failed sending ping: %s", str(ex))
+                    finally:
+                        last_task_ping = time()
 
                 # get diff from previous poll
                 printed_lines, stdout_pos_count = _print_file(stdout_path, stdout_pos_count)
@@ -1689,6 +1851,10 @@ class Worker(ServiceCommandSection):
         if stderr_path:
             printed_lines, stderr_pos_count = _print_file(stderr_path, stderr_pos_count)
             stderr_line_count += report_lines(printed_lines, "stderr")
+
+        # make sure that if the abort function was called, the task is marked as aborted
+        if stop_signal and stop_signal.was_abort_function_called():
+            stop_reason = TaskStopReason.stopped
 
         return status, stop_reason
 
@@ -1771,10 +1937,18 @@ class Worker(ServiceCommandSection):
                              "ERROR! Failed applying git diff, see diff above.".format(diff))
 
     def _apply_extra_configuration(self):
+        # store a few things we updated in runtime (TODO: we should list theme somewhere)
+        agent_config = self._session.config["agent"].copy()
+        agent_config_keys = ["cuda_version", "cudnn_version", "default_python", "worker_id", "worker_name", "debug"]
         try:
             self._session.load_vaults()
         except Exception as ex:
             print("Error: failed applying extra configuration: {}".format(ex))
+
+        # merge back
+        for restore_key in agent_config_keys:
+            if restore_key in agent_config:
+                self._session.config["agent"][restore_key] = agent_config[restore_key]
 
         config = self._session.config
         default = config.get("agent.apply_environment", False)
@@ -1828,13 +2002,7 @@ class Worker(ServiceCommandSection):
                 requirements = None
 
         if not python_version:
-            try:
-                python_version = current_task.script.binary
-                python_version = python_version.split('/')[-1].replace('python', '')
-                # if we can cast it, we are good
-                python_version = '{:.1f}'.format(float(python_version))
-            except:
-                python_version = None
+            python_version = self._get_task_python_version(current_task)
 
         venv_folder, requirements_manager, is_cached = self.install_virtualenv(
             venv_dir=target, requested_python_version=python_version, execution_info=execution,
@@ -1858,6 +2026,9 @@ class Worker(ServiceCommandSection):
                 base_interpreter=package_api.requirements_manager.get_interpreter(),
                 requirement_substitutions=[OnlyExternalRequirements],
             )
+            # manually update the current state,
+            # for the external git reference chance (in the replace callback)
+            package_api.requirements_manager.update_installed_packages_state(package_api.freeze())
             # make sure we run the handlers
             cached_requirements = \
                 {k: package_api.requirements_manager.replace(requirements[k] or '')
@@ -1915,7 +2086,10 @@ class Worker(ServiceCommandSection):
             # noinspection PyBroadException
             try:
                 task_container = get_task_container(self._session, task_id)
-                if task_container.get('image'):
+                if (
+                    task_container.get('image')
+                    and not self._session.config.get('agent.disable_task_docker_override', False)
+                ):
                     docker_image = task_container.get('image')
                     print('Ignoring default docker image, using task docker image {}'.format(docker_image))
                     docker_arguments = task_container.get('arguments')
@@ -1930,8 +2104,9 @@ class Worker(ServiceCommandSection):
 
         end_of_build_marker = "build.done=true"
         docker_cmd_suffix = ' build --id {task_id} --install-globally; ' \
-                            'echo "" >> {conf_file} ; ' \
-                            'echo {end_of_build_marker} >> {conf_file} ; ' \
+                            'ORG=$(stat -c "%u:%g" {conf_file}) ; chown $(whoami):$(whoami) {conf_file} ; ' \
+                            'echo "" >> {conf_file} ; echo {end_of_build_marker} >> {conf_file} ; ' \
+                            'chown $ORG {conf_file} ; ' \
                             'bash'.format(
                                 task_id=task_id,
                                 end_of_build_marker=end_of_build_marker,
@@ -1950,10 +2125,16 @@ class Worker(ServiceCommandSection):
 
         # now we need to wait until the line shows on our configuration file.
         while True:
-            while temp_config.stat().st_mtime == base_time_stamp:
-                sleep(5.0)
-            with open(temp_config.as_posix()) as f:
-                lines = [l.strip() for l in f.readlines()]
+            # noinspection PyBroadException
+            try:
+                while temp_config.stat().st_mtime == base_time_stamp:
+                    sleep(5.0)
+                with open(temp_config.as_posix()) as f:
+                    lines = [l.strip() for l in f.readlines()]
+            except Exception as ex:
+                # print("Failed reading status file [{}], retrying in 2 seconds".format(ex))
+                sleep(2.0)
+
             if 'build.done=true' in lines:
                 break
             base_time_stamp = temp_config.stat().st_mtime
@@ -1968,7 +2149,7 @@ class Worker(ServiceCommandSection):
 
         if entry_point == "clone_task" or entry_point == "reuse_task":
             change = 'ENTRYPOINT if [ ! -s "{trains_conf}" ] ; then ' \
-                     'cp {default_trains_conf} {trains_conf} ; ' \
+                     'cp {default_trains_conf} {trains_conf} && export CLEARML_CONFIG_FILE={trains_conf}; ' \
                      ' fi ; clearml-agent execute --id {task_id} --standalone-mode {clone}'.format(
                         default_trains_conf=DOCKER_DEFAULT_CONF_FILE,
                         trains_conf=DOCKER_ROOT_CONF_FILE,
@@ -1982,7 +2163,22 @@ class Worker(ServiceCommandSection):
         print(commit_docker(container_name=target, docker_id=docker_id, apply_change=change))
         shutdown_docker_process(docker_id=docker_id)
 
+        safe_remove_file(temp_config.as_posix())
+
         return
+
+    def _get_task_python_version(self, task):
+        # noinspection PyBroadException
+        try:
+            python_ver = task.script.binary
+            python_ver = python_ver.split('/')[-1].replace('python', '')
+            # if we can cast it, we are good
+            return '{}.{}'.format(
+                int(python_ver.partition(".")[0]),
+                int(python_ver.partition(".")[-1].partition(".")[0] or 0)
+            )
+        except Exception:
+            pass
 
     @resolve_names
     def execute(
@@ -2068,7 +2264,7 @@ class Worker(ServiceCommandSection):
             )
             try:
                 self.report_monitor(ResourceMonitor.StatusReport(task=current_task.id))
-                self.run_one_task(queue='', task_id=current_task.id, worker_args=worker_params, docker=docker)
+                status = self.run_one_task(queue='', task_id=current_task.id, worker_args=worker_params, docker=docker)
             finally:
                 self.stop_monitor()
                 self._unregister()
@@ -2076,7 +2272,7 @@ class Worker(ServiceCommandSection):
                 if full_monitoring and self.temp_config_path:
                     safe_remove_file(self._session.config_file)
                     Singleton.close_pid_file()
-            return
+            return status if ENV_PROPAGATE_EXITCODE.get() else 0
 
         self._apply_extra_configuration()
 
@@ -2096,85 +2292,157 @@ class Worker(ServiceCommandSection):
 
         execution = self.get_execution_info(current_task)
 
-        if self._session.config.get("agent.package_manager.force_repo_requirements_txt", False):
-            requirements = None
-            print("[package_manager.force_repo_requirements_txt=true] "
-                  "Skipping requirements, using repository \"requirements.txt\" ")
-        else:
+        python_ver = self._get_task_python_version(current_task)
+
+        freeze = None
+        repo_info = None
+        script_dir = ""
+        venv_folder = ""
+
+        custom_build_script = self._session.config.get("agent.custom_build_script", "") or ENV_CUSTOM_BUILD_SCRIPT.get()
+        if custom_build_script:
             try:
-                requirements = current_task.script.requirements
-            except AttributeError:
+                venv_folder = Path(self._session.config["agent.venvs_dir"], python_ver or "3")
+                venv_folder = Path(os.path.expanduser(os.path.expandvars(venv_folder.as_posix())))
+                directory, vcs, repo_info = self.get_repo_info(
+                    execution, current_task, str(venv_folder)
+                )
+                binary, entry_point, working_dir = self.run_custom_build_script(
+                    custom_build_script,
+                    current_task,
+                    execution,
+                    venv_folder=venv_folder,
+                    git_root=vcs.location,
+                )
+
+                execution.entry_point = str(entry_point)
+                execution.working_dir = str(working_dir)
+                script_dir = str(working_dir)
+
+                self.package_api = VirtualenvPip(
+                    session=self._session,
+                    interpreter=str(binary),
+                    python=str(binary),
+                    requirements_manager=RequirementsManager(self._session),
+                    execution_info=execution,
+                    path=venv_folder,
+                )
+
+                self.global_package_api = SystemPip(
+                    session=self._session,
+                    interpreter=str(binary),
+                )
+
+            except SkippedCustomBuildScript as ex:
+                print("Warning: {}".format(str(ex)))
+                custom_build_script = None
+
+        if not custom_build_script:
+            if self._session.config.get("agent.package_manager.force_repo_requirements_txt", False):
                 requirements = None
+                print("\n[package_manager.force_repo_requirements_txt=true] "
+                      "Skipping requirements, using repository \"requirements.txt\" \n")
+            elif self._session.config.get("agent.package_manager.force_original_requirements", False):
+                try:
+                    requirements = current_task.script.requirements
+                    if isinstance(requirements, dict):
+                        if 'org_pip' in requirements:
+                            requirements['pip'] = requirements['org_pip']
+                            print("\n[package_manager.force_original_requirements=true] "
+                                  "Using original requirements: \n{}\n".format(requirements['org_pip']))
+                        if 'org_conda' in requirements:
+                            requirements['conda'] = requirements['org_conda']
+                            print("\n[package_manager.force_original_requirements=true] "
+                                  "Using original requirements: \n{}\n".format(requirements['org_conda']))
+                except AttributeError:
+                    requirements = None
+            else:
+                try:
+                    requirements = current_task.script.requirements
+                except AttributeError:
+                    requirements = None
 
-        try:
-            python_ver = current_task.script.binary
-            python_ver = python_ver.split('/')[-1].replace('python', '')
-            # if we can cast it, we are good
-            python_ver = '{:.1f}'.format(float(python_ver))
-        except:
-            python_ver = None
+            alternative_code_folder = None
+            if ENV_AGENT_SKIP_PYTHON_ENV_INSTALL.get():
+                venv_folder, requirements_manager, is_cached = None, None, False
+                # we need to create a folder for the code to be dumped into
+                code_folder = self._session.config.get("agent.venvs_dir")
+                code_folder = Path(os.path.expanduser(os.path.expandvars(code_folder)))
+                # let's make sure it is clear from previous runs
+                rm_tree(normalize_path(code_folder, WORKING_REPOSITORY_DIR))
+                rm_tree(normalize_path(code_folder, WORKING_STANDALONE_DIR))
+                if not code_folder.exists():
+                    code_folder.mkdir(parents=True, exist_ok=True)
+                alternative_code_folder = code_folder.as_posix()
+            else:
+                venv_folder, requirements_manager, is_cached = self.install_virtualenv(
+                    standalone_mode=standalone_mode,
+                    requested_python_version=python_ver,
+                    execution_info=execution,
+                    cached_requirements=requirements,
+                )
 
-        venv_folder, requirements_manager, is_cached = self.install_virtualenv(
-            standalone_mode=standalone_mode,
-            requested_python_version=python_ver,
-            execution_info=execution,
-            cached_requirements=requirements,
-        )
+                if not is_cached and not standalone_mode:
+                    if self._default_pip:
+                        self.package_api.install_packages(*self._default_pip)
 
-        if not is_cached and not standalone_mode:
-            if self._default_pip:
-                self.package_api.install_packages(*self._default_pip)
+                    print("\n")
+
+            # either use the venvs base folder for code or the cwd
+            directory, vcs, repo_info = self.get_repo_info(
+                execution, current_task, str(venv_folder or alternative_code_folder)
+            )
 
             print("\n")
 
-        directory, vcs, repo_info = self.get_repo_info(
-            execution, current_task, venv_folder
-        )
+            cwd = vcs.location if vcs and vcs.location else directory
 
-        print("\n")
+            if not standalone_mode:
+                if is_cached:
+                    # reinstalling git / local packages
+                    package_api = copy(self.package_api)
+                    OnlyExternalRequirements.cwd = package_api.cwd = cwd
+                    package_api.requirements_manager = self._get_requirements_manager(
+                        base_interpreter=package_api.requirements_manager.get_interpreter(),
+                        requirement_substitutions=[OnlyExternalRequirements]
+                    )
+                    # manually update the current state,
+                    # for the external git reference chance (in the replace callback)
+                    package_api.requirements_manager.update_installed_packages_state(package_api.freeze())
+                    # make sure we run the handlers
+                    cached_requirements = \
+                        {k: package_api.requirements_manager.replace(requirements[k] or '')
+                         for k in requirements}
+                    if str(cached_requirements.get('pip', '')).strip() \
+                            or str(cached_requirements.get('conda', '')).strip():
+                        package_api.load_requirements(cached_requirements)
+                    # make sure we call the correct freeze
+                    requirements_manager = package_api.requirements_manager
+                elif requirements_manager:
+                    self.install_requirements(
+                        execution,
+                        repo_info,
+                        requirements_manager=requirements_manager,
+                        cached_requirements=requirements,
+                        cwd=cwd,
+                    )
+                elif not self.package_api:
+                    # check if we have to manually configure package API, it will be readonly
+                    self.package_api = SystemPip(session=self._session)
 
-        cwd = vcs.location if vcs and vcs.location else directory
+            # do not update the task packages if we are using conda,
+            # it will most likely make the task environment unreproducible
+            skip_freeze_update = self.is_conda and not self._session.config.get(
+                "agent.package_manager.conda_full_env_update", False)
 
-        if is_cached and not standalone_mode:
-            # reinstalling git / local packages
-            package_api = copy(self.package_api)
-            OnlyExternalRequirements.cwd = package_api.cwd = cwd
-            package_api.requirements_manager = self._get_requirements_manager(
-                base_interpreter=package_api.requirements_manager.get_interpreter(),
-                requirement_substitutions=[OnlyExternalRequirements]
-            )
-            # make sure we run the handlers
-            cached_requirements = \
-                {k: package_api.requirements_manager.replace(requirements[k] or '')
-                 for k in requirements}
-            if str(cached_requirements.get('pip', '')).strip() \
-                    or str(cached_requirements.get('conda', '')).strip():
-                package_api.load_requirements(cached_requirements)
-            # make sure we call the correct freeze
-            requirements_manager = package_api.requirements_manager
-
-        elif not is_cached and not standalone_mode:
-            self.install_requirements(
-                execution,
-                repo_info,
+            freeze = self.freeze_task_environment(
+                task_id=current_task.id,
                 requirements_manager=requirements_manager,
-                cached_requirements=requirements,
-                cwd=cwd,
+                add_venv_folder_cache=venv_folder,
+                execution_info=execution,
+                update_requirements=not skip_freeze_update,
             )
-
-        # do not update the task packages if we are using conda,
-        # it will most likely make the task environment unreproducible
-        skip_freeze_update = self.is_conda and not self._session.config.get(
-            "agent.package_manager.conda_full_env_update", False)
-
-        freeze = self.freeze_task_environment(
-            task_id=current_task.id,
-            requirements_manager=requirements_manager,
-            add_venv_folder_cache=venv_folder,
-            execution_info=execution,
-            update_requirements=not skip_freeze_update,
-        )
-        script_dir = (directory if isinstance(directory, Path) else Path(directory)).absolute().as_posix()
+            script_dir = (directory if isinstance(directory, Path) else Path(directory)).absolute().as_posix()
 
         # run code
         # print("Running task id [%s]:" % current_task.id)
@@ -2184,7 +2452,9 @@ class Worker(ServiceCommandSection):
             extra.append(
                 WorkerParams(optimization=optimization).get_optimization_flag()
             )
+
         # check if this is a module load, then load it.
+        # noinspection PyBroadException
         try:
             if current_task.script.binary and current_task.script.binary.startswith('python') and \
                     execution.entry_point and execution.entry_point.split()[0].strip() == '-m':
@@ -2192,7 +2462,7 @@ class Worker(ServiceCommandSection):
                 extra.extend(shlex.split(execution.entry_point))
             else:
                 extra.append(execution.entry_point)
-        except:
+        except Exception:
             extra.append(execution.entry_point)
 
         command = self.package_api.get_python_command(extra)
@@ -2238,7 +2508,7 @@ class Worker(ServiceCommandSection):
         if ENV_TASK_EXTRA_PYTHON_PATH.get():
             python_path = add_python_path(python_path, ENV_TASK_EXTRA_PYTHON_PATH.get())
         if python_path:
-            os.environ['PYTHONPATH'] = python_path
+            os.environ['PYTHONPATH'] = os.pathsep.join(filter(None, (os.environ.get('PYTHONPATH', None), python_path)))
 
         # check if we want to run as another user, only supported on linux
         if ENV_TASK_EXECUTE_AS_USER.get() and is_linux_platform():
@@ -2261,6 +2531,10 @@ class Worker(ServiceCommandSection):
         # check if we need to add encoding to the subprocess
         if sys.getfilesystemencoding() == 'ascii' and not os.environ.get("PYTHONIOENCODING"):
             os.environ["PYTHONIOENCODING"] = "utf-8"
+
+        # check if we need to update backwards compatible OS environment
+        if not os.environ.get("TRAINS_CONFIG_FILE") and os.environ.get("CLEARML_CONFIG_FILE"):
+            os.environ["TRAINS_CONFIG_FILE"] = os.environ.get("CLEARML_CONFIG_FILE")
 
         print("Starting Task Execution:\n".format(current_task.id))
         exit_code = -1
@@ -2361,7 +2635,9 @@ class Worker(ServiceCommandSection):
         print("Executing task id [%s]:" % current_task.id)
         sanitized_execution = attr.evolve(
             execution,
-            docker_cmd=" ".join(self._sanitize_docker_command(shlex.split(execution.docker_cmd or ""))),
+            docker_cmd=" ".join(DockerArgsSanitizer.sanitize_docker_command(
+                self._session, shlex.split(execution.docker_cmd or ""))
+            ),
         )
         for pair in attr.asdict(sanitized_execution).items():
             print("{} = {}".format(*pair))
@@ -2568,15 +2844,15 @@ class Worker(ServiceCommandSection):
         # Todo: add support for poetry caching
         if not self.poetry.enabled:
             # add to cache
-            print('Adding venv into cache: {}'.format(add_venv_folder_cache))
             if add_venv_folder_cache:
+                print('Adding venv into cache: {}'.format(add_venv_folder_cache))
                 self.package_api.add_cached_venv(
                     requirements=[freeze, previous_reqs],
                     docker_cmd=execution_info.docker_cmd if execution_info else None,
                     python_version=getattr(self.package_api, 'python', ''),
                     cuda_version=self._session.config.get("agent.cuda_version"),
                     source_folder=add_venv_folder_cache,
-                    exclude_sub_folders=['task_repository', 'code'])
+                    exclude_sub_folders=[WORKING_REPOSITORY_DIR, WORKING_STANDALONE_DIR])
 
         # If do not update back requirements
         if not update_requirements:
@@ -2703,7 +2979,7 @@ class Worker(ServiceCommandSection):
                 if self._session.debug_mode and temp_file:
                     rm_file(temp_file.name)
             # call post installation callback
-            requirements_manager.post_install(self._session)
+            requirements_manager.post_install(self._session, package_manager=package_api)
             # mark as successful installation
             repo_requirements_installed = True
 
@@ -2751,8 +3027,8 @@ class Worker(ServiceCommandSection):
         if self._session.debug_mode:
             self.log(traceback.format_exc())
 
-    def debug(self, message):
-        if self._session.debug_mode:
+    def debug(self, message, context=None):
+        if self._session.debug_mode and (not context or context == self._debug_context):
             print("clearml_agent: {}".format(message))
 
     @staticmethod
@@ -2851,28 +3127,123 @@ class Worker(ServiceCommandSection):
             )
         )
 
-    def install_virtualenv(
-            self,
-            venv_dir=None,
-            requested_python_version=None,
-            standalone_mode=False,
-            execution_info=None,
-            cached_requirements=None,
-    ):
-        # type: (str, str, bool, ExecutionInfo, dict) -> Tuple[Path, RequirementsManager, bool]
+    def run_custom_build_script(self, script, task, execution, venv_folder, git_root):
+        # type: (str, tasks_api.Task, ExecutionInfo, Path, str)-> Tuple[Path, Path, Path]
         """
-        Install a new python virtual environment, removing the old one if exists
-        If CLEARML_SKIP_PIP_VENV_INSTALL is set then an emtpy virtual env folder is created
-        and package manager is configured to work with the global python interpreter (the interpreter
-        path itself can be passed in this variable)
-        :return: virtualenv directory, requirements manager to use with task, True if there is a cached venv entry
+        Run a custom env build script
+        :param script:
+        :return: A tuple containing:
+            - a full path to a python executable
+            - a new task entry_point (replacing the entry_point in the task's script section)
+            - a new working directory (replacing the working_dir in the task's script section)
+            - a requirements manager instance
         """
-        skip_pip_venv_install = ENV_AGENT_SKIP_PIP_VENV_INSTALL.get()
+        os.environ["CLEARML_TASK_SCRIPT_ENTRY"] = execution.entry_point
+        os.environ["CLEARML_TASK_WORKING_DIR"] = execution.working_dir
+        os.environ["CLEARML_VENV_PATH"] = str(venv_folder)
+        os.environ["CLEARML_GIT_ROOT"] = git_root
+
+        script = os.path.expanduser(os.path.expandvars(script))
+
+        try:
+            if not os.path.isfile(script):
+                raise SkippedCustomBuildScript("Build script {} is not found".format(script))
+        except OSError as ex:
+            raise SkippedCustomBuildScript(str(ex))
+
+        print("Running custom build script {}".format(script))
+
+        script_output_file = NamedTemporaryFile(prefix="custom_build_script", suffix=".json", mode="wt", delete=False)
+
+        os.environ["CLEARML_AGENT_CUSTOM_BUILD_SCRIPT"] = script
+        os.environ["CLEARML_CUSTOM_BUILD_TASK_CONFIG_JSON"] = json.dumps(
+            task.to_dict(), separators=(',', ':'), default=str
+        )
+        os.environ["CLEARML_CUSTOM_BUILD_OUTPUT"] = script_output_file.name
+
+        try:
+            subprocess.check_call([script])
+        except subprocess.CalledProcessError as ex:
+            raise CustomBuildScriptFailed(
+                message="Custom build script failed with return code {}".format(ex.returncode),
+                errno=ex.returncode
+            )
+
+        output = Path(script_output_file.name).read_text()
+        if not output:
+            raise SkippedCustomBuildScript("Build script {} did not return any output".format(script))
+
+        try:
+            output = json.loads(output)
+            binary = Path(output["binary"])
+            entry_point = Path(output["entry_point"])
+            working_dir = Path(output["working_dir"])
+        except ValueError as ex:
+            raise SkippedCustomBuildScript(
+                "Failed parsing build script output JSON ({}): {}".format(script_output_file.name, ex)
+            )
+        except KeyError as ex:
+            raise SkippedCustomBuildScript("Build script output missing {} field".format(ex.args[0]))
+
+        try:
+            if not binary.is_file():
+                raise SkippedCustomBuildScript(
+                    "Invalid binary path returned from custom build script: {}".format(binary)
+                )
+            if not entry_point.is_file():
+                raise SkippedCustomBuildScript(
+                    "Invalid entrypoint path returned from custom build script: {}".format(entry_point)
+                )
+            if not working_dir.is_dir():
+                raise SkippedCustomBuildScript(
+                    "Invalid working dir returned from custom build script: {}".format(working_dir)
+                )
+        except OSError as ex:
+            raise SkippedCustomBuildScript(str(ex))
+
+        return binary, entry_point, working_dir
+
+    def _get_skip_pip_venv_install(self, skip_pip_venv_install=None):
+        if skip_pip_venv_install is None:
+            skip_pip_venv_install = ENV_AGENT_SKIP_PIP_VENV_INSTALL.get()
+
         if skip_pip_venv_install:
             try:
                 skip_pip_venv_install = bool(strtobool(skip_pip_venv_install))
             except ValueError:
                 pass
+        elif ENV_VENV_CONFIGURED.get() and ENV_DOCKER_IMAGE.get() and \
+                self._session.config.get("agent.docker_use_activated_venv", True) and \
+                self._session.config.get("agent.package_manager.system_site_packages", False):
+            # if we are running inside a container, and virtual environment is already installed,
+            # we should install directly into it, because we cannot inherit from the system packages
+            skip_pip_venv_install = find_executable("python") or True
+
+            # check if we are running inside a container:
+            print(
+                "Warning! Found python virtual environment [{}] already activated inside the container, "
+                "installing packages into venv (pip does not support inherit/nested venv)".format(
+                    skip_pip_venv_install if isinstance(skip_pip_venv_install, str) else ENV_VENV_CONFIGURED.get())
+            )
+        return skip_pip_venv_install
+
+    def install_virtualenv(
+        self,
+        venv_dir=None,
+        requested_python_version=None,
+        standalone_mode=False,
+        execution_info=None,
+        cached_requirements=None,
+    ):
+        # type: (str, str, bool, ExecutionInfo, dict) -> Tuple[Path, RequirementsManager, bool]
+        """
+        Install a new python virtual environment, removing the old one if exists
+        If skip_pip_venv_install is True or contains a string (or if CLEARML_SKIP_PIP_VENV_INSTALL is set)
+        then an emtpy virtual env folder is created and package manager is configured to work with the global python
+        interpreter (or using a custom interpreter if an interpreter path is passed in this variable)
+        :return: virtualenv directory, requirements manager to use with task, True if there is a cached venv entry
+        """
+        skip_pip_venv_install = self._get_skip_pip_venv_install()
 
         if self._session.config.get("agent.ignore_requested_python_version", None):
             requested_python_version = ''
@@ -2929,12 +3300,54 @@ class Worker(ServiceCommandSection):
             or not self.is_venv_update
         )
 
+        if not standalone_mode:
+            rm_tree(normalize_path(venv_dir, WORKING_REPOSITORY_DIR))
+            rm_tree(normalize_path(venv_dir, WORKING_STANDALONE_DIR))
+
+        call_package_manager_create, requirements_manager = self._setup_package_api(
+            executable_name=executable_name,
+            executable_version_suffix=executable_version_suffix,
+            venv_dir=venv_dir,
+            execution_info=execution_info,
+            standalone_mode=standalone_mode,
+            skip_pip_venv_install=skip_pip_venv_install,
+            first_time=first_time,
+        )
+
+        # print message so users know they can enable cache
+        if not self.package_api.is_cached_enabled():
+            print('::: Python virtual environment cache is DISABLED. '
+                  'To accelerate spin-up time set `agent.venvs_cache.path=~/.clearml/venvs-cache` :::\n')
+
+        # check if we have a cached folder
+        if cached_requirements and not skip_pip_venv_install and self.package_api.get_cached_venv(
+            requirements=cached_requirements,
+            docker_cmd=execution_info.docker_cmd if execution_info else None,
+            python_version=self.package_api.python,
+            cuda_version=self._session.config.get("agent.cuda_version"),
+            destination_folder=Path(venv_dir)
+        ):
+            print('::: Using Cached environment {} :::'.format(self.package_api.get_last_used_entry_cache()))
+            return venv_dir, requirements_manager, True
+
+        # create the initial venv
+        if not skip_pip_venv_install:
+            if call_package_manager_create:
+                self.package_api.create()
+        else:
+            if not venv_dir.exists():
+                venv_dir.mkdir(parents=True, exist_ok=True)
+
+        return venv_dir, requirements_manager, False
+
+    def _setup_package_api(
+        self, executable_name, executable_version_suffix, venv_dir, execution_info,
+        standalone_mode, skip_pip_venv_install=False, first_time=False
+    ):
+        # type: (str, str, Path, ExecutionInfo, bool, bool, bool) -> Tuple[bool, RequirementsManager]
         requirements_manager = self._get_requirements_manager(
             base_interpreter=executable_name
         )
-
-        if not standalone_mode:
-            rm_tree(normalize_path(venv_dir, WORKING_REPOSITORY_DIR))
 
         package_manager_params = dict(
             session=self._session,
@@ -2950,7 +3363,6 @@ class Worker(ServiceCommandSection):
         )
 
         call_package_manager_create = False
-
         if not self.is_conda:
             if standalone_mode or skip_pip_venv_install:
                 # pip with standalone mode
@@ -2958,7 +3370,14 @@ class Worker(ServiceCommandSection):
                 if standalone_mode:
                     self.package_api = VirtualenvPip(**package_manager_params)
                 else:
-                    self.package_api = self.global_package_api
+                    if not Path(executable_name).is_file():
+                        executable_name_path = find_executable(executable_name)
+                        print("Interpreter '{}' found at '{}'".format(executable_name, executable_name_path))
+                        executable_name = executable_name_path
+                    # we can change it, no one is going to use it anyhow
+                    package_manager_params['path'] = None
+                    package_manager_params['interpreter'] = executable_name
+                    self.package_api = VirtualenvPip(**package_manager_params)
             else:
                 if self.is_venv_update:
                     self.package_api = VenvUpdateAPI(
@@ -2996,26 +3415,7 @@ class Worker(ServiceCommandSection):
                     venv_dir = new_venv_folder
                     self.package_api = get_conda(path=venv_dir)
 
-        # check if we have a cached folder
-        if cached_requirements and not skip_pip_venv_install and self.package_api.get_cached_venv(
-            requirements=cached_requirements,
-            docker_cmd=execution_info.docker_cmd if execution_info else None,
-            python_version=package_manager_params['python'],
-            cuda_version=self._session.config.get("agent.cuda_version"),
-            destination_folder=Path(venv_dir)
-        ):
-            print('::: Using Cached environment {} :::'.format(self.package_api.get_last_used_entry_cache()))
-            return venv_dir, requirements_manager, True
-
-        # create the initial venv
-        if not skip_pip_venv_install:
-            if call_package_manager_create:
-                self.package_api.create()
-        else:
-            if not venv_dir.exists():
-                venv_dir.mkdir(parents=True, exist_ok=True)
-
-        return venv_dir, requirements_manager, False
+        return call_package_manager_create, requirements_manager
 
     def parse_requirements(self, reqs_file=None, overrides=None):
         os = None
@@ -3052,7 +3452,7 @@ class Worker(ServiceCommandSection):
 
         print("Running in Docker{} mode (v19.03 and above) - using default docker image: {} {}\n".format(
             ' *standalone*' if self._standalone_mode else '', self._docker_image,
-            self._sanitize_docker_command(self._docker_arguments) or ''))
+            DockerArgsSanitizer.sanitize_docker_command(self._session, self._docker_arguments) or ''))
 
         temp_config = deepcopy(self._session.config)
         mounted_cache_dir = temp_config.get(
@@ -3062,11 +3462,10 @@ class Worker(ServiceCommandSection):
         mounted_vcs_cache = temp_config.get(
             "agent.docker_internal_mounts.vcs_cache", '/root/.clearml/vcs-cache')
         mounted_venv_dir = temp_config.get(
-            "agent.docker_internal_mounts.venv_build", '/root/.clearml/venvs-builds')
+            "agent.docker_internal_mounts.venv_build", '~/.clearml/venvs-builds')
         temp_config.put("sdk.storage.cache.default_base_dir", mounted_cache_dir)
         temp_config.put("agent.pip_download_cache.path", mounted_pip_dl_dir)
         temp_config.put("agent.vcs_cache.path", mounted_vcs_cache)
-        temp_config.put("agent.package_manager.system_site_packages", True)
         temp_config.put("agent.package_manager.conda_env_as_base_docker", False)
         temp_config.put("agent.default_python", "")
         temp_config.put("agent.python_binary", "")
@@ -3077,6 +3476,11 @@ class Worker(ServiceCommandSection):
                                            self._session.config.get("agent.git_user", None)))
         temp_config.put("agent.git_pass", (ENV_AGENT_GIT_PASS.get() or
                                            self._session.config.get("agent.git_pass", None)))
+
+        force_system_site_packages = ENV_FORCE_SYSTEM_SITE_PACKAGES.get()
+        force_system_site_packages = force_system_site_packages if force_system_site_packages is not None else True
+        if force_system_site_packages:
+            temp_config.put("agent.package_manager.system_site_packages", True)
 
         if temp_config.get("agent.venvs_cache.path", None):
             temp_config.put("agent.venvs_cache.path", '/root/.clearml/venvs-cache')
@@ -3089,7 +3493,7 @@ class Worker(ServiceCommandSection):
                     '-v', '{}:{}'.format(ENV_SSH_AUTH_SOCK.get(), ENV_SSH_AUTH_SOCK.get()),
                     '-e', ssh_auth_sock_env,
                 ]
-        elif ENV_AGENT_DISABLE_SSH_MOUNT.get():
+        elif ENV_AGENT_DISABLE_SSH_MOUNT.get() or self._session.config.get("agent.disable_ssh_mount", None):
             self._host_ssh_cache = None
         else:
             self._host_ssh_cache = mkdtemp(prefix='clearml_agent.ssh.')
@@ -3100,27 +3504,36 @@ class Worker(ServiceCommandSection):
         )
 
     def _get_docker_config_cmd(self, temp_config, clean_api_credentials=False, **kwargs):
+        self.debug("Setting up docker config command")
         host_cache = Path(os.path.expandvars(
             self._session.config["sdk.storage.cache.default_base_dir"])).expanduser().as_posix()
+        self.debug("host_cache: {}".format(host_cache))
         host_pip_dl = Path(os.path.expandvars(
             self._session.config["agent.pip_download_cache.path"])).expanduser().as_posix()
+        self.debug("host_pip_dl: {}".format(host_pip_dl))
         host_vcs_cache = Path(os.path.expandvars(
             self._session.config["agent.vcs_cache.path"])).expanduser().as_posix()
+        self.debug("host_vcs_cache: {}".format(host_vcs_cache))
         host_venvs_cache = Path(os.path.expandvars(
             self._session.config["agent.venvs_cache.path"])).expanduser().as_posix() \
             if self._session.config.get("agent.venvs_cache.path", None) else None
+        self.debug("host_venvs_cache: {}".format(host_venvs_cache))
         host_ssh_cache = self._host_ssh_cache
+        self.debug("host_ssh_cache: {}".format(host_ssh_cache))
 
         host_apt_cache = Path(os.path.expandvars(self._session.config.get(
             "agent.docker_apt_cache", '~/.clearml/apt-cache'))).expanduser().as_posix()
+        self.debug("host_apt_cache: {}".format(host_apt_cache))
         host_pip_cache = Path(os.path.expandvars(self._session.config.get(
             "agent.docker_pip_cache", '~/.clearml/pip-cache'))).expanduser().as_posix()
+        self.debug("host_pip_cache: {}".format(host_pip_cache))
 
         if self.poetry.enabled:
             host_poetry_cache = Path(os.path.expandvars(self._session.config.get(
                 "agent.docker_poetry_cache", '~/.clearml/poetry-cache'))).expanduser().as_posix()
         else:
             host_poetry_cache = None
+        self.debug("host_poetry_cache: {}".format(host_poetry_cache))
 
         # make sure all folders are valid
         if host_apt_cache:
@@ -3148,8 +3561,16 @@ class Worker(ServiceCommandSection):
                     shutil.rmtree(host_ssh_cache, ignore_errors=True)
                 shutil.copytree(Path('~/.ssh').expanduser().as_posix(), host_ssh_cache)
             except Exception:
-                host_ssh_cache = None
-                self.log.warning('Failed creating temporary copy of ~/.ssh for git credential')
+                # if we failed to copy / delete, let's see if we
+                self.log.warning('Failed creating temporary copy of ~/.ssh for git credential, '
+                                 'creating a new temp folder')
+                # noinspection PyBroadException
+                try:
+                    host_ssh_cache = mkdtemp(prefix='clearml_agent.ssh.')
+                    shutil.copytree(Path('~/.ssh').expanduser().as_posix(), host_ssh_cache)
+                except Exception:
+                    self.log.warning('Failed creating temporary copy of ~/.ssh for git credential, removing mount!')
+                    host_ssh_cache = None
 
         # check if the .git credentials exist:
         try:
@@ -3179,6 +3600,7 @@ class Worker(ServiceCommandSection):
         mounted_vcs_cache = temp_config.get("agent.vcs_cache.path")
         mounted_venvs_cache = temp_config.get("agent.venvs_cache.path", "")
         mount_ssh = temp_config.get("agent.docker_internal_mounts.ssh_folder", None)
+        mount_ssh_ro = temp_config.get("agent.docker_internal_mounts.ssh_ro_folder", None)
         mount_apt_cache = temp_config.get("agent.docker_internal_mounts.apt_cache", None)
         mount_pip_cache = temp_config.get("agent.docker_internal_mounts.pip_cache", None)
         mount_poetry_cache = temp_config.get("agent.docker_internal_mounts.poetry_cache", None)
@@ -3189,7 +3611,7 @@ class Worker(ServiceCommandSection):
 
         docker_cmd = dict(
             worker_id=self.worker_id,
-            parent_worker_id=self.worker_id,
+            parent_worker_id=self.parent_worker_id or self.worker_id,
             # docker_image=docker_image,
             # docker_arguments=docker_arguments,
             extra_docker_arguments=self._extra_docker_arguments,
@@ -3210,6 +3632,7 @@ class Worker(ServiceCommandSection):
             preprocess_bash_script=preprocess_bash_script,
             install_opencv_libs=install_opencv_libs,
             mount_ssh=mount_ssh,
+            mount_ssh_ro=mount_ssh_ro,
             mount_apt_cache=mount_apt_cache,
             mount_pip_cache=mount_pip_cache,
             mount_poetry_cache=mount_poetry_cache,
@@ -3221,15 +3644,11 @@ class Worker(ServiceCommandSection):
     def _get_child_agents_count_for_worker(self):
         """Get the amount of running child agents. In case of any error return 0"""
         parent_worker_label = self._parent_worker_label.format(self.worker_id)
-        cmd = [
-            'docker',
-            'ps',
-            '--filter',
-            'label={}'.format(parent_worker_label),
-            '--format',
-            # get some fields for debugging
-            '{"ID":"{{ .ID }}", "Image": "{{ .Image }}", "Names":"{{ .Names }}", "Labels":"{{ .Labels }}"}'
-        ]
+
+        default_cmd = 'docker ps --filter label={parent_worker_label} --format {{{{.ID}}}}'
+        child_agents_cmd = ENV_CHILD_AGENTS_COUNT_CMD.get() or default_cmd
+
+        cmd = shlex.split(child_agents_cmd.format(parent_worker_label=parent_worker_label))
         try:
             output = Argv(*cmd).get_output(
                 stderr=subprocess.STDOUT
@@ -3240,9 +3659,33 @@ class Worker(ServiceCommandSection):
 
         return len(output.splitlines()) if output else 0
 
-    @classmethod
+    def _filter_docker_args(self, docker_args):
+        # type: (List[str]) -> List[str]
+        """
+        Filter docker args matching specific flags.
+        Supports list of Regular expressions, e.g self._docker_args_filters = ["^--env$", "^-e$"]
+
+        :argument docker_args: List of docker argument strings (flags and values)
+        """
+        # if no filtering, do nothing
+        if not docker_args or not self._docker_args_filters:
+            return docker_args
+
+        args = docker_args[:]
+        results = []
+        while args:
+            cmd = args.pop(0).strip()
+            if any(f.match(cmd) for f in self._docker_args_filters):
+                results.append(cmd)
+                if "=" not in cmd and args and not args[0].startswith("-"):
+                    try:
+                        results.append(args.pop(0).strip())
+                    except IndexError:
+                        pass
+        return results
+
     def _get_docker_cmd(
-            cls,
+            self,
             worker_id, parent_worker_id,
             docker_image, docker_arguments,
             python_version,
@@ -3264,17 +3707,19 @@ class Worker(ServiceCommandSection):
             auth_token=None,
             worker_tags=None,
             name=None,
-            mount_ssh=None, mount_apt_cache=None, mount_pip_cache=None, mount_poetry_cache=None,
+            mount_ssh=None, mount_ssh_ro=None, mount_apt_cache=None, mount_pip_cache=None, mount_poetry_cache=None,
+            env_task_id=None,
     ):
+        self.debug("Constructing docker command", context="docker")
         docker = 'docker'
 
         base_cmd = [docker, 'run', '-t']
         update_scheme = ""
         dockers_nvidia_visible_devices = 'all'
-        gpu_devices = os.environ.get('NVIDIA_VISIBLE_DEVICES', None)
+        gpu_devices = Session.get_nvidia_visible_env()
         if gpu_devices is None or gpu_devices.lower().strip() == 'all':
             if ENV_DOCKER_SKIP_GPUS_FLAG.get():
-                dockers_nvidia_visible_devices = os.environ.get('NVIDIA_VISIBLE_DEVICES') or \
+                dockers_nvidia_visible_devices = Session.get_nvidia_visible_env() or \
                                                  dockers_nvidia_visible_devices
             else:
                 base_cmd += ['--gpus', 'all', ]
@@ -3282,7 +3727,8 @@ class Worker(ServiceCommandSection):
             if ENV_DOCKER_SKIP_GPUS_FLAG.get():
                 dockers_nvidia_visible_devices = gpu_devices
             else:
-                base_cmd += ['--gpus', '\"device={}\"'.format(gpu_devices), ]
+                # replace back "." to ":" MIG support
+                base_cmd += ['--gpus', '\"device={}\"'.format(gpu_devices.replace(".", ":")), ]
             # We are using --gpu, so we should not pass NVIDIA_VISIBLE_DEVICES, I think.
             # base_cmd += ['-e', 'NVIDIA_VISIBLE_DEVICES=' + gpu_devices, ]
         elif gpu_devices.strip() == 'none':
@@ -3291,6 +3737,7 @@ class Worker(ServiceCommandSection):
         if docker_arguments:
             docker_arguments = list(docker_arguments) \
                 if isinstance(docker_arguments, (list, tuple)) else [docker_arguments]
+            docker_arguments = self._filter_docker_args(docker_arguments)
             base_cmd += [a for a in docker_arguments if a]
 
         if extra_docker_arguments:
@@ -3299,8 +3746,10 @@ class Worker(ServiceCommandSection):
             base_cmd += [str(a) for a in extra_docker_arguments if a]
 
         # set docker labels
-        base_cmd += ['-l', cls._worker_label.format(worker_id)]
-        base_cmd += ['-l', cls._parent_worker_label.format(parent_worker_id)]
+        base_cmd += ['-l', self._worker_label.format(worker_id)]
+        base_cmd += ['-l', self._parent_worker_label.format(parent_worker_id)]
+
+        self.debug("Command: {}".format(base_cmd), context="docker")
 
         # check if running inside a kubernetes
         if ENV_DOCKER_HOST_MOUNT.get() or (os.environ.get('KUBERNETES_SERVICE_HOST') and
@@ -3317,6 +3766,8 @@ class Worker(ServiceCommandSection):
                     pass
             base_cmd += ['-e', 'NVIDIA_VISIBLE_DEVICES={}'.format(dockers_nvidia_visible_devices)]
 
+            self.debug("Running in k8s: {}".format(base_cmd), context="docker")
+
         # check if we need to map host folders
         if ENV_DOCKER_HOST_MOUNT.get():
             # expect CLEARML_AGENT_K8S_HOST_MOUNT = '/mnt/host/data:/root/.clearml'
@@ -3324,6 +3775,7 @@ class Worker(ServiceCommandSection):
             # search and replace all the host folders with the k8s
             host_mounts = [host_apt_cache, host_pip_cache, host_poetry_cache, host_pip_dl,
                            host_cache, host_vcs_cache, host_venvs_cache]
+            self.debug("Mapping host mounts: {}".format(host_mounts), context="docker")
             for i, m in enumerate(host_mounts):
                 if not m:
                     continue
@@ -3332,6 +3784,7 @@ class Worker(ServiceCommandSection):
                     host_mounts[i] = None
                 else:
                     host_mounts[i] = m.replace(k8s_pod_mnt, k8s_node_mnt, 1)
+            self.debug("Mapped host mounts: {}".format(host_mounts), context="docker")
             host_apt_cache, host_pip_cache, host_poetry_cache, host_pip_dl, \
                 host_cache, host_vcs_cache, host_venvs_cache = host_mounts
 
@@ -3345,6 +3798,8 @@ class Worker(ServiceCommandSection):
             except Exception:
                 raise ValueError('Error: could not copy configuration file into: {}'.format(new_conf_file))
 
+            self.debug("Config file target: {}, host: {}".format(new_conf_file, conf_file), context="docker")
+
             if host_ssh_cache:
                 new_ssh_cache = os.path.join(k8s_pod_mnt, '.clearml_agent.{}.ssh'.format(quote(worker_id, safe="")))
                 try:
@@ -3353,10 +3808,14 @@ class Worker(ServiceCommandSection):
                     host_ssh_cache = new_ssh_cache.replace(k8s_pod_mnt, k8s_node_mnt)
                 except Exception:
                     raise ValueError('Error: could not copy .ssh directory into: {}'.format(new_ssh_cache))
+                self.debug("Copied host SSH cache to: {}, host {}".format(new_ssh_cache, host_ssh_cache), context="docker")
 
         base_cmd += ['-e', 'CLEARML_WORKER_ID='+worker_id, ]
         # update the docker image, so the system knows where it runs
         base_cmd += ['-e', 'CLEARML_DOCKER_IMAGE={} {}'.format(docker_image, ' '.join(docker_arguments or [])).strip()]
+
+        if env_task_id:
+            base_cmd += ['-e', 'CLEARML_TASK_ID={}'.format(env_task_id), ]
 
         if auth_token:
             # if auth token is passed then put it in the env var
@@ -3380,10 +3839,9 @@ class Worker(ServiceCommandSection):
         except:
             pass
 
-        agent_install_bash_script = []
         if os.environ.get('FORCE_LOCAL_CLEARML_AGENT_WHEEL'):
             local_wheel = os.path.expanduser(os.environ.get('FORCE_LOCAL_CLEARML_AGENT_WHEEL'))
-            docker_wheel = str(Path('/tmp') / Path(local_wheel).name)
+            docker_wheel = '/tmp/{}'.format(basename(local_wheel))
             base_cmd += ['-v', local_wheel + ':' + docker_wheel]
             clearml_agent_wheel = '\"{}\"'.format(docker_wheel)
         elif os.environ.get('FORCE_CLEARML_AGENT_REPO'):
@@ -3391,6 +3849,12 @@ class Worker(ServiceCommandSection):
         else:
             # clearml-agent{specify_version}
             clearml_agent_wheel = 'clearml-agent{specify_version}'.format(specify_version=specify_version)
+
+        mount_ssh = mount_ssh or '/root/.ssh'
+        mount_ssh_ro = mount_ssh_ro or "{}_ro".format(mount_ssh.rstrip("/"))
+        mount_apt_cache = mount_apt_cache or '/var/cache/apt/archives'
+        mount_pip_cache = mount_pip_cache or '/root/.cache/pip'
+        mount_poetry_cache = mount_poetry_cache or '/root/.cache/pypoetry'
 
         if not standalone_mode:
             if not bash_script:
@@ -3402,20 +3866,18 @@ class Worker(ServiceCommandSection):
                     "export DEBIAN_FRONTEND=noninteractive",
                     "export CLEARML_APT_INSTALL=\"$CLEARML_APT_INSTALL{}\"".format(
                         ' libsm6 libxext6 libxrender-dev libglib2.0-0' if install_opencv_libs else ""),
+                    "cp -Rf {mount_ssh_ro} -T {mount_ssh}" if host_ssh_cache else "",
                     "[ ! -z $(which git) ] || export CLEARML_APT_INSTALL=\"$CLEARML_APT_INSTALL git\"",
                     "declare LOCAL_PYTHON",
-                    "for i in {{10..5}}; do which {python_single_digit}.$i && " +
+                    "[ ! -z $LOCAL_PYTHON ] || for i in {{15..5}}; do which {python_single_digit}.$i && " +
                     "{python_single_digit}.$i -m pip --version && " +
                     "export LOCAL_PYTHON=$(which {python_single_digit}.$i) && break ; done",
                     "[ ! -z $LOCAL_PYTHON ] || export CLEARML_APT_INSTALL=\"$CLEARML_APT_INSTALL {python_single_digit}-pip\"",  # noqa
-                    "[ -z \"$CLEARML_APT_INSTALL\" ] || (apt-get update && apt-get install -y $CLEARML_APT_INSTALL)",
+                    "[ -z \"$CLEARML_APT_INSTALL\" ] || (apt-get update -y ; apt-get install -y $CLEARML_APT_INSTALL)",
                 ]
 
             if preprocess_bash_script:
                 bash_script = preprocess_bash_script + bash_script
-
-            if agent_install_bash_script:
-                bash_script += agent_install_bash_script
 
             docker_bash_script = " ; ".join([line for line in bash_script if line]) \
                 if not isinstance(bash_script, str) else bash_script
@@ -3425,11 +3887,13 @@ class Worker(ServiceCommandSection):
             update_scheme += (
                     docker_bash_script + " ; " +
                     "[ ! -z $LOCAL_PYTHON ] || export LOCAL_PYTHON={python} ; " +
-                    "$LOCAL_PYTHON -m pip install -U \"pip{pip_version}\" ; " +
+                    "$LOCAL_PYTHON -m pip install -U {pip_version} ; " +
                     "$LOCAL_PYTHON -m pip install -U {clearml_agent_wheel} ; ").format(
                 python_single_digit=python_version.split('.')[0],
-                python=python_version, pip_version=PackageManager.get_pip_version(),
-                clearml_agent_wheel=clearml_agent_wheel)
+                python=python_version, pip_version=" ".join(PackageManager.get_pip_versions(wrap='\"')),
+                clearml_agent_wheel=clearml_agent_wheel,
+                mount_ssh_ro=mount_ssh_ro, mount_ssh=mount_ssh,
+            )
 
         if host_git_credentials:
             for git_credentials in host_git_credentials:
@@ -3437,19 +3901,24 @@ class Worker(ServiceCommandSection):
 
         if docker_bash_setup_script and docker_bash_setup_script.strip('\n '):
             extra_shell_script = (extra_shell_script or '') + \
-                ' ; '.join(line.strip().replace('\"', '\\\"')
+                ' ; '.join(line.strip()
                            for line in docker_bash_setup_script.split('\n') if line.strip()) + \
                 ' ; '
 
-        mount_ssh = mount_ssh or '/root/.ssh'
-        mount_apt_cache = mount_apt_cache or '/var/cache/apt/archives'
-        mount_pip_cache = mount_pip_cache or '/root/.cache/pip'
-        mount_poetry_cache = mount_poetry_cache or '/root/.cache/pypoetry'
+        self.debug(
+            "Adding mounts: host_ssh_cache={}, host_apt_cache={}, host_pip_cache={}, host_poetry_cache={}, "
+            "host_pip_dl={}, host_cache={}, host_vcs_cache={}, host_venvs_cache={}".format(
+                host_ssh_cache, host_apt_cache, host_pip_cache, host_poetry_cache, host_pip_dl, host_cache,
+                host_vcs_cache, host_venvs_cache,
+            ),
+            context="docker"
+        )
 
         base_cmd += (
             (['--name', name] if name else []) +
             ['-v', conf_file+':'+DOCKER_ROOT_CONF_FILE] +
-            (['-v', host_ssh_cache+':'+mount_ssh] if host_ssh_cache else []) +
+            ['-e', "CLEARML_CONFIG_FILE={}".format(DOCKER_ROOT_CONF_FILE)] +
+            (['-v', host_ssh_cache+':'+mount_ssh_ro] if host_ssh_cache else []) +
             (['-v', host_apt_cache+':'+mount_apt_cache] if host_apt_cache else []) +
             (['-v', host_pip_cache+':'+mount_pip_cache] if host_pip_cache else []) +
             (['-v', host_poetry_cache + ':'+mount_poetry_cache] if host_poetry_cache else []) +
@@ -3539,18 +4008,26 @@ class Worker(ServiceCommandSection):
         # patch venv folder to new location
         script_dir = script_dir.replace(venv_folder, new_venv_folder)
         # New command line execution
-        command = RunasArgv('bash', '-c', 'HOME=\"{}\" PATH=\"{}\" PYTHONPATH=\"{}\" TRAINS_CONFIG_FILE={} {}'.format(
-            home_folder,
-            os.environ.get('PATH', '').replace(venv_folder, new_venv_folder),
-            os.environ.get('PYTHONPATH', '').replace(venv_folder, new_venv_folder),
-            user_trains_conf,
-            command.serialize().replace(venv_folder, new_venv_folder)))
+        command = RunasArgv(
+            'bash', '-c',
+            'HOME=\"{}\" PATH=\"{}\" PYTHONPATH=\"{}\" '
+            'TRAINS_CONFIG_FILE={} CLEARML_CONFIG_FILE={} {}'.format(
+                home_folder,
+                os.environ.get('PATH', '').replace(venv_folder, new_venv_folder),
+                os.environ.get('PYTHONPATH', '').replace(venv_folder, new_venv_folder),
+                user_trains_conf, user_trains_conf,
+                command.serialize().replace(venv_folder, new_venv_folder)
+            )
+        )
         command.set_uid(user_uid=user_uid, user_gid=user_uid)
 
         return command, script_dir
 
-    def _kill_daemon(self, dynamic_gpus=False):
-        worker_id, worker_name = self._generate_worker_id_name(dynamic_gpus=dynamic_gpus)
+    def _kill_daemon(self, dynamic_gpus=False, worker_id=None):
+        if not worker_id:
+            worker_id, worker_name = self._generate_worker_id_name(dynamic_gpus=dynamic_gpus)
+        else:
+            worker_name = worker_id
 
         # Iterate over all running process
         for pid, uid, slot, file in sorted(Singleton.get_running_pids(), key=lambda x: x[1] or ''):
@@ -3587,6 +4064,9 @@ class Worker(ServiceCommandSection):
             unique_worker_id=worker_id, worker_name=worker_name, api_client=self._session.api_client,
             allow_double=bool(ENV_DOCKER_HOST_MOUNT.get())  # and bool(self._services_mode),
         )
+        #  set the parent ID the first time we have a worker ID (it might change for services-mode / dgpus)
+        if not self.parent_worker_id:
+            self.parent_worker_id = self.worker_id
 
         if self.worker_id is None:
             error('Instance with the same WORKER_ID [{}] is already running'.format(worker_id))
@@ -3597,8 +4077,8 @@ class Worker(ServiceCommandSection):
     def _generate_worker_id_name(self, dynamic_gpus=False):
         worker_id = self._session.config["agent.worker_id"]
         worker_name = self._session.config["agent.worker_name"]
-        if not worker_id and os.environ.get('NVIDIA_VISIBLE_DEVICES') is not None:
-            nvidia_visible_devices = os.environ.get('NVIDIA_VISIBLE_DEVICES')
+        if not worker_id and Session.get_nvidia_visible_env() is not None:
+            nvidia_visible_devices = Session.get_nvidia_visible_env()
             if nvidia_visible_devices and nvidia_visible_devices.lower() != 'none':
                 worker_id = '{}:{}gpu{}'.format(
                     worker_name, 'd' if dynamic_gpus else '', nvidia_visible_devices)
@@ -3633,79 +4113,24 @@ class Worker(ServiceCommandSection):
         return queue_ids
 
     @staticmethod
-    def _sanitize_urls(s: str) -> Tuple[str, bool]:
-        """ Replaces passwords in URLs with asterisks """
-        regex = re.compile("^([^:]*:)[^@]+(.*)$")
-        tokens = re.split(r"\s", s)
-        changed = False
-        for k in range(len(tokens)):
-            if "@" in tokens[k]:
-                res = urlparse(tokens[k])
-                if regex.match(res.netloc):
-                    changed = True
-                    tokens[k] = urlunparse((
-                        res.scheme,
-                        regex.sub("\\1********\\2", res.netloc),
-                        res.path,
-                        res.params,
-                        res.query,
-                        res.fragment
-                    ))
-        return " ".join(tokens) if changed else s, changed
-
-    def _sanitize_docker_command(self, docker_command):
-        # type: (List[str]) -> List[str]
-        if not docker_command:
-            return docker_command
-        if not self._session.config.get('agent.hide_docker_command_env_vars.enabled', False):
-            return docker_command
-
-        keys = set(self._session.config.get('agent.hide_docker_command_env_vars.extra_keys', []))
-        keys.update(
-            ENV_AGENT_GIT_PASS.vars,
-            ENV_AGENT_SECRET_KEY.vars,
-            ENV_AWS_SECRET_KEY.vars,
-            ENV_AZURE_ACCOUNT_KEY.vars,
-            ENV_AGENT_AUTH_TOKEN.vars,
-        )
-
-        parse_embedded_urls = bool(self._session.config.get(
-            'agent.hide_docker_command_env_vars.parse_embedded_urls', True
-        ))
-
-        skip_next = False
-        result = docker_command[:]
-        for i, item in enumerate(docker_command):
-            if skip_next:
-                skip_next = False
-                continue
-            try:
-                if item in ("-e", "--env"):
-                    key, sep, val = result[i + 1].partition("=")
-                    if not sep:
-                        continue
-                    if key in ENV_DOCKER_IMAGE.vars:
-                        # special case - this contains a complete docker command
-                        val = " ".join(self._sanitize_docker_command(re.split(r"\s", val)))
-                    elif key in keys:
-                        val = "********"
-                    elif parse_embedded_urls:
-                        val = self._sanitize_urls(val)[0]
-                    result[i + 1] = "{}={}".format(key, val)
-                    skip_next = True
-                elif parse_embedded_urls and not item.startswith("-"):
-                    item, changed = self._sanitize_urls(item)
-                    if changed:
-                        result[i] = item
-            except (KeyError, TypeError):
-                pass
-
-        return result
-
-    @staticmethod
     def _valid_docker_container_name(name):
         # type: (str) -> bool
         return re.fullmatch(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]+$", name) is not None
+
+    def _use_owner_token(self, use_owner_token=False):
+        self._impersonate_as_task_owner = use_owner_token
+        if self._impersonate_as_task_owner:
+            if not self._session.check_min_api_version("2.14"):
+                raise ValueError("Server does not support --use-owner-token option (incompatible API version)")
+            if self._session.feature_set == "basic":
+                raise ValueError("Server does not support --use-owner-token option")
+
+            role = self._session.get_decoded_token(self._session.token).get("identity", {}).get("role", None)
+            if role and role not in ["admin", "root", "system"]:
+                raise ValueError(
+                    "User role not suitable for --use-owner-token option (requires at least admin,"
+                    " found {})".format(role)
+                )
 
 
 if __name__ == "__main__":

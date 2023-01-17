@@ -20,13 +20,13 @@ from typing import Text, Dict, Any, Optional, AnyStr, IO, Union
 
 import attr
 import furl
-import pyhocon
 import yaml
 from attr import fields_dict
 from pathlib2 import Path
 
 import six
 from six.moves import reduce
+from clearml_agent.external import pyhocon
 from clearml_agent.errors import CommandFailedError
 from clearml_agent.helper.dicts import filter_keys
 
@@ -504,6 +504,38 @@ def rm_file(filename):  # type: (Union[Path, Text]) -> None
 
 def is_conda(config):
     return config['agent.package_manager.type'].lower() == 'conda'
+
+
+def convert_cuda_version_to_float_single_digit_str(cuda_version):
+    """
+    Convert a cuda_version (string/float/int) into a float representation, e.g. 11.4
+    Notice returns String Single digit only!
+    :return str:
+    """
+    cuda_version = str(cuda_version or 0)
+    # if we have patch version we parse it here
+    cuda_version_parts = [int(v) for v in cuda_version.split('.')]
+    if len(cuda_version_parts) > 1 or cuda_version_parts[0] < 60:
+        cuda_version = 10 * cuda_version_parts[0]
+        if len(cuda_version_parts) > 1:
+            cuda_version += float(".{:d}".format(cuda_version_parts[1]))*10
+
+        cuda_version_full = "{:.1f}".format(float(cuda_version) / 10.)
+    else:
+        cuda_version = cuda_version_parts[0]
+        cuda_version_full = "{:.1f}".format(float(cuda_version) / 10.)
+
+    return cuda_version_full
+
+
+def convert_cuda_version_to_int_10_base_str(cuda_version):
+    """
+    Convert a cuda_version (string/float/int) into an integer version, e.g. 112 for cuda 11.2
+    Return string
+    :return str:
+    """
+    cuda_version = convert_cuda_version_to_float_single_digit_str(cuda_version)
+    return str(int(float(cuda_version)*10))
 
 
 class NonStrictAttrs(object):

@@ -1,18 +1,19 @@
 from __future__ import print_function
 
-from six.moves import input
-from pyhocon import ConfigFactory, ConfigMissingException
+from typing import Dict, Optional
+
 from pathlib2 import Path
+from six.moves import input
 from six.moves.urllib.parse import urlparse
 
 from clearml_agent.backend_api.session import Session
 from clearml_agent.backend_api.session.defs import ENV_HOST
 from clearml_agent.backend_config.defs import LOCAL_CONFIG_FILES
-
+from clearml_agent.external.pyhocon import ConfigFactory, ConfigMissingException
 
 description = """
 Please create new clearml credentials through the settings page in your `clearml-server` web app, 
-or create a free account at https://app.clear.ml/webapp-configuration
+or create a free account at https://app.clear.ml/settings/webapp-configuration
     
 In the settings > workspace  page, press "Create new credentials", then press "Copy to clipboard".
 
@@ -27,9 +28,9 @@ except Exception:
 
 host_description = """
 Editing configuration file: {CONFIG_FILE}
-Enter the url of the clearml-server's Web service, for example: {HOST}
+Enter the url of the clearml-server's Web service, for example: {HOST} or https://app.clear.ml
 """.format(
-    CONFIG_FILE=LOCAL_CONFIG_FILES[0],
+    CONFIG_FILE=LOCAL_CONFIG_FILES[-1],
     HOST=def_host,
 )
 
@@ -84,7 +85,7 @@ def main():
         host = input_url('API Host', api_server)
     else:
         print(host_description)
-        host = input_url('WEB Host', '')
+        host = input_url('WEB Host', 'https://app.clear.ml')
 
     parsed_host = verify_url(host)
     api_host, files_host, web_host = parse_host(parsed_host, allow_input=True)
@@ -112,13 +113,34 @@ def main():
         print('Exiting setup without creating configuration file')
         return
 
+    selection = input_options(
+        'Default Output URI (used to automatically store models and artifacts)',
+        {'N': 'None', 'S': 'ClearML Server', 'C': 'Custom'},
+        default='None'
+    )
+    if selection == 'Custom':
+        print('Custom Default Output URI: ', end='')
+        default_output_uri = input().strip()
+    elif selection == "ClearML Server":
+        default_output_uri = files_host
+    else:
+        default_output_uri = None
+
+    print('\nDefault Output URI: {}'.format(default_output_uri if default_output_uri else 'not set'))
+
     # get GIT User/Pass for cloning
     print('Enter git username for repository cloning (leave blank for SSH key authentication): [] ', end='')
     git_user = input()
     if git_user.strip():
-        print('Enter password for user \'{}\': '.format(git_user), end='')
+        print(
+            "Git personal token is equivalent to a password, to learn how to generate a token:\n"
+            "  GitHub: https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token\n"  # noqa
+            "  Bitbucket: https://support.atlassian.com/bitbucket-cloud/docs/app-passwords/\n"
+            "  GitLab: https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html\n"
+        )
+        print('Enter git personal token for user \'{}\': '.format(git_user), end='')
         git_pass = input()
-        print('Git repository cloning will be using user={} password={}'.format(git_user, git_pass))
+        print('Git repository cloning will be using user={} token={}'.format(git_user, git_pass))
     else:
         git_user = None
         git_pass = None
@@ -173,6 +195,13 @@ def main():
                               'agent.package_manager.extra_index_url= ' \
                               '[\n{}\n]\n\n'.format("\n".join(map("\"{}\"".format, extra_index_urls)))
             f.write(extra_index_str)
+            if default_output_uri:
+                default_output_url_str = '# Default Task output_uri. if output_uri is not provided to Task.init, ' \
+                                         'default_output_uri will be used instead.\n' \
+                                         'sdk.development.default_output_uri="{}"\n' \
+                                         '\n'.format(default_output_uri.strip('"'))
+                f.write(default_output_url_str)
+                default_conf = default_conf.replace('default_output_uri: ""', '# default_output_uri: ""')
             f.write(default_conf)
     except Exception:
         print('Error! Could not write configuration file at: {}'.format(str(conf_file)))
@@ -297,6 +326,25 @@ def input_url(host_type, host=None):
             host = parsed_host.scheme + "://" + parsed_host.netloc + parsed_host.path
             break
     return host
+
+
+def input_options(message, options, default=None):
+    # type: (str, Dict[str, str], Optional[str]) -> str
+    options_msg = "/".join(
+        "".join(('(' + c.upper() + ')') if c == o else c for c in option)
+        for o, option in options.items()
+    )
+    if default:
+        options_msg += " [{}]".format(default)
+    while True:
+        print('{}: {} '.format(message, options_msg), end='')
+        res = input().strip()
+        if not res:
+            return default
+        elif res.lower() in options:
+            return options[res.lower()]
+        elif res.upper() in options:
+            return options[res.upper()]
 
 
 def input_host_port(host_type, parsed_host):
