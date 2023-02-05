@@ -949,5 +949,6 @@ class K8sIntegration(Worker):
         value = re.sub(r'^[^A-Za-z0-9]+', '', value)  # strip leading non-alphanumeric chars
         value = re.sub(r'[^A-Za-z0-9]+$', '', value)  # strip trailing non-alphanumeric chars
         value = re.sub(r'\W+', '-', value)  # allow only word chars (this removed "." which is supported, but nvm)
+        value = re.sub(r'_+', '-', value)  # "_" is not allowed as well
         value = re.sub(r'-+', '-', value)  # don't leave messy "--" after replacing previous chars
         return value[:63]
