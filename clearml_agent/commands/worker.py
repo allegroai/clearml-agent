@@ -1986,6 +1986,10 @@ class Worker(ServiceCommandSection):
     ):
         if not task_id:
             raise CommandFailedError("Worker build must have valid task id")
+        
+        if target and not os.path.isabs(target):
+            # Non absolute target path will lead to errors with relative python executable
+            target = os.path.abspath(target)
 
         self._session.print_configuration()
 
