@@ -1967,6 +1967,11 @@ class Worker(ServiceCommandSection):
             except Exception as ex:
                 print("Error: failed applying files from configuration: {}".format(ex))
 
+        try:
+            self._session.update_default_api_method()
+        except Exception as ex:
+            print("Error: failed updating default API method: {}".format(ex))
+
     @resolve_names
     def build(
         self,

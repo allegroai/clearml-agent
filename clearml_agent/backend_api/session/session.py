@@ -112,18 +112,7 @@ class Session(TokenManager):
         self._logger = logger
         self.__auth_token = None
 
-        if ENV_API_DEFAULT_REQ_METHOD.get(default=None):
-            # Make sure we update the config object, so we pass it into the new containers when we map them
-            self.config.put("api.http.default_method", ENV_API_DEFAULT_REQ_METHOD.get())
-            # notice the default setting of Request.def_method are already set by the OS environment
-        elif self.config.get("api.http.default_method", None):
-            def_method = str(self.config.get("api.http.default_method", None)).strip()
-            if def_method.upper() not in ("GET", "POST", "PUT"):
-                raise ValueError(
-                    "api.http.default_method variable must be 'get' or 'post' (any case is allowed)."
-                )
-            Request.def_method = def_method
-            Request._method = Request.def_method
+        self.update_default_api_method()
 
         if ENV_AUTH_TOKEN.get(
             value_cb=lambda key, value: print("Using environment access token {}=********".format(key))
@@ -223,7 +212,22 @@ class Session(TokenManager):
 
         return http_retries_config, get_http_session_with_retry(config=self.config or None, **http_retries_config)
 
+    def update_default_api_method(self):
+        if ENV_API_DEFAULT_REQ_METHOD.get(default=None):
+            # Make sure we update the config object, so we pass it into the new containers when we map them
+            self.config.put("api.http.default_method", ENV_API_DEFAULT_REQ_METHOD.get())
+            # notice the default setting of Request.def_method are already set by the OS environment
+        elif self.config.get("api.http.default_method", None):
+            def_method = str(self.config.get("api.http.default_method", None)).strip()
+            if def_method.upper() not in ("GET", "POST", "PUT"):
+                raise ValueError(
+                    "api.http.default_method variable must be 'get', 'post' or 'put' (any case is allowed)."
+                )
+            Request.def_method = def_method
+            Request._method = Request.def_method
+
     def load_vaults(self):
+        # () -> Optional[bool]
         if not self.check_min_api_version("2.15") or self.feature_set == "basic":
             return
 
@@ -244,12 +248,14 @@ class Session(TokenManager):
 
         # noinspection PyBroadException
         try:
-            res = self.send_request("users", "get_vaults", json={"enabled": True, "types": ["config"]})
+            # Use params and not data/json otherwise payload might be dropped if we're using GET with a strict firewall
+            res = self.send_request("users", "get_vaults", params="enabled=true&types=config&types=config")
             if res.ok:
                 vaults = res.json().get("data", {}).get("vaults", [])
                 data = list(filter(None, map(parse, vaults)))
                 if data:
                     self.config.set_overrides(*data)
+                    return True
             elif res.status_code != 404:
                 raise Exception(res.json().get("meta", {}).get("result_msg", res.text))
         except Exception as ex:
@@ -272,6 +278,7 @@ class Session(TokenManager):
         data=None,
         json=None,
         refresh_token_if_unauthorized=True,
+        params=None,
     ):
         """ Internal implementation for making a raw API request.
             - Constructs the api endpoint name
@@ -303,7 +310,7 @@ class Session(TokenManager):
             else:
                 timeout = self._session_timeout
             res = self.__http_session.request(
-                method, url, headers=headers, auth=auth, data=data, json=json, timeout=timeout)
+                method, url, headers=headers, auth=auth, data=data, json=json, timeout=timeout, params=params)
 
             if (
                 refresh_token_if_unauthorized
@@ -348,6 +355,7 @@ class Session(TokenManager):
         data=None,
         json=None,
         async_enable=False,
+        params=None,
     ):
         """
         Send a raw API request.
@@ -360,6 +368,7 @@ class Session(TokenManager):
                      content type will be application/json)
         :param data: Dictionary, bytes, or file-like object to send in the request body
         :param async_enable: whether request is asynchronous
+        :param params: additional query parameters
         :return: requests Response instance
         """
         headers = self.add_auth_headers(
@@ -376,6 +385,7 @@ class Session(TokenManager):
             headers=headers,
             data=data,
             json=json,
+            params=params,
         )
 
     def send_request_batch(
@@ -628,15 +638,14 @@ class Session(TokenManager):
 
         res = None
         try:
-            data = {"expiration_sec": exp} if exp else {}
             res = self._send_request(
                 method=Request.def_method,
                 service="auth",
                 action="login",
                 auth=auth,
-                json=data,
                 headers=headers,
                 refresh_token_if_unauthorized=False,
+                params={"expiration_sec": exp} if exp else {},
             )
             try:
                 resp = res.json()
