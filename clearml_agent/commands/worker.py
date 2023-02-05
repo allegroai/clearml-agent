@@ -69,6 +69,7 @@ from clearml_agent.definitions import (
     ENV_CHILD_AGENTS_COUNT_CMD,
     ENV_DOCKER_ARGS_FILTERS,
     ENV_FORCE_SYSTEM_SITE_PACKAGES,
+    ENV_SERVICES_DOCKER_RESTART,
 )
 from clearml_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
 from clearml_agent.errors import (
@@ -3723,6 +3724,16 @@ class Worker(ServiceCommandSection):
         docker = 'docker'
 
         base_cmd = [docker, 'run', '-t']
+
+        if ENV_SERVICES_DOCKER_RESTART.get():
+            value = ENV_SERVICES_DOCKER_RESTART.get().strip()
+            if value in ("unless-stopped", "no", "always") or value.startswith("on-failure"):
+                base_cmd += ["--restart", value]
+            else:
+                self.log.error(
+                    "Invalid value \"{}\" provided for {}, ignoring".format(value, ENV_SERVICES_DOCKER_RESTART.vars[0])
+                )
+
         update_scheme = ""
         dockers_nvidia_visible_devices = 'all'
         gpu_devices = Session.get_nvidia_visible_env()
