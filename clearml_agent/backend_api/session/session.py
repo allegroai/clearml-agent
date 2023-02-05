@@ -2,13 +2,16 @@
 import json as json_lib
 import os
 import sys
+import time
 import types
+from random import SystemRandom
 from socket import gethostname
 from typing import Optional
 
 import jwt
 import requests
 import six
+from requests import RequestException
 from requests.auth import HTTPBasicAuth
 from six.moves.urllib.parse import urlparse, urlunparse
 
@@ -24,6 +27,9 @@ from ..config import load
 from ..utils import get_http_session_with_retry, urllib_log_warning_setup
 from ...backend_config.environment import backward_compatibility_support
 from ...version import __version__
+
+
+sys_random = SystemRandom()
 
 
 class LoginError(Exception):
@@ -49,6 +55,7 @@ class Session(TokenManager):
     _session_initial_retry_connect_override = 4
     _write_session_data_size = 15000
     _write_session_timeout = (30.0, 30.)
+    _request_exception_retry_timeout = (2.0, 3.0)
 
     api_version = '2.1'
     feature_set = 'basic'
@@ -111,6 +118,7 @@ class Session(TokenManager):
         self._verbose = verbose if verbose is not None else ENV_VERBOSE.get()
         self._logger = logger
         self.__auth_token = None
+        self._propagate_exceptions_on_send = True
 
         self.update_default_api_method()
 
@@ -167,6 +175,10 @@ class Session(TokenManager):
         )
         # try to connect with the server
         self.refresh_token()
+
+        # for resilience, from now on we won't allow propagating exceptions when sending requests
+        self._propagate_exceptions_on_send = False
+
         # create the default session with many retries
         http_retries_config, self.__http_session = self._setup_session(http_retries_config)
 
@@ -302,6 +314,7 @@ class Session(TokenManager):
             if version
             else "{host}/{service}.{action}"
         ).format(**locals())
+
         while True:
             if data and len(data) > self._write_session_data_size:
                 timeout = self._write_session_timeout
@@ -309,16 +322,29 @@ class Session(TokenManager):
                 timeout = self._session_initial_timeout
             else:
                 timeout = self._session_timeout
-            res = self.__http_session.request(
-                method, url, headers=headers, auth=auth, data=data, json=json, timeout=timeout, params=params)
+
+            try:
+                res = self.__http_session.request(
+                    method, url, headers=headers, auth=auth, data=data, json=json, timeout=timeout, params=params)
+            except RequestException as ex:
+                if self._propagate_exceptions_on_send:
+                    raise
+                sleep_time = sys_random.uniform(*self._request_exception_retry_timeout)
+                self._logger.error(
+                    "{} exception sending {} {}: {} (retrying in {:.1f}sec)".format(
+                        type(ex).__name__, method.upper(), url, str(ex), sleep_time
+                    )
+                )
+                time.sleep(sleep_time)
+                continue
 
             if (
                 refresh_token_if_unauthorized
                 and res.status_code == requests.codes.unauthorized
                 and not token_refreshed_on_error
             ):
-                # it seems we're unauthorized, so we'll try to refresh our token once in case permissions changed since
-                # the last time we got the token, and try again
+                # it seems we're unauthorized, so we'll try to refresh our token once in case permissions changed
+                # since the last time we got the token, and try again
                 self.refresh_token()
                 token_refreshed_on_error = True
                 # try again
@@ -684,3 +710,13 @@ class Session(TokenManager):
         return "{self.__class__.__name__}[{self.host}, {self.access_key}/{secret_key}]".format(
             self=self, secret_key=self.secret_key[:5] + "*" * (len(self.secret_key) - 5)
         )
+
+    @property
+    def propagate_exceptions_on_send(self):
+        # type: () -> bool
+        return self._propagate_exceptions_on_send
+
+    @propagate_exceptions_on_send.setter
+    def propagate_exceptions_on_send(self, value):
+        # type: (bool) -> None
+        self._propagate_exceptions_on_send = value
