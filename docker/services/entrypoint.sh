@@ -1,4 +1,4 @@
-#!/bin/sh +x
+#!/bin/bash +x
 
 if [ -n "$SHUTDOWN_IF_NO_ACCESS_KEY" ] && [ -z "$CLEARML_API_ACCESS_KEY" ] && [ -z "$TRAINS_API_ACCESS_KEY" ]; then
   echo "CLEARML_API_ACCESS_KEY was not provided, service will not be started"
