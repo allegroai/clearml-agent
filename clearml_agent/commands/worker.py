@@ -2877,7 +2877,7 @@ class Worker(ServiceCommandSection):
         return freeze
 
     def _install_poetry_requirements(self, repo_info, install_path):
-        # type: (Optional[RepoInfo], ExecutionInfo) -> Optional[PoetryAPI]
+        # type: (Optional[RepoInfo], Path) -> Optional[PoetryAPI]
         if not repo_info:
             return None
         try:
