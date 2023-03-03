@@ -2923,7 +2923,7 @@ class Worker(ServiceCommandSection):
         if package_api:
             package_api.cwd = cwd
 
-        lockfile_path = execution.working_dir if package_api.session.config["agent.package_manager.poetry_filez_from_cwd"] \
+        lockfile_path = execution.working_dir if package_api.session.config["agent.package_manager.poetry_files_from_cwd"] \
                             else ""
         lockfile_path = Path(repo_info.root) / lockfile_path
         api = self._install_poetry_requirements(repo_info, lockfile_path)
