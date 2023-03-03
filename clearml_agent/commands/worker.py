@@ -41,6 +41,7 @@ from clearml_agent.backend_api.session.defs import (
     ENV_VENV_CONFIGURED, ENV_PROPAGATE_EXITCODE, )
 from clearml_agent.backend_config.defs import UptimeConf
 from clearml_agent.backend_config.utils import apply_environment, apply_files
+from clearml_agent.backend_config.converters import text_to_int
 from clearml_agent.commands.base import resolve_names, ServiceCommandSection
 from clearml_agent.commands.resolver import resolve_default_container
 from clearml_agent.definitions import (
@@ -56,10 +57,7 @@ from clearml_agent.definitions import (
     ENV_WORKER_ID,
     ENV_WORKER_TAGS,
     ENV_DOCKER_SKIP_GPUS_FLAG,
-    ENV_AGENT_SECRET_KEY,
     ENV_AGENT_AUTH_TOKEN,
-    ENV_AWS_SECRET_KEY,
-    ENV_AZURE_ACCOUNT_KEY,
     ENV_AGENT_DISABLE_SSH_MOUNT,
     ENV_SSH_AUTH_SOCK,
     ENV_AGENT_SKIP_PIP_VENV_INSTALL,
@@ -70,6 +68,8 @@ from clearml_agent.definitions import (
     ENV_DEBUG_INFO,
     ENV_CHILD_AGENTS_COUNT_CMD,
     ENV_DOCKER_ARGS_FILTERS,
+    ENV_FORCE_SYSTEM_SITE_PACKAGES,
+    ENV_SERVICES_DOCKER_RESTART,
 )
 from clearml_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
 from clearml_agent.errors import (
@@ -686,6 +686,10 @@ class Worker(ServiceCommandSection):
         else:
             self._docker_args_filters = []
 
+        self._task_ping_interval_sec = max(
+            0, text_to_int(self._session.config.get("agent.task_ping_interval_sec", 60.0))
+        )
+
     @classmethod
     def _verify_command_states(cls, kwargs):
         """
@@ -732,7 +736,7 @@ class Worker(ServiceCommandSection):
             pass
 
     def run_one_task(self, queue, task_id, worker_args, docker=None, task_session=None):
-        # type: (Text, Text, WorkerParams, Optional[Text]) -> int
+        # type: (Text, Text, WorkerParams, Optional[Text], Optional[Session]) -> int
         """
         Run one task pulled from queue.
         :param queue: ID of queue that task was pulled from
@@ -777,10 +781,18 @@ class Worker(ServiceCommandSection):
             except Exception:
                 task_container = {}
 
-            default_docker = not bool(task_container.get('image'))
-            docker_image = task_container.get('image') or self._docker_image
-            docker_arguments = task_container.get(
-                'arguments', self._docker_arguments if default_docker else None)
+            default_docker = (
+                self._session.config.get('agent.disable_task_docker_override', False)
+                or not bool(task_container.get('image'))
+            )
+            if default_docker:
+                docker_image = self._docker_image
+                docker_arguments = self._docker_arguments
+            else:
+                docker_image = task_container.get('image') or self._docker_image
+                docker_arguments = task_container.get(
+                    'arguments', self._docker_arguments if default_docker else None)
+
             docker_setup_script = task_container.get('setup_shell_script')
 
             self.send_logs(
@@ -958,6 +970,7 @@ class Worker(ServiceCommandSection):
             if not (result.ok() and result.response):
                 return
             new_session = copy(session)
+            new_session.api_client = None
             new_session.set_auth_token(result.response.token)
             return new_session
 
@@ -1166,7 +1179,7 @@ class Worker(ServiceCommandSection):
                         print("No tasks in Queues, sleeping for {:.1f} seconds".format(self._polling_interval))
                     sleep(self._polling_interval)
 
-                if self._session.config["agent.reload_config"]:
+                if self._session.config.get("agent.reload_config", False):
                     self.reload_config()
         finally:
             # if we are in dynamic gpus mode, shutdown all active runs
@@ -1197,7 +1210,7 @@ class Worker(ServiceCommandSection):
         except Exception:
             return None
 
-        worker_name = self._session.config["agent.worker_name"] + ':gpu'
+        worker_name = self._session.config.get("agent.worker_name", "") + ':gpu'
         our_workers = [
             w.id for w in response.workers
             if w.id.startswith(worker_name) and w.id != self.worker_id]
@@ -1661,7 +1674,9 @@ class Worker(ServiceCommandSection):
 
         # noinspection PyBroadException
         try:
-            config_data = self._session.config.as_plain_ordered_dict() if config is None else config.as_plain_ordered_dict()
+            config_data = (
+                self._session.config.as_plain_ordered_dict() if config is None else config.as_plain_ordered_dict()
+            )
             if clean_api_credentials:
                 api = config_data.get("api")
                 if api:
@@ -1734,6 +1749,7 @@ class Worker(ServiceCommandSection):
         stopping = False
         status = None
         process = None
+        last_task_ping = 0
         try:
             _last_machine_update_ts = time()
             stop_reason = None
@@ -1768,6 +1784,18 @@ class Worker(ServiceCommandSection):
                     stdout.flush()
                 if stderr:
                     stderr.flush()
+
+                if not stopping and self._task_ping_interval_sec and \
+                        time() - last_task_ping > self._task_ping_interval_sec:
+                    # noinspection PyBroadException
+                    try:
+                        res = (session or self._session).send(tasks_api.PingRequest(task=task_id))
+                        if not res:
+                            self.log.error("Failed sending ping for task %s: %s", task_id, res.response)
+                    except Exception as ex:
+                        self.log.error("Failed sending ping: %s", str(ex))
+                    finally:
+                        last_task_ping = time()
 
                 # get diff from previous poll
                 printed_lines, stdout_pos_count = _print_file(stdout_path, stdout_pos_count)
@@ -1940,6 +1968,11 @@ class Worker(ServiceCommandSection):
             except Exception as ex:
                 print("Error: failed applying files from configuration: {}".format(ex))
 
+        try:
+            self._session.update_default_api_method()
+        except Exception as ex:
+            print("Error: failed updating default API method: {}".format(ex))
+
     @resolve_names
     def build(
         self,
@@ -1954,6 +1987,10 @@ class Worker(ServiceCommandSection):
     ):
         if not task_id:
             raise CommandFailedError("Worker build must have valid task id")
+        
+        if target and not os.path.isabs(target):
+            # Non absolute target path will lead to errors with relative python executable
+            target = os.path.abspath(target)
 
         self._session.print_configuration()
 
@@ -2059,7 +2096,10 @@ class Worker(ServiceCommandSection):
             # noinspection PyBroadException
             try:
                 task_container = get_task_container(self._session, task_id)
-                if task_container.get('image'):
+                if (
+                    task_container.get('image')
+                    and not self._session.config.get('agent.disable_task_docker_override', False)
+                ):
                     docker_image = task_container.get('image')
                     print('Ignoring default docker image, using task docker image {}'.format(docker_image))
                     docker_arguments = task_container.get('arguments')
@@ -2074,8 +2114,9 @@ class Worker(ServiceCommandSection):
 
         end_of_build_marker = "build.done=true"
         docker_cmd_suffix = ' build --id {task_id} --install-globally; ' \
-                            'echo "" >> {conf_file} ; ' \
-                            'echo {end_of_build_marker} >> {conf_file} ; ' \
+                            'ORG=$(stat -c "%u:%g" {conf_file}) ; chown $(whoami):$(whoami) {conf_file} ; ' \
+                            'echo "" >> {conf_file} ; echo {end_of_build_marker} >> {conf_file} ; ' \
+                            'chown $ORG {conf_file} ; ' \
                             'bash'.format(
                                 task_id=task_id,
                                 end_of_build_marker=end_of_build_marker,
@@ -2094,10 +2135,16 @@ class Worker(ServiceCommandSection):
 
         # now we need to wait until the line shows on our configuration file.
         while True:
-            while temp_config.stat().st_mtime == base_time_stamp:
-                sleep(5.0)
-            with open(temp_config.as_posix()) as f:
-                lines = [l.strip() for l in f.readlines()]
+            # noinspection PyBroadException
+            try:
+                while temp_config.stat().st_mtime == base_time_stamp:
+                    sleep(5.0)
+                with open(temp_config.as_posix()) as f:
+                    lines = [l.strip() for l in f.readlines()]
+            except Exception as ex:
+                # print("Failed reading status file [{}], retrying in 2 seconds".format(ex))
+                sleep(2.0)
+
             if 'build.done=true' in lines:
                 break
             base_time_stamp = temp_config.stat().st_mtime
@@ -2125,6 +2172,8 @@ class Worker(ServiceCommandSection):
         print('Committing docker container to: {}'.format(target))
         print(commit_docker(container_name=target, docker_id=docker_id, apply_change=change))
         shutdown_docker_process(docker_id=docker_id)
+
+        safe_remove_file(temp_config.as_posix())
 
         return
 
@@ -2805,8 +2854,8 @@ class Worker(ServiceCommandSection):
         # Todo: add support for poetry caching
         if not self.poetry.enabled:
             # add to cache
-            print('Adding venv into cache: {}'.format(add_venv_folder_cache))
             if add_venv_folder_cache:
+                print('Adding venv into cache: {}'.format(add_venv_folder_cache))
                 self.package_api.add_cached_venv(
                     requirements=[freeze, previous_reqs],
                     docker_cmd=execution_info.docker_cmd if execution_info else None,
@@ -3434,7 +3483,6 @@ class Worker(ServiceCommandSection):
         temp_config.put("sdk.storage.cache.default_base_dir", mounted_cache_dir)
         temp_config.put("agent.pip_download_cache.path", mounted_pip_dl_dir)
         temp_config.put("agent.vcs_cache.path", mounted_vcs_cache)
-        temp_config.put("agent.package_manager.system_site_packages", True)
         temp_config.put("agent.package_manager.conda_env_as_base_docker", False)
         temp_config.put("agent.default_python", "")
         temp_config.put("agent.python_binary", "")
@@ -3445,6 +3493,11 @@ class Worker(ServiceCommandSection):
                                            self._session.config.get("agent.git_user", None)))
         temp_config.put("agent.git_pass", (ENV_AGENT_GIT_PASS.get() or
                                            self._session.config.get("agent.git_pass", None)))
+
+        force_system_site_packages = ENV_FORCE_SYSTEM_SITE_PACKAGES.get()
+        force_system_site_packages = force_system_site_packages if force_system_site_packages is not None else True
+        if force_system_site_packages:
+            temp_config.put("agent.package_manager.system_site_packages", True)
 
         if temp_config.get("agent.venvs_cache.path", None):
             temp_config.put("agent.venvs_cache.path", '/root/.clearml/venvs-cache')
@@ -3678,6 +3731,16 @@ class Worker(ServiceCommandSection):
         docker = 'docker'
 
         base_cmd = [docker, 'run', '-t']
+
+        if ENV_SERVICES_DOCKER_RESTART.get():
+            value = ENV_SERVICES_DOCKER_RESTART.get().strip()
+            if value in ("unless-stopped", "no", "always") or value.startswith("on-failure"):
+                base_cmd += ["--restart", value]
+            else:
+                self.log.error(
+                    "Invalid value \"{}\" provided for {}, ignoring".format(value, ENV_SERVICES_DOCKER_RESTART.vars[0])
+                )
+
         update_scheme = ""
         dockers_nvidia_visible_devices = 'all'
         gpu_devices = Session.get_nvidia_visible_env()
@@ -3803,7 +3866,6 @@ class Worker(ServiceCommandSection):
         except:
             pass
 
-        agent_install_bash_script = []
         if os.environ.get('FORCE_LOCAL_CLEARML_AGENT_WHEEL'):
             local_wheel = os.path.expanduser(os.environ.get('FORCE_LOCAL_CLEARML_AGENT_WHEEL'))
             docker_wheel = '/tmp/{}'.format(basename(local_wheel))
@@ -3844,9 +3906,6 @@ class Worker(ServiceCommandSection):
             if preprocess_bash_script:
                 bash_script = preprocess_bash_script + bash_script
 
-            if agent_install_bash_script:
-                bash_script += agent_install_bash_script
-
             docker_bash_script = " ; ".join([line for line in bash_script if line]) \
                 if not isinstance(bash_script, str) else bash_script
 
@@ -3855,10 +3914,10 @@ class Worker(ServiceCommandSection):
             update_scheme += (
                     docker_bash_script + " ; " +
                     "[ ! -z $LOCAL_PYTHON ] || export LOCAL_PYTHON={python} ; " +
-                    "$LOCAL_PYTHON -m pip install -U \"pip{pip_version}\" ; " +
+                    "$LOCAL_PYTHON -m pip install -U {pip_version} ; " +
                     "$LOCAL_PYTHON -m pip install -U {clearml_agent_wheel} ; ").format(
                 python_single_digit=python_version.split('.')[0],
-                python=python_version, pip_version=PackageManager.get_pip_version(),
+                python=python_version, pip_version=" ".join(PackageManager.get_pip_versions(wrap='\"')),
                 clearml_agent_wheel=clearml_agent_wheel,
                 mount_ssh_ro=mount_ssh_ro, mount_ssh=mount_ssh,
             )

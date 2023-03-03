@@ -294,6 +294,9 @@ class Config(object):
             )
         return value
 
+    def put(self, key, value):
+        self._config.put(key, value)
+
     def to_dict(self):
         return self._config.as_plain_ordered_dict()
 

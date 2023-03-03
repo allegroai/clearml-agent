@@ -2,13 +2,16 @@
 import json as json_lib
 import os
 import sys
+import time
 import types
+from random import SystemRandom
 from socket import gethostname
 from typing import Optional
 
 import jwt
 import requests
 import six
+from requests import RequestException
 from requests.auth import HTTPBasicAuth
 from six.moves.urllib.parse import urlparse, urlunparse
 
@@ -24,6 +27,9 @@ from ..config import load
 from ..utils import get_http_session_with_retry, urllib_log_warning_setup
 from ...backend_config.environment import backward_compatibility_support
 from ...version import __version__
+
+
+sys_random = SystemRandom()
 
 
 class LoginError(Exception):
@@ -49,6 +55,7 @@ class Session(TokenManager):
     _session_initial_retry_connect_override = 4
     _write_session_data_size = 15000
     _write_session_timeout = (30.0, 30.)
+    _request_exception_retry_timeout = (2.0, 3.0)
 
     api_version = '2.1'
     feature_set = 'basic'
@@ -111,19 +118,9 @@ class Session(TokenManager):
         self._verbose = verbose if verbose is not None else ENV_VERBOSE.get()
         self._logger = logger
         self.__auth_token = None
+        self._propagate_exceptions_on_send = True
 
-        if ENV_API_DEFAULT_REQ_METHOD.get(default=None):
-            # Make sure we update the config object, so we pass it into the new containers when we map them
-            self.config["api.http.default_method"] = ENV_API_DEFAULT_REQ_METHOD.get()
-            # notice the default setting of Request.def_method are already set by the OS environment
-        elif self.config.get("api.http.default_method", None):
-            def_method = str(self.config.get("api.http.default_method", None)).strip()
-            if def_method.upper() not in ("GET", "POST", "PUT"):
-                raise ValueError(
-                    "api.http.default_method variable must be 'get' or 'post' (any case is allowed)."
-                )
-            Request.def_method = def_method
-            Request._method = Request.def_method
+        self.update_default_api_method()
 
         if ENV_AUTH_TOKEN.get(
             value_cb=lambda key, value: print("Using environment access token {}=********".format(key))
@@ -178,6 +175,10 @@ class Session(TokenManager):
         )
         # try to connect with the server
         self.refresh_token()
+
+        # for resilience, from now on we won't allow propagating exceptions when sending requests
+        self._propagate_exceptions_on_send = False
+
         # create the default session with many retries
         http_retries_config, self.__http_session = self._setup_session(http_retries_config)
 
@@ -223,7 +224,22 @@ class Session(TokenManager):
 
         return http_retries_config, get_http_session_with_retry(config=self.config or None, **http_retries_config)
 
+    def update_default_api_method(self):
+        if ENV_API_DEFAULT_REQ_METHOD.get(default=None):
+            # Make sure we update the config object, so we pass it into the new containers when we map them
+            self.config.put("api.http.default_method", ENV_API_DEFAULT_REQ_METHOD.get())
+            # notice the default setting of Request.def_method are already set by the OS environment
+        elif self.config.get("api.http.default_method", None):
+            def_method = str(self.config.get("api.http.default_method", None)).strip()
+            if def_method.upper() not in ("GET", "POST", "PUT"):
+                raise ValueError(
+                    "api.http.default_method variable must be 'get', 'post' or 'put' (any case is allowed)."
+                )
+            Request.def_method = def_method
+            Request._method = Request.def_method
+
     def load_vaults(self):
+        # () -> Optional[bool]
         if not self.check_min_api_version("2.15") or self.feature_set == "basic":
             return
 
@@ -244,12 +260,14 @@ class Session(TokenManager):
 
         # noinspection PyBroadException
         try:
-            res = self.send_request("users", "get_vaults", json={"enabled": True, "types": ["config"]})
+            # Use params and not data/json otherwise payload might be dropped if we're using GET with a strict firewall
+            res = self.send_request("users", "get_vaults", params="enabled=true&types=config&types=config")
             if res.ok:
                 vaults = res.json().get("data", {}).get("vaults", [])
                 data = list(filter(None, map(parse, vaults)))
                 if data:
                     self.config.set_overrides(*data)
+                    return True
             elif res.status_code != 404:
                 raise Exception(res.json().get("meta", {}).get("result_msg", res.text))
         except Exception as ex:
@@ -272,6 +290,7 @@ class Session(TokenManager):
         data=None,
         json=None,
         refresh_token_if_unauthorized=True,
+        params=None,
     ):
         """ Internal implementation for making a raw API request.
             - Constructs the api endpoint name
@@ -295,6 +314,7 @@ class Session(TokenManager):
             if version
             else "{host}/{service}.{action}"
         ).format(**locals())
+
         while True:
             if data and len(data) > self._write_session_data_size:
                 timeout = self._write_session_timeout
@@ -302,16 +322,29 @@ class Session(TokenManager):
                 timeout = self._session_initial_timeout
             else:
                 timeout = self._session_timeout
-            res = self.__http_session.request(
-                method, url, headers=headers, auth=auth, data=data, json=json, timeout=timeout)
+
+            try:
+                res = self.__http_session.request(
+                    method, url, headers=headers, auth=auth, data=data, json=json, timeout=timeout, params=params)
+            except RequestException as ex:
+                if self._propagate_exceptions_on_send:
+                    raise
+                sleep_time = sys_random.uniform(*self._request_exception_retry_timeout)
+                self._logger.error(
+                    "{} exception sending {} {}: {} (retrying in {:.1f}sec)".format(
+                        type(ex).__name__, method.upper(), url, str(ex), sleep_time
+                    )
+                )
+                time.sleep(sleep_time)
+                continue
 
             if (
                 refresh_token_if_unauthorized
                 and res.status_code == requests.codes.unauthorized
                 and not token_refreshed_on_error
             ):
-                # it seems we're unauthorized, so we'll try to refresh our token once in case permissions changed since
-                # the last time we got the token, and try again
+                # it seems we're unauthorized, so we'll try to refresh our token once in case permissions changed
+                # since the last time we got the token, and try again
                 self.refresh_token()
                 token_refreshed_on_error = True
                 # try again
@@ -348,6 +381,7 @@ class Session(TokenManager):
         data=None,
         json=None,
         async_enable=False,
+        params=None,
     ):
         """
         Send a raw API request.
@@ -360,6 +394,7 @@ class Session(TokenManager):
                      content type will be application/json)
         :param data: Dictionary, bytes, or file-like object to send in the request body
         :param async_enable: whether request is asynchronous
+        :param params: additional query parameters
         :return: requests Response instance
         """
         headers = self.add_auth_headers(
@@ -376,6 +411,7 @@ class Session(TokenManager):
             headers=headers,
             data=data,
             json=json,
+            params=params,
         )
 
     def send_request_batch(
@@ -628,15 +664,14 @@ class Session(TokenManager):
 
         res = None
         try:
-            data = {"expiration_sec": exp} if exp else {}
             res = self._send_request(
                 method=Request.def_method,
                 service="auth",
                 action="login",
                 auth=auth,
-                json=data,
                 headers=headers,
                 refresh_token_if_unauthorized=False,
+                params={"expiration_sec": exp} if exp else {},
             )
             try:
                 resp = res.json()
@@ -675,3 +710,13 @@ class Session(TokenManager):
         return "{self.__class__.__name__}[{self.host}, {self.access_key}/{secret_key}]".format(
             self=self, secret_key=self.secret_key[:5] + "*" * (len(self.secret_key) - 5)
         )
+
+    @property
+    def propagate_exceptions_on_send(self):
+        # type: () -> bool
+        return self._propagate_exceptions_on_send
+
+    @propagate_exceptions_on_send.setter
+    def propagate_exceptions_on_send(self, value):
+        # type: (bool) -> None
+        self._propagate_exceptions_on_send = value

@@ -80,7 +80,12 @@ class PackageManager(object):
 
     def upgrade_pip(self):
         result = self._install(
-            select_for_platform(windows='pip{}', linux='pip{}').format(self.get_pip_version()), "--upgrade")
+            *select_for_platform(
+                windows=self.get_pip_versions(),
+                linux=self.get_pip_versions()
+            ),
+            "--upgrade"
+        )
         packages = self.run_with_env(('list',), output=True).splitlines()
         # p.split is ('pip', 'x.y.z')
         pip = [p.split() for p in packages if len(p.split()) == 2 and p.split()[0] == 'pip']
@@ -157,15 +162,26 @@ class PackageManager(object):
     def set_pip_version(cls, version):
         if not version:
             return
-        version = version.replace(' ', '')
-        if ('=' in version) or ('~' in version) or ('<' in version) or ('>' in version):
-            cls._pip_version = version
+
+        if isinstance(version, (list, tuple)):
+            versions = version
         else:
-            cls._pip_version = "=="+version
+            versions = [version]
+
+        cls._pip_version = []
+        for version in versions:
+            version = version.strip()
+            if ('=' in version) or ('~' in version) or ('<' in version) or ('>' in version):
+                cls._pip_version.append(version)
+            else:
+                cls._pip_version.append("==" + version)
 
     @classmethod
-    def get_pip_version(cls):
-        return cls._pip_version or ''
+    def get_pip_versions(cls, pip="pip", wrap=''):
+        return [
+            (wrap + pip + version + wrap)
+            for version in cls._pip_version or [pip]
+        ]
 
     def get_cached_venv(self, requirements, docker_cmd, python_version, cuda_version, destination_folder):
         # type: (Dict, Optional[Union[dict, str]], Optional[str], Optional[str], Path) -> Optional[Path]

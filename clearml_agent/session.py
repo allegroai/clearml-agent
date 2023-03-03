@@ -106,7 +106,7 @@ class Session(_Session):
                 if os.path.exists(os.path.expanduser(os.path.expandvars(f))):
                     self._config_file = f
                     break
-        self.api_client = APIClient(session=self, api_version="2.5")
+        self._api_client = None
         # HACK make sure we have python version to execute,
         # if nothing was specific, use the one that runs us
         def_python = ConfigValue(self.config, "agent.default_python")
@@ -133,7 +133,7 @@ class Session(_Session):
         # override with environment variables
         # cuda_version & cudnn_version are overridden with os.environ here, and normalized in the next section
         for config_key, env_config in ENVIRONMENT_CONFIG.items():
-            # check if the propery is of a list:
+            # check if the property is of a list:
             if config_key.endswith('.0'):
                 if all(not i.get() for i in env_config.values()):
                     continue
@@ -166,6 +166,16 @@ class Session(_Session):
 
         if not kwargs.get('only_load_config'):
             self.create_cache_folders()
+
+    @property
+    def api_client(self):
+        if self._api_client is None:
+            self._api_client = APIClient(session=self, api_version="2.5")
+        return self._api_client
+
+    @api_client.setter
+    def api_client(self, value):
+        self._api_client = value
 
     @staticmethod
     def get_logger(name):

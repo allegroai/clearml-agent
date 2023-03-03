@@ -118,13 +118,15 @@ class ServiceCommandSection(BaseCommandSection):
         """ The name of the REST service used by this command """
         pass
 
-    def get(self, endpoint, *args, session=None, **kwargs):
+    def get(self, endpoint, *args, service=None, session=None, **kwargs):
         session = session or self._session
-        return session.get(service=self.service, action=endpoint, *args, **kwargs)
+        service = service or self.service
+        return session.get(service=service, action=endpoint, *args, **kwargs)
 
-    def post(self, endpoint, *args, session=None, **kwargs):
+    def post(self, endpoint, *args, service=None, session=None, **kwargs):
         session = session or self._session
-        return session.post(service=self.service, action=endpoint, *args, **kwargs)
+        service = service or self.service
+        return session.post(service=service, action=endpoint, *args, **kwargs)
 
     def get_with_act_as(self, endpoint, *args, **kwargs):
         return self._session.get_with_act_as(service=self.service, action=endpoint, *args, **kwargs)
