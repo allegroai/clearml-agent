@@ -2891,7 +2891,7 @@ class Worker(ServiceCommandSection):
                 api.install()
                 return api
             
-            print(f"Could not find pyproject.toml or poetry.lock file in {str(lockfile_path)} \n")
+            print(f"Could not find pyproject.toml or poetry.lock file in {lockfile_path} \n")
         except Exception as ex:
             self.log.error("failed installing poetry requirements: {}".format(ex))
         return None
