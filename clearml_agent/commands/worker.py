@@ -2876,7 +2876,7 @@ class Worker(ServiceCommandSection):
             self.log_traceback(e)
         return freeze
 
-    def _install_poetry_requirements(self, repo_info, install_path):
+    def _install_poetry_requirements(self, repo_info, lockfile_path):
         # type: (Optional[RepoInfo], Path) -> Optional[PoetryAPI]
         if not repo_info:
             return None
@@ -2884,8 +2884,8 @@ class Worker(ServiceCommandSection):
             if not self.poetry.enabled:
                 return None
 
-            self.poetry.initialize(cwd=install_path)
-            api = self.poetry.get_api(install_path)
+            self.poetry.initialize(cwd=lockfile_path)
+            api = self.poetry.get_api(lockfile_path)
             if api.enabled:
                 print('Poetry Enabled: Ignoring requested python packages, using repository poetry lock file!')
                 api.install()
@@ -2923,9 +2923,8 @@ class Worker(ServiceCommandSection):
         if package_api:
             package_api.cwd = cwd
 
-        lockfile_path = execution.working_dir if package_api.session.config["agent.package_manager.poetry_files_from_cwd"] \
-                            else ""
-        lockfile_path = Path(repo_info.root) / lockfile_path
+        files_from_working_dir = package_api.session.config.get("agent.package_manager.poetry_files_from_repo_working_dir", False)
+        lockfile_path = Path(repo_info.root) / (execution.working_dir if files_from_working_dir else "")
         api = self._install_poetry_requirements(repo_info, lockfile_path)
         if api:
             # update back the package manager, this hack should be fixed
