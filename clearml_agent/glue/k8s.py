@@ -219,15 +219,6 @@ class K8sIntegration(Worker):
         with open(os.path.expandvars(os.path.expanduser(str(path))), 'rt') as f:
             return yaml.load(f, Loader=getattr(yaml, 'FullLoader', None))
 
-    @staticmethod
-    def _get_path(d, *path, default=None):
-        try:
-            return functools.reduce(
-                lambda a, b: a[b], path, d
-            )
-        except (IndexError, KeyError):
-            return default
-
     def _get_kubectl_options(self, command, extra_labels=None, filters=None, output="json", labels=None):
         # type: (str, Iterable[str], Iterable[str], str, Iterable[str]) -> Dict
         if not labels:

@@ -1,6 +1,7 @@
 from __future__ import print_function, division, unicode_literals
 
 import errno
+import functools
 import json
 import logging
 import os
@@ -735,8 +736,68 @@ class Worker(ServiceCommandSection):
         except Exception:
             pass
 
+    def _get_docker_restart_value(self, session, task_id: str):
+        try:
+            session.verify_feature_set('advanced')
+        except ValueError:
+            return
+
+        restart = (ENV_SERVICES_DOCKER_RESTART.get() or "").strip()
+        if not restart:
+            return
+
+        # Parse value and selector
+        restart_value, _, selector = restart.partition(";")
+
+        if restart_value not in ("unless-stopped", "no", "always") and not restart_value.startswith("on-failure"):
+            self.log.error(
+                "Invalid value \"{}\" provided for {}, ignoring".format(restart, ENV_SERVICES_DOCKER_RESTART.vars[0])
+            )
+            return
+
+        if not selector:
+            return restart_value
+
+        path, _, expected_value = selector.partition("=")
+
+        result = session.send_request(
+            service='tasks',
+            action='get_all',
+            json={'id': [task_id], 'only_fields': [path], 'search_hidden': True},
+            method=Request.def_method,
+        )
+        if not result.ok:
+            result_msg = self._get_path(result.json(), 'meta', 'result_msg')
+            self.log.error(
+                "Failed obtaining selector value for restart option \"{}\", ignoring: {}".format(selector, result_msg)
+            )
+            return
+
+        not_found = object()
+        try:
+            value = self._get_path(result.json(), 'data', 'tasks', 0, *path.split("."), default=not_found)
+        except (ValueError, TypeError):
+            return
+
+        if value is not_found:
+            return
+
+        if not expected_value:
+            return restart_value
+
+        # noinspection PyBroadException
+        try:
+            if (
+                (isinstance(value, bool) and value == strtobool(expected_value))  # check first - bool is also an int
+                or (isinstance(value, (int, float)) and value == float(expected_value))
+                or (str(value) == str(expected_value))
+            ):
+                return restart_value
+        except Exception as ex:
+            pass
+
     def run_one_task(self, queue, task_id, worker_args, docker=None, task_session=None):
-        # type: (Text, Text, WorkerParams, Optional[Text], Optional[Session]) -> int
+        # type: (Text, Text, WorkerParams, Optional[Text], Optional[Session]) -> Optional[int]
         """
         Run one task pulled from queue.
         :param queue: ID of queue that task was pulled from
@@ -811,6 +872,7 @@ class Worker(ServiceCommandSection):
                 docker_image=docker_image,
                 docker_arguments=docker_arguments,
                 docker_bash_setup_script=docker_setup_script,
+                restart=self._get_docker_restart_value(task_session, task_id),
             )
             if self._impersonate_as_task_owner:
                 docker_params["auth_token"] = task_session.token
@@ -2110,7 +2172,8 @@ class Worker(ServiceCommandSection):
         print('Building Task {} inside docker image: {} {} setup_script={}\n'.format(
             task_id, docker_image, docker_arguments or '', docker_setup_script or ''))
         full_docker_cmd = self.docker_image_func(
-            docker_image=docker_image, docker_arguments=docker_arguments, docker_bash_setup_script=docker_setup_script)
+            docker_image=docker_image, docker_arguments=docker_arguments, docker_bash_setup_script=docker_setup_script
+        )
 
         end_of_build_marker = "build.done=true"
         docker_cmd_suffix = ' build --id {task_id} --install-globally; ' \
@@ -3725,20 +3788,19 @@ class Worker(ServiceCommandSection):
             name=None,
             mount_ssh=None, mount_ssh_ro=None, mount_apt_cache=None, mount_pip_cache=None, mount_poetry_cache=None,
             env_task_id=None,
+            restart=None,
     ):
         self.debug("Constructing docker command", context="docker")
         docker = 'docker'
 
         base_cmd = [docker, 'run', '-t']
-
-        if ENV_SERVICES_DOCKER_RESTART.get():
-            value = ENV_SERVICES_DOCKER_RESTART.get().strip()
-            if value in ("unless-stopped", "no", "always") or value.startswith("on-failure"):
-                base_cmd += ["--restart", value]
+        use_rm = True
+        if restart:
+            if restart in ("unless-stopped", "no", "always") or restart.startswith("on-failure"):
+                base_cmd += ["--restart", restart]
+                use_rm = False
             else:
-                self.log.error(
-                    "Invalid value \"{}\" provided for {}, ignoring".format(value, ENV_SERVICES_DOCKER_RESTART.vars[0])
-                )
+                self.log.error("Invalid restart value \"{}\" , ignoring".format(restart))
 
         update_scheme = ""
         dockers_nvidia_visible_devices = 'all'
@@ -3952,7 +4014,8 @@ class Worker(ServiceCommandSection):
             (['-v', host_cache+':'+mounted_cache] if host_cache else []) +
             (['-v', host_vcs_cache+':'+mounted_vcs_cache] if host_vcs_cache else []) +
             (['-v', host_venvs_cache + ':' + mounted_venvs_cache] if host_venvs_cache else []) +
-            ['--rm', docker_image, 'bash', '-c',
+            (['--rm'] if use_rm else []) +
+            [docker_image, 'bash', '-c',
                 update_scheme +
                 extra_shell_script +
                 "cp {} {} ; ".format(DOCKER_ROOT_CONF_FILE, DOCKER_DEFAULT_CONF_FILE) +
@@ -4157,6 +4220,15 @@ class Worker(ServiceCommandSection):
                     "User role not suitable for --use-owner-token option (requires at least admin,"
                     " found {})".format(role)
                 )
+
+    @staticmethod
+    def _get_path(d, *path, default=None):
+        try:
+            return functools.reduce(
+                lambda a, b: a[b], path, d
+            )
+        except (IndexError, KeyError):
+            return default
 
 
 if __name__ == "__main__":
