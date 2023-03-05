@@ -192,8 +192,13 @@ class PackageManager(object):
         if not self._get_cache_manager():
             return None
 
-        keys = self._generate_reqs_hash_keys(requirements, docker_cmd, python_version, cuda_version)
-        return self._get_cache_manager().copy_cached_entry(keys, destination_folder)
+        try:
+            keys = self._generate_reqs_hash_keys(requirements, docker_cmd, python_version, cuda_version)
+            return self._get_cache_manager().copy_cached_entry(keys, destination_folder)
+        except Exception as ex:
+            print("WARNING: Failed accessing venvs cache at {}: {}".format(destination_folder, ex))
+            print("WARNING: Skipping venv cache - folder not accessible!")
+            return None
 
     def add_cached_venv(
             self,
@@ -210,9 +215,15 @@ class PackageManager(object):
         """
         if not self._get_cache_manager():
             return
-        keys = self._generate_reqs_hash_keys(requirements, docker_cmd, python_version, cuda_version)
-        return self._get_cache_manager().add_entry(
-            keys=keys, source_folder=source_folder, exclude_sub_folders=exclude_sub_folders)
+
+        try:
+            keys = self._generate_reqs_hash_keys(requirements, docker_cmd, python_version, cuda_version)
+            return self._get_cache_manager().add_entry(
+                keys=keys, source_folder=source_folder, exclude_sub_folders=exclude_sub_folders)
+        except Exception as ex:
+            print("WARNING: Failed accessing venvs cache at {}: {}".format(source_folder, ex))
+            print("WARNING: Skipping venv cache - folder not accessible!")
+            return None
 
     def get_cache_folder(self):
         # type: () -> Optional[Path]
@@ -280,12 +291,19 @@ class PackageManager(object):
 
     def _get_cache_manager(self):
         if not self._cache_manager:
-            cache_folder = ENV_VENV_CACHE_PATH.get() or self.session.config.get(self._config_cache_folder, None)
-            if not cache_folder:
+            cache_folder = None
+            try:
+                cache_folder = ENV_VENV_CACHE_PATH.get() or self.session.config.get(self._config_cache_folder, None)
+                if not cache_folder:
+                    return None
+
+                max_entries = int(self.session.config.get(self._config_cache_max_entries, 10))
+                free_space_threshold = float(self.session.config.get(self._config_cache_free_space_threshold, 0))
+                self._cache_manager = FolderCache(
+                    cache_folder, max_cache_entries=max_entries, min_free_space_gb=free_space_threshold)
+            except Exception as ex:
+                print("WARNING: Failed accessing venvs cache at {}: {}".format(cache_folder, ex))
+                print("WARNING: Skipping venv cache - folder not accessible!")
                 return None
 
-            max_entries = int(self.session.config.get(self._config_cache_max_entries, 10))
-            free_space_threshold = float(self.session.config.get(self._config_cache_free_space_threshold, 0))
-            self._cache_manager = FolderCache(
-                cache_folder, max_cache_entries=max_entries, min_free_space_gb=free_space_threshold)
         return self._cache_manager

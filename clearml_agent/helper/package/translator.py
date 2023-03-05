@@ -1,3 +1,4 @@
+from tempfile import mkdtemp
 from typing import Text
 
 from furl import furl
@@ -20,7 +21,16 @@ class RequirementsTranslator(object):
         config = session.config
         self.cache_dir = cache_dir or Path(config["agent.pip_download_cache.path"]).expanduser().as_posix()
         self.enabled = config["agent.pip_download_cache.enabled"]
-        Path(self.cache_dir).mkdir(parents=True, exist_ok=True)
+        # noinspection PyBroadException
+        try:
+            Path(self.cache_dir).mkdir(parents=True, exist_ok=True)
+        except Exception:
+            temp_cache_folder = mkdtemp(prefix='pip_download_cache.')
+            print("Failed creating pip download cache folder at `{}` reverting to `{}`".format(
+                self.cache_dir, temp_cache_folder))
+            self.cache_dir = temp_cache_folder
+            Path(self.cache_dir).mkdir(parents=True, exist_ok=True)
+
         self.config = Config()
         self.pip = SystemPip(interpreter=interpreter, session=self._session)
         self._translate_back = {}
