@@ -493,7 +493,15 @@ class PytorchRequirement(SimpleSubstitution):
 
                 if req.specs and len(req.specs) == 1 and req.specs[0][0] == "==":
                     # remove any +cu extension and let pip resolve that
-                    line = "{} {}".format(req.name, req.format_specs(max_num_parts=3))
+                    # and add .* if we have 3 parts version to deal with nvidia container 'a' version
+                    # i.e. "1.13.0" -> "1.13.0.*" so it should match preinstalled "1.13.0a0+936e930"
+                    spec_3_parts = req.format_specs(num_parts=3)
+                    spec_max3_parts = req.format_specs(max_num_parts=3)
+                    if spec_3_parts == spec_max3_parts and not spec_max3_parts.endswith("*"):
+                        line = "{} {}.*".format(req.name, spec_max3_parts)
+                    else:
+                        line = "{} {}".format(req.name, spec_max3_parts)
+
                     if req.marker:
                         line += " ; {}".format(req.marker)
                 else:
