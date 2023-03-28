@@ -50,6 +50,14 @@ class ExternalRequirements(SimpleSubstitution):
                 print("No need to reinstall \'{}\' from VCS, "
                       "the exact same version is already installed".format(req.name))
                 continue
+
+            if not req.pip_new_version:
+                # noinspection PyBroadException
+                try:
+                    freeze_base = PackageManager.out_of_scope_freeze() or dict(pip=[])
+                except Exception:
+                    freeze_base = dict(pip=[])
+
             req_line = self._add_vcs_credentials(req, session)
 
             # if we have older pip version we have to make sure we replace back the package name with the
@@ -58,14 +66,14 @@ class ExternalRequirements(SimpleSubstitution):
                 PackageManager.out_of_scope_install_package(req_line, "--no-deps")
                 # noinspection PyBroadException
                 try:
-                    freeze_post = PackageManager.out_of_scope_freeze() or ''
+                    freeze_post = PackageManager.out_of_scope_freeze() or dict(pip=[])
                     package_name = list(set(freeze_post['pip']) - set(freeze_base['pip']))
                     if package_name and package_name[0] not in self.post_install_req_lookup:
                         self.post_install_req_lookup[package_name[0]] = req.req.line
                 except Exception:
                     pass
 
-            # no need to force reinstall, pip will always rebuilt if the package comes from git
+            # no need to force reinstall, pip will always rebuild if the package comes from git
             # and make sure the required packages are installed (if they are not it will install them)
             if not PackageManager.out_of_scope_install_package(req_line):
                 raise ValueError("Failed installing GIT/HTTPs package \'{}\'".format(req_line))
