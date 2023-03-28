@@ -2939,10 +2939,15 @@ class Worker(ServiceCommandSection):
             self.log_traceback(e)
         return freeze
 
-    def _install_poetry_requirements(self, repo_info, lockfile_path):
-        # type: (Optional[RepoInfo], Path) -> Optional[PoetryAPI]
+    def _install_poetry_requirements(self, repo_info, working_dir=None):
+        # type: (Optional[RepoInfo], Optional[str]) -> Optional[PoetryAPI]
         if not repo_info:
             return None
+
+        files_from_working_dir = self._session.config.get(
+            "agent.package_manager.poetry_files_from_repo_working_dir", False)
+        lockfile_path = Path(repo_info.root) / ((working_dir or "") if files_from_working_dir else "")
+
         try:
             if not self.poetry.enabled:
                 return None
@@ -2986,9 +2991,7 @@ class Worker(ServiceCommandSection):
         if package_api:
             package_api.cwd = cwd
 
-        files_from_working_dir = package_api.session.config.get("agent.package_manager.poetry_files_from_repo_working_dir", False)
-        lockfile_path = Path(repo_info.root) / (execution.working_dir if files_from_working_dir else "")
-        api = self._install_poetry_requirements(repo_info, lockfile_path)
+        api = self._install_poetry_requirements(repo_info, execution.working_dir)
         if api:
             # update back the package manager, this hack should be fixed
             if package_api == self.package_api:
