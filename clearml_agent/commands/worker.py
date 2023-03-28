@@ -736,9 +736,9 @@ class Worker(ServiceCommandSection):
         except Exception:
             pass
 
-    def _get_docker_restart_value(self, session, task_id: str):
+    def _get_docker_restart_value(self, task_session, task_id: str):
         try:
-            session.verify_feature_set('advanced')
+            self._session.verify_feature_set('advanced')
         except ValueError:
             return
 
@@ -760,7 +760,7 @@ class Worker(ServiceCommandSection):
 
         path, _, expected_value = selector.partition("=")
 
-        result = session.send_request(
+        result = task_session.send_request(
             service='tasks',
             action='get_all',
             json={'id': [task_id], 'only_fields': [path], 'search_hidden': True},
