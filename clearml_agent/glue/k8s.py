@@ -493,7 +493,7 @@ class K8sIntegration(Worker):
 
         # noinspection PyProtectedMember
         config_content = (
-            self.conf_file_content or Path(session._config_file).read_text() or ""
+            self.conf_file_content or (session._config_file and Path(session._config_file).read_text()) or ""
         ) + '\n{}\n'.format('\n'.join(x for x in extra_config_values if x))
 
         hocon_config_encoded = config_content.encode("ascii")
