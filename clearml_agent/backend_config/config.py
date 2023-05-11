@@ -297,6 +297,9 @@ class Config(object):
     def put(self, key, value):
         self._config.put(key, value)
 
+    def pop(self, key, default=None):
+        return self._config.pop(key, default=default)
+
     def to_dict(self):
         return self._config.as_plain_ordered_dict()
 

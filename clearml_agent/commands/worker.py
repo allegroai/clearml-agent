@@ -40,6 +40,7 @@ from clearml_agent.backend_api.session import CallResult, Request
 from clearml_agent.backend_api.session.defs import (
     ENV_ENABLE_ENV_CONFIG_SECTION, ENV_ENABLE_FILES_CONFIG_SECTION,
     ENV_VENV_CONFIGURED, ENV_PROPAGATE_EXITCODE, )
+from clearml_agent.backend_config import Config
 from clearml_agent.backend_config.defs import UptimeConf
 from clearml_agent.backend_config.utils import apply_environment, apply_files
 from clearml_agent.backend_config.converters import text_to_int
@@ -71,6 +72,7 @@ from clearml_agent.definitions import (
     ENV_DOCKER_ARGS_FILTERS,
     ENV_FORCE_SYSTEM_SITE_PACKAGES,
     ENV_SERVICES_DOCKER_RESTART,
+    ENV_CONFIG_BC_IN_STANDALONE,
 )
 from clearml_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
 from clearml_agent.errors import (
@@ -3515,6 +3517,11 @@ class Worker(ServiceCommandSection):
         requirements_manager.translator.enabled = False
         print(requirements_manager.replace(contents))
 
+    def remove_non_backwards_compatible_entries(self, config: Config):
+        if not self._standalone_mode or not ENV_CONFIG_BC_IN_STANDALONE.get() or self._session.feature_set == "basic":
+            return
+        config.pop("agent.package_manager.pip_version")  # removed due to a breaking change in v1.5.1
+
     def get_docker_config_cmd(self, docker_args, clean_api_credentials=False):
         docker_image = str(ENV_DOCKER_IMAGE.get() or
                            self._session.config.get("agent.default_docker.image", "nvidia/cuda")) \
@@ -3537,6 +3544,7 @@ class Worker(ServiceCommandSection):
             DockerArgsSanitizer.sanitize_docker_command(self._session, self._docker_arguments) or ''))
 
         temp_config = deepcopy(self._session.config)
+        self.remove_non_backwards_compatible_entries(temp_config)
         mounted_cache_dir = temp_config.get(
             "agent.docker_internal_mounts.sdk_cache", self._docker_fixed_user_cache)
         mounted_pip_dl_dir = temp_config.get(
