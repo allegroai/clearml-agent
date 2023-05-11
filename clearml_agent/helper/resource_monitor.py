@@ -139,42 +139,45 @@ class ResourceMonitor(object):
     def _daemon(self):
         seconds_since_started = 0
         reported = 0
-        while True:
-            last_report = time()
-            current_report_frequency = (
-                self._report_frequency if reported != 0 else self._first_report_sec
-            )
-            while (time() - last_report) < current_report_frequency:
-                # wait for self._sample_frequency seconds, if event set quit
-                if self._exit_event.wait(1 / self._sample_frequency):
-                    return
-                # noinspection PyBroadException
-                try:
-                    self._update_readouts()
-                except Exception as ex:
-                    log.warning("failed getting machine stats: %s", report_error(ex))
-                    self._failure()
+        try:
+            while True:
+                last_report = time()
+                current_report_frequency = (
+                    self._report_frequency if reported != 0 else self._first_report_sec
+                )
+                while (time() - last_report) < current_report_frequency:
+                    # wait for self._sample_frequency seconds, if event set quit
+                    if self._exit_event.wait(1 / self._sample_frequency):
+                        return
+                    # noinspection PyBroadException
+                    try:
+                        self._update_readouts()
+                    except Exception as ex:
+                        log.warning("failed getting machine stats: %s", report_error(ex))
+                        self._failure()
 
-            seconds_since_started += int(round(time() - last_report))
-            # check if we do not report any metric (so it means the last iteration will not be changed)
+                seconds_since_started += int(round(time() - last_report))
+                # check if we do not report any metric (so it means the last iteration will not be changed)
 
-            # if we do not have last_iteration, we just use seconds as iteration
+                # if we do not have last_iteration, we just use seconds as iteration
 
-            # start reporting only when we figured out, if this is seconds based, or iterations based
-            average_readouts = self._get_average_readouts()
-            stats = {
-                # 3 points after the dot
-                key: round(value, 3) if isinstance(value, float) else [round(v, 3) for v in value]
-                for key, value in average_readouts.items()
-            }
+                # start reporting only when we figured out, if this is seconds based, or iterations based
+                average_readouts = self._get_average_readouts()
+                stats = {
+                    # 3 points after the dot
+                    key: round(value, 3) if isinstance(value, float) else [round(v, 3) for v in value]
+                    for key, value in average_readouts.items()
+                }
 
-            # send actual report
-            if self.send_report(stats):
-                # clear readouts if this is update was sent
-                self._clear_readouts()
+                # send actual report
+                if self.send_report(stats):
+                    # clear readouts if this is update was sent
+                    self._clear_readouts()
 
-            # count reported iterations
-            reported += 1
+                # count reported iterations
+                reported += 1
+        except Exception as ex:
+            log.exception("Error reporting monitoring info: %s", str(ex))
 
     def _update_readouts(self):
         readouts = self._machine_stats()
