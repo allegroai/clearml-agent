@@ -320,6 +320,7 @@ class VCS(object):
                         self.url, new_url))
                     self.url = new_url
                 return
+
             # rewrite ssh URLs only if either ssh port or ssh user are forced in config
             if parsed_url.scheme == "ssh" and (
                 self.session.config.get('agent.force_git_ssh_port', None) or
@@ -334,6 +335,9 @@ class VCS(object):
                     print("Using SSH credentials - ssh url '{}' with ssh url '{}'".format(
                         self.url, new_url))
                     self.url = new_url
+                return
+            elif parsed_url.scheme == "ssh":
+                return
 
         if not self.session.config.agent.translate_ssh:
             return
@@ -343,7 +347,7 @@ class VCS(object):
                 (ENV_AGENT_GIT_PASS.get() or self.session.config.get('agent.git_pass', None)):
             # only apply to a specific domain (if requested)
             config_domain = \
-                ENV_AGENT_GIT_HOST.get() or self.session.config.get("git_host", None)
+                ENV_AGENT_GIT_HOST.get() or self.session.config.get("agent.git_host", None)
             if config_domain and config_domain != furl(self.url).host:
                 return
 
