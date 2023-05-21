@@ -585,6 +585,19 @@ class PytorchRequirement(SimpleSubstitution):
         :param list_of_requirements: {'pip': ['a==1.0', ]}
         :return: {'pip': ['a==1.0', ]}
         """
+        def build_specific_version_req(a_line, a_name, a_new_req):
+            try:
+                r = Requirement.parse(a_line)
+                wheel_parts = r.uri.split("/")[-1].split('-')
+                version = str(wheel_parts[1].split('%')[0].split('+')[0])
+                new_r = Requirement.parse("{} == {} # {}".format(a_name, version, str(a_new_req)))
+                if new_r.line:
+                    # great it worked!
+                    return new_r.line
+            except:  # noqa
+                pass
+            return None
+
         if not self._original_req:
             return list_of_requirements
         try:
@@ -608,9 +621,18 @@ class PytorchRequirement(SimpleSubstitution):
                                     if req.local_file:
                                         lines[i] = '{}'.format(str(new_req))
                                     else:
-                                        lines[i] = '{} # {}'.format(str(req), str(new_req))
+                                        # try to rebuild requirements with specific version:
+                                        new_line = build_specific_version_req(line, req.req.name, new_req)
+                                        if new_line:
+                                            lines[i] = new_line
+                                        else:
+                                            lines[i] = '{} # {}'.format(str(req), str(new_req))
                             else:
-                                lines[i] = '{} # {}'.format(line, str(new_req))
+                                new_line = build_specific_version_req(line, req.req.name, new_req)
+                                if new_line:
+                                    lines[i] = new_line
+                                else:
+                                    lines[i] = '{} # {}'.format(line, str(new_req))
                             break
         except:
             pass
