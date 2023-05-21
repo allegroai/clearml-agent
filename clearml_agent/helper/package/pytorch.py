@@ -310,6 +310,12 @@ class PytorchRequirement(SimpleSubstitution):
             # yes this is for linux python 2.7 support, this is the only python 2.7 we support...
             if py_ver and py_ver[0] == '2' and len(parts) > 3 and not parts[3].endswith('u'):
                 continue
+
+            # check if this an actual match
+            if not req.compare_version(v) or \
+                    (last_v and SimpleVersion.compare_versions(last_v, '>', v, ignore_sub_versions=False)):
+                continue
+
             # update the closest matched version (from above)
             if not closest_v:
                 closest_v = v
@@ -318,10 +324,6 @@ class PytorchRequirement(SimpleSubstitution):
                     SimpleVersion.compare_versions(
                         version_a=v, op='>=', version_b=req.specs[0][1], num_parts=3):
                 closest_v = v
-            # check if this an actual match
-            if not req.compare_version(v) or \
-                    (last_v and SimpleVersion.compare_versions(last_v, '>', v, ignore_sub_versions=False)):
-                continue
 
             url = '/'.join(torch_url.split('/')[:-1] + l.split('/'))
             last_v = v
@@ -475,6 +477,23 @@ class PytorchRequirement(SimpleSubstitution):
         return self.match_version(req, base).replace(" ", "\n")
 
     def replace(self, req):
+        # we first try to resolve things ourselves because pytorch pip is not always picking the correct
+        # versions from their pip repository
+
+        resolve_algorithm = str(self.config.get("agent.package_manager.pytorch_resolve", "pip")).lower()
+        if resolve_algorithm == "direct":
+            # noinspection PyBroadException
+            try:
+                new_req = self._replace(req)
+                if new_req:
+                    self._original_req.append((req, new_req))
+                return new_req
+            except Exception:
+                pass
+        elif resolve_algorithm not in ("direct", "pip"):
+            print("Warning: `agent.package_manager.pytorch_resolve={}` "
+                  "unrecognized, default to `pip`".format(resolve_algorithm))
+
         # check if package is already installed with system packages
         self.validate_python_version()
 

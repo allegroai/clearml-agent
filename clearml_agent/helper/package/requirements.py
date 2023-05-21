@@ -240,6 +240,23 @@ class SimpleVersion:
         if not version_b:
             return True
 
+        # remove trailing "*" in both
+        if "*" in version_a:
+            ignore_sub_versions = True
+            while version_a.endswith(".*"):
+                version_a = version_a[:-2]
+            if version_a == "*":
+                version_a = ""
+            num_parts = min(len(version_a.split('.')), len(version_b.split('.')), )
+
+        if "*" in version_b:
+            ignore_sub_versions = True
+            while version_b.endswith(".*"):
+                version_b = version_b[:-2]
+            if version_b == "*":
+                version_b = ""
+            num_parts = min(len(version_a.split('.')), len(version_b.split('.')), )
+
         if not num_parts:
             num_parts = max(len(version_a.split('.')), len(version_b.split('.')), )
 
