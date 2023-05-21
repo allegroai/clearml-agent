@@ -44,7 +44,7 @@ def main():
 
     if conf_file.exists() and conf_file.is_file() and conf_file.stat().st_size > 0:
         print('Configuration file already exists: {}'.format(str(conf_file)))
-        print('Leaving setup, feel free to edit the configuration file.')
+        print('Leaving setup. If you\'ve previously initialized the ClearML SDK on this machine, manually add an \'agent\' section to this file.')
         return
 
     print(description, end='')
