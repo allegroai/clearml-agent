@@ -73,6 +73,7 @@ from clearml_agent.definitions import (
     ENV_FORCE_SYSTEM_SITE_PACKAGES,
     ENV_SERVICES_DOCKER_RESTART,
     ENV_CONFIG_BC_IN_STANDALONE,
+    ENV_FORCE_DOCKER_AGENT_REPO,
 )
 from clearml_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
 from clearml_agent.errors import (
@@ -3930,6 +3931,7 @@ class Worker(ServiceCommandSection):
         # if we are running a RC version, install the same version in the docker
         # because the default latest, will be a release version (not RC)
         specify_version = ''
+        # noinspection PyBroadException
         try:
             from clearml_agent.version import __version__
             _version_parts = __version__.split('.')
@@ -3938,13 +3940,15 @@ class Worker(ServiceCommandSection):
         except:
             pass
 
+        force_agent_repo = ENV_FORCE_DOCKER_AGENT_REPO.get()
+
         if os.environ.get('FORCE_LOCAL_CLEARML_AGENT_WHEEL'):
             local_wheel = os.path.expanduser(os.environ.get('FORCE_LOCAL_CLEARML_AGENT_WHEEL'))
             docker_wheel = '/tmp/{}'.format(basename(local_wheel))
             base_cmd += ['-v', local_wheel + ':' + docker_wheel]
             clearml_agent_wheel = '\"{}\"'.format(docker_wheel)
-        elif os.environ.get('FORCE_CLEARML_AGENT_REPO'):
-            clearml_agent_wheel = os.environ.get('FORCE_CLEARML_AGENT_REPO')
+        elif force_agent_repo:
+            clearml_agent_wheel = force_agent_repo
         else:
             # clearml-agent{specify_version}
             clearml_agent_wheel = 'clearml-agent{specify_version}'.format(specify_version=specify_version)
