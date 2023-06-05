@@ -80,21 +80,21 @@ Find Dockerfiles in the [docker](./docker) dir and a helm Chart in https://githu
 
 **Two K8s integration flavours**
 
-- Spin ClearML-Agent as a long-lasting service pod
-    - use [clearml-agent](https://hub.docker.com/r/allegroai/clearml-agent) docker image
+- Spin ClearML-Agent as a long-lasting service pod:
+    - Use [clearml-agent](https://hub.docker.com/r/allegroai/clearml-agent) docker image
     - map docker socket into the pod (soon replaced by [podman](https://github.com/containers/podman))
-    - allow the clearml-agent to manage sibling dockers
-    - benefits: full use of the ClearML scheduling, no need to worry about wrong container images / lost pods etc.
-    - downside: Sibling containers
-- Kubernetes Glue, map ClearML jobs directly to K8s jobs
+    - Allow the clearml-agent to manage sibling dockers
+    - Benefits: full use of the ClearML scheduling, no need to worry about wrong container images / lost pods etc.
+    - Downside: sibling containers
+- Kubernetes Glue, map ClearML jobs directly to K8s jobs:
     - Run the [clearml-k8s glue](https://github.com/allegroai/clearml-agent/blob/master/examples/k8s_glue_example.py) on
       a K8s cpu node
     - The clearml-k8s glue pulls jobs from the ClearML job execution queue and prepares a K8s job (based on provided
       yaml template)
     - Inside the pod itself the clearml-agent will install the job (experiment) environment and spin and monitor the
       experiment's process
-    - benefits: Kubernetes full view of all running jobs in the system
-    - downside: No real scheduling (k8s scheduler), no docker image verification (post-mortem only)
+    - Benefits: Kubernetes full view of all running jobs in the system
+    - Downside: No real scheduling (k8s scheduler), no docker image verification (post-mortem only)
 
 ### Using the ClearML Agent
 
@@ -109,15 +109,15 @@ A previously run experiment can be put into 'Draft' state by either of two metho
 
 * Using the **'Reset'** action from the experiment right-click context menu in the ClearML UI - This will clear any
   results and artifacts the previous run had created.
-* Using the **'Clone'** action from the experiment right-click context menu in the ClearML UI - This will create a new '
-  Draft' experiment with the same configuration as the original experiment.
+* Using the **'Clone'** action from the experiment right-click context menu in the ClearML UI - This will create a new 
+  'Draft' experiment with the same configuration as the original experiment.
 
 An experiment is scheduled for execution using the **'Enqueue'** action from the experiment right-click context menu in
 the ClearML UI and selecting the execution queue.
 
 See [creating an experiment and enqueuing it for execution](#from-scratch).
 
-Once an experiment is enqueued, it will be picked up and executed by a ClearML agent monitoring this queue.
+Once an experiment is enqueued, it will be picked up and executed by a ClearML Agent monitoring this queue.
 
 The ClearML UI Workers & Queues page provides ongoing execution information:
 
@@ -169,16 +169,16 @@ clearml-agent init
 ```
 
 Note: The ClearML Agent uses a cache folder to cache pip packages, apt packages and cloned repositories. The default
-ClearML Agent cache folder is `~/.clearml`
+ClearML Agent cache folder is `~/.clearml`.
 
-See full details in your configuration file at `~/clearml.conf`
+See full details in your configuration file at `~/clearml.conf`.
 
-Note: The **ClearML agent** extends the **ClearML** configuration file `~/clearml.conf`
+Note: The **ClearML Agent** extends the **ClearML** configuration file `~/clearml.conf`.
 They are designed to share the same configuration file, see example [here](docs/clearml.conf)
 
 #### Running the ClearML Agent
 
-For debug and experimentation, start the ClearML agent in `foreground` mode, where all the output is printed to screen
+For debug and experimentation, start the ClearML agent in `foreground` mode, where all the output is printed to screen:
 
 ```bash
 clearml-agent daemon --queue default --foreground
@@ -199,8 +199,9 @@ the `clearml-agent`. <br>
 If `--cpu-only` flag is set, or `NVIDIA_VISIBLE_DEVICES="none"`, no gpu will be allocated for
 the `clearml-agent`.
 
-Example: spin two agents, one per gpu on the same machine:
-Notice: with `--detached` flag, the *clearml-agent* will be running in the background
+Example: spin two agents, one per GPU on the same machine:
+
+Notice: with `--detached` flag, the *clearml-agent* will run in the background
 
 ```bash
 clearml-agent daemon --detached --gpus 0 --queue default
@@ -222,14 +223,14 @@ For debug and experimentation, start the ClearML agent in `foreground` mode, whe
 clearml-agent daemon --queue default --docker --foreground
 ```
 
-For actual service mode, all the stdout will be stored automatically into a file (no need to pipe)
-Notice: with `--detached` flag, the *clearml-agent* will be running in the background
+For actual service mode, all the stdout will be stored automatically into a file (no need to pipe).
+Notice: with `--detached` flag, the *clearml-agent* will run in the background
 
 ```bash
 clearml-agent daemon --detached --queue default --docker
 ```
 
-Example: spin two agents, one per gpu on the same machine, with default nvidia/cuda:10.1-cudnn7-runtime-ubuntu18.04
+Example: spin two agents, one per gpu on the same machine, with default `nvidia/cuda:10.1-cudnn7-runtime-ubuntu18.04`
 docker:
 
 ```bash
@@ -237,8 +238,8 @@ clearml-agent daemon --detached --gpus 0 --queue default --docker nvidia/cuda:10
 clearml-agent daemon --detached --gpus 1 --queue default --docker nvidia/cuda:10.1-cudnn7-runtime-ubuntu18.04
 ```
 
-Example: spin two agents, pulling from dedicated `dual_gpu` queue, two GPUs per agent, with default nvidia/cuda:
-10.1-cudnn7-runtime-ubuntu18.04 docker:
+Example: spin two agents, pulling from dedicated `dual_gpu` queue, two GPUs per agent, with default 
+`nvidia/cuda:10.1-cudnn7-runtime-ubuntu18.04` docker:
 
 ```bash
 clearml-agent daemon --detached --gpus 0,1 --queue dual_gpu --docker nvidia/cuda:10.1-cudnn7-runtime-ubuntu18.04
@@ -255,10 +256,10 @@ High priority queue: `important_jobs`, low priority queue: `default`
 clearml-agent daemon --queue important_jobs default
 ```
 
-The **ClearML Agent** will first try to pull jobs from the `important_jobs` queue, only then it will fetch a job from
-the `default` queue.
+The **ClearML Agent** will first try to pull jobs from the `important_jobs` queue, and only if it is empty, the agent 
+will try to pull from the `default` queue.
 
-Adding queues, managing job order within a queue and moving jobs between queues, is available using the Web UI, see
+Adding queues, managing job order within a queue, and moving jobs between queues, is available using the Web UI, see
 example on our [free server](https://app.clear.ml/workers-and-queues/queues)
 
 ##### Stopping the ClearML Agent
@@ -290,7 +291,7 @@ clearml-agent daemon --detached --gpus 0 --queue default --docker nvidia/cuda:10
     - Update package versions
     - Select a specific docker image to run in (see docker execution mode section)
     - Or simply change nothing to run the same experiment again...
-* Schedule the newly created experiment for execution: Right-click the experiment and select 'enqueue'
+* Schedule the newly created experiment for execution: right-click the experiment and select 'enqueue'
 
 ### ClearML-Agent Services Mode <a name="services"></a>
 
