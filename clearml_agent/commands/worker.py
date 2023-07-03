@@ -319,6 +319,37 @@ def get_next_task(session, queue, get_task_info=False):
     return data
 
 
+def get_task_fields(session, task_id, fields: list, log=None) -> dict:
+    """
+    Returns dict with Task docker container setup {container: '', arguments: '', setup_shell_script: ''}
+    """
+    result = session.send_request(
+        service='tasks',
+        action='get_all',
+        json={'id': [task_id], 'only_fields': list(fields), 'search_hidden': True},
+        method=Request.def_method,
+        async_enable=False,
+    )
+    # noinspection PyBroadException
+    try:
+        results = {}
+        result = result.json()['data']['tasks'][0]
+        for field in fields:
+            cur = result
+            for part in field.split("."):
+                if part.isdigit():
+                    cur = cur[part]
+                else:
+                    cur = cur.get(part, {})
+            results[field] = cur
+        return results
+    except Exception as ex:
+        if log:
+            log.error("Failed obtaining values for task fields {}: {}", fields, ex)
+        pass
+    return {}
+
+
 def get_task_container(session, task_id):
     """
     Returns dict with Task docker container setup {container: '', arguments: '', setup_shell_script: ''}
@@ -890,11 +921,21 @@ class Worker(ServiceCommandSection):
 
             name_format = self._session.config.get('agent.docker_container_name_format', None)
             if name_format:
+                custom_fields = {}
+                name_format_fields = self._session.config.get('agent.docker_container_name_format_fields', None)
+                if name_format_fields:
+                    field_values = get_task_fields(task_session, task_id, name_format_fields.values(), log=self.log)
+                    custom_fields = {
+                        k: field_values.get(v)
+                        for k, v in name_format_fields.items()
+                    }
+
                 try:
                     name = name_format.format(
                         task_id=re.sub(r'[^a-zA-Z0-9._-]', '-', task_id),
                         worker_id=re.sub(r'[^a-zA-Z0-9._-]', '-', worker_id),
-                        rand_string="".join(sys_random.choice(string.ascii_lowercase) for _ in range(32))
+                        rand_string="".join(sys_random.choice(string.ascii_lowercase) for _ in range(32)),
+                        **custom_fields,
                     )
                 except Exception as ex:
                     print("Warning: failed generating docker container name: {}".format(ex))
