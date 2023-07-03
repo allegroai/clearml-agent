@@ -74,6 +74,7 @@ from clearml_agent.definitions import (
     ENV_SERVICES_DOCKER_RESTART,
     ENV_CONFIG_BC_IN_STANDALONE,
     ENV_FORCE_DOCKER_AGENT_REPO,
+    ENV_EXTRA_DOCKER_LABELS,
 )
 from clearml_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
 from clearml_agent.errors import (
@@ -3889,6 +3890,10 @@ class Worker(ServiceCommandSection):
         # set docker labels
         base_cmd += ['-l', self._worker_label.format(worker_id)]
         base_cmd += ['-l', self._parent_worker_label.format(parent_worker_id)]
+
+        extra_labels = ENV_EXTRA_DOCKER_LABELS.get()
+        for label in (extra_labels or []):
+            base_cmd += ['-l', label]
 
         self.debug("Command: {}".format(base_cmd), context="docker")
 
