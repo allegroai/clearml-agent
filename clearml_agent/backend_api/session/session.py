@@ -16,18 +16,17 @@ from requests.auth import HTTPBasicAuth
 from six.moves.urllib.parse import urlparse, urlunparse
 
 from clearml_agent.external.pyhocon import ConfigTree, ConfigFactory
-
 from .callresult import CallResult
 from .defs import (
     ENV_VERBOSE, ENV_HOST, ENV_ACCESS_KEY, ENV_SECRET_KEY, ENV_WEB_HOST, ENV_FILES_HOST, ENV_AUTH_TOKEN,
-    ENV_NO_DEFAULT_SERVER, ENV_DISABLE_VAULT_SUPPORT, ENV_INITIAL_CONNECT_RETRY_OVERRIDE, ENV_API_DEFAULT_REQ_METHOD, )
+    ENV_NO_DEFAULT_SERVER, ENV_DISABLE_VAULT_SUPPORT, ENV_INITIAL_CONNECT_RETRY_OVERRIDE, ENV_API_DEFAULT_REQ_METHOD,
+    ENV_FORCE_MAX_API_VERSION)
 from .request import Request, BatchRequest
 from .token_manager import TokenManager
 from ..config import load
 from ..utils import get_http_session_with_retry, urllib_log_warning_setup
 from ...backend_config.environment import backward_compatibility_support
 from ...version import __version__
-
 
 sys_random = SystemRandom()
 
@@ -64,6 +63,7 @@ class Session(TokenManager):
     default_files = "https://demofiles.demo.clear.ml"
     default_key = "EGRTCO8JMSIGI6S39GTP43NFWXDQOW"
     default_secret = "x!XTov_G-#vspE*Y(h$Anm&DIc5Ou-F)jsl$PdOyj5wG1&E!Z8"
+    force_max_api_version = ENV_FORCE_MAX_API_VERSION.get()
 
     # TODO: add requests.codes.gateway_timeout once we support async commits
     _retry_codes = [
@@ -198,6 +198,10 @@ class Session(TokenManager):
         # we do that here, so if we have problems authenticating, we see them immediately
         # notice: this is across the board warning omission
         urllib_log_warning_setup(total_retries=http_retries_config.get('total', 0), display_warning_after=3)
+
+        if self.force_max_api_version and self.check_min_api_version(self.force_max_api_version):
+            print("Using forced API version {}".format(self.force_max_api_version))
+            Session.max_api_version = Session.api_version = str(self.force_max_api_version)
 
     def _setup_session(self, http_retries_config, initial_session=False, default_initial_connect_override=None):
         # type: (dict, bool, Optional[bool]) -> (dict, requests.Session)

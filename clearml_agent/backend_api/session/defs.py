@@ -20,6 +20,7 @@ ENV_PROPAGATE_EXITCODE = EnvEntry("CLEARML_AGENT_PROPAGATE_EXITCODE", type=bool,
 ENV_INITIAL_CONNECT_RETRY_OVERRIDE = EnvEntry(
     'CLEARML_AGENT_INITIAL_CONNECT_RETRY_OVERRIDE', default=True, converter=safe_text_to_bool
 )
+ENV_FORCE_MAX_API_VERSION = EnvEntry("CLEARML_AGENT_FORCE_MAX_API_VERSION", type=str)
 
 """
 Experimental option to set the request method for all API requests and auth login.
