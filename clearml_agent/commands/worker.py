@@ -12,6 +12,7 @@ import shlex
 import shutil
 import signal
 import string
+import socket
 import subprocess
 import sys
 import traceback
@@ -24,7 +25,7 @@ from functools import partial
 from os.path import basename
 from tempfile import mkdtemp, NamedTemporaryFile
 from time import sleep, time
-from typing import Text, Optional, Any, Tuple, List
+from typing import Text, Optional, Any, Tuple, List, Dict, Mapping, Union
 
 import attr
 import six
@@ -368,6 +369,8 @@ def get_task_container(session, task_id):
             container = result.json()['data']['tasks'][0]['container'] if result.ok else {}
             if container.get('arguments'):
                 container['arguments'] = shlex.split(str(container.get('arguments')).strip())
+            if container.get('image'):
+                container['image'] = container.get('image').strip()
         except (ValueError, TypeError):
             container = {}
     else:
@@ -635,6 +638,8 @@ class Worker(ServiceCommandSection):
     _docker_fixed_user_cache = '/clearml_agent_cache'
     _temp_cleanup_list = []
 
+    hostname_task_runtime_prop = "_exec_agent_hostname"
+
     @property
     def service(self):
         """ Worker command service endpoint """
@@ -850,6 +855,20 @@ class Worker(ServiceCommandSection):
         # "Running task '{}'".format(task_id)
         print(self._task_logging_start_message.format(task_id))
         task_session = task_session or self._session
+
+        # noinspection PyBroadException
+        try:
+            res = task_session.send_request(
+                service='tasks', action='edit', method=Request.def_method,
+                json={
+                    "task": task_id, "force": True, "runtime": {self.hostname_task_runtime_prop: socket.gethostname()}
+                },
+            )
+            if not res.ok:
+                raise Exception("failed setting runtime property")
+        except Exception as ex:
+            print("Warning: failed obtaining/setting hostname for task '{}': {}".format(task_id, ex))
+
         # set task status to in_progress so we know it was popped from the queue
         # noinspection PyBroadException
         try:
@@ -2352,6 +2371,7 @@ class Worker(ServiceCommandSection):
                 raise CommandFailedError("Cloning failed")
         else:
             # make sure this task is not stuck in an execution queue, it shouldn't have been, but just in case.
+            # noinspection PyBroadException
             try:
                 res = self._session.api_client.tasks.dequeue(task=current_task.id)
                 if require_queue and res.meta.result_code != 200:
