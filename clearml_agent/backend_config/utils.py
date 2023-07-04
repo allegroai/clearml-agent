@@ -52,6 +52,7 @@ def apply_files(config):
         target_fmt = data.get("target_format", "string")
         overwrite = bool(data.get("overwrite", True))
         contents = data.get("contents")
+        mode = data.get("mode")
 
         target = Path(expanduser(expandvars(path)))
 
@@ -109,4 +110,15 @@ def apply_files(config):
             print("Saved [{}]: {}".format(key, target))
         except Exception as ex:
             print("Skipped [{}]: failed saving file {} ({})".format(key, target, ex))
+            continue
+
+        try:
+            if mode:
+                if isinstance(mode, int):
+                    mode = int(str(mode), 8)
+                else:
+                    mode = int(mode, 8)
+                target.chmod(mode)
+        except Exception as ex:
+            print("Skipped [{}]: failed setting mode {} for {} ({})".format(key, mode, target, ex))
             continue
