@@ -4,7 +4,7 @@ from itertools import chain
 from pathlib import Path
 from typing import Text, Optional
 
-from clearml_agent.definitions import PIP_EXTRA_INDICES, PROGRAM_NAME
+from clearml_agent.definitions import PIP_EXTRA_INDICES, PROGRAM_NAME, ENV_PIP_EXTRA_INSTALL_FLAGS
 from clearml_agent.helper.package.base import PackageManager
 from clearml_agent.helper.process import Argv, DEVNULL
 from clearml_agent.session import Session
@@ -52,7 +52,7 @@ class SystemPip(PackageManager):
                 package,
                 '--dest', cache_dir,
                 '--no-deps',
-            ) + self.install_flags()
+            ) + self.download_flags()
         )
 
     def load_requirements(self, requirements):
@@ -65,13 +65,14 @@ class SystemPip(PackageManager):
     def uninstall(self, package):
         self.run_with_env(('uninstall', '-y', package))
 
-    def freeze(self):
+    def freeze(self, freeze_full_environment=False):
         """
         pip freeze to all install packages except the running program
         :return: Dict contains pip as key and pip's packages to install
         :rtype: Dict[str: List[str]]
         """
-        packages = self.run_with_env(('freeze',), output=True).splitlines()
+        packages = self.run_with_env(
+            ('freeze',) if not freeze_full_environment else ('freeze', '--all'), output=True).splitlines()
         packages_without_program = [package for package in packages if PROGRAM_NAME not in package]
         return {'pip': packages_without_program}
 
@@ -87,6 +88,11 @@ class SystemPip(PackageManager):
         # make sure we are not running it with our own PYTHONPATH
         env = dict(**os.environ)
         env.pop('PYTHONPATH', None)
+
+        # Debug print
+        if self.session.debug_mode:
+            print(command)
+
         return (command.get_output if output else command.check_call)(stdin=DEVNULL, env=env, **kwargs)
 
     def _make_command(self, command):
@@ -97,4 +103,17 @@ class SystemPip(PackageManager):
             self.indices_args = tuple(
                 chain.from_iterable(('--extra-index-url', x) for x in PIP_EXTRA_INDICES)
             )
+
+        extra_pip_flags = \
+            ENV_PIP_EXTRA_INSTALL_FLAGS.get() or \
+            self.session.config.get("agent.package_manager.extra_pip_install_flags", None)
+
+        return (self.indices_args + tuple(extra_pip_flags)) if extra_pip_flags else self.indices_args
+
+    def download_flags(self):
+        if self.indices_args is None:
+            self.indices_args = tuple(
+                chain.from_iterable(('--extra-index-url', x) for x in PIP_EXTRA_INDICES)
+            )
+
         return self.indices_args
