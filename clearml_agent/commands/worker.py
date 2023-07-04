@@ -3961,7 +3961,7 @@ class Worker(ServiceCommandSection):
 
         base_cmd += ['-e', 'CLEARML_WORKER_ID='+worker_id, ]
         # update the docker image, so the system knows where it runs
-        base_cmd += ['-e', 'CLEARML_DOCKER_IMAGE={} {}'.format(docker_image, ' '.join(docker_arguments or [])).strip()]
+        base_cmd += ['-e', 'CLEARML_DOCKER_IMAGE={}'.format(docker_image)]
 
         if env_task_id:
             base_cmd += ['-e', 'CLEARML_TASK_ID={}'.format(env_task_id), ]
