@@ -3820,6 +3820,60 @@ class Worker(ServiceCommandSection):
                         pass
         return results
 
+    @staticmethod
+    def _resolve_docker_env_args(docker_args):
+        # type: (List[str]) -> List[str]
+        """
+        Resolve -e / --env docker environment args matching $VAR or ${VAR} from the host environment
+
+        :argument docker_args: List of docker argument strings (flags and values)
+        """
+        non_list_args = (
+            "rm", "read-only", "sig-proxy", "tty", "privileged", "publish-all", "interactive", "init", "help", "detach"
+        )
+        non_list_args_single = (
+            "t", "P", "i", "d",
+        )
+
+        # if no filtering, do nothing
+        if not docker_args:
+            return docker_args
+
+        args = docker_args[:]
+        skip_arg = False
+        for i, cmd in enumerate(docker_args):
+            if skip_arg and not cmd.startswith("-"):
+                continue
+
+            skip_arg = False
+
+            if cmd.startswith("--"):
+                # jump over single command
+                if cmd[2:] in non_list_args:
+                    continue
+            elif cmd.startswith("-"):
+                # jump over single character non args
+                if cmd[1:] in non_list_args_single:
+                    continue
+
+            # if we are here we have a command to bypass and the list after it
+            if cmd in ('-e', '--env'):
+                skip_arg = True
+                for j in range(i+1, len(args)):
+                    if args[j].startswith("-"):
+                        break
+
+                    parts = args[j].split("=", 1)
+                    if len(parts) != 2:
+                        continue
+
+                    args[j] = "{}={}".format(parts[0], os.path.expandvars(parts[1]))
+
+            elif cmd.startswith("-"):
+                skip_arg = True
+
+        return args
+
     def _get_docker_cmd(
             self,
             worker_id, parent_worker_id,
@@ -3883,9 +3937,14 @@ class Worker(ServiceCommandSection):
             docker_arguments = list(docker_arguments) \
                 if isinstance(docker_arguments, (list, tuple)) else [docker_arguments]
             docker_arguments = self._filter_docker_args(docker_arguments)
+            if self._session.config.get("agent.docker_allow_host_environ", None):
+                docker_arguments = self._resolve_docker_env_args(docker_arguments)
             base_cmd += [a for a in docker_arguments if a]
 
         if extra_docker_arguments:
+            # we always resolve environments in the `extra_docker_arguments` becuase the admin set them (not users)
+            extra_docker_arguments = self._resolve_docker_env_args(extra_docker_arguments)
+
             extra_docker_arguments = [extra_docker_arguments] \
                 if isinstance(extra_docker_arguments, six.string_types) else extra_docker_arguments
             base_cmd += [str(a) for a in extra_docker_arguments if a]
