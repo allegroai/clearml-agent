@@ -82,7 +82,7 @@ class K8sIntegration(Worker):
         "[ ! -z $LOCAL_PYTHON ] || apt-get install -y python3-pip",
         "[ ! -z $LOCAL_PYTHON ] || export LOCAL_PYTHON=python3",
         "{extra_bash_init_cmd}",
-        "$LOCAL_PYTHON -m pip install clearml-agent{agent_install_args}",
+        "[ ! -z $CLEARML_AGENT_NO_UPDATE ] || $LOCAL_PYTHON -m pip install clearml-agent{agent_install_args}",
         "{extra_docker_bash_script}",
         "$LOCAL_PYTHON -m clearml_agent execute {default_execution_agent_args} --id {task_id}"
     ]
