@@ -372,16 +372,19 @@ def get_task_container(session, task_id):
             container = {}
     else:
         response = get_task(session, task_id, only_fields=["execution.docker_cmd"])
-        task_docker_cmd_parts = shlex.split(str(response.execution.docker_cmd or '').strip())
-        try:
-            container = dict(
-                container=task_docker_cmd_parts[0],
-                arguments=task_docker_cmd_parts[1:] if len(task_docker_cmd_parts[0]) > 1 else ''
-            )
-        except (ValueError, TypeError):
-            container = {}
+        container = {}
+        if response.execution:
+            task_docker_cmd_parts = shlex.split(str(response.execution.docker_cmd or '').strip())
+            if task_docker_cmd_parts:
+                try:
+                    container = dict(
+                        image=task_docker_cmd_parts[0],
+                        arguments=task_docker_cmd_parts[1:] if len(task_docker_cmd_parts[0]) > 1 else ''
+                    )
+                except (ValueError, TypeError):
+                    pass
 
-    if (not container or not container.get('container')) and session.check_min_api_version("2.13"):
+    if (not container or not container.get('image')) and session.check_min_api_version("2.13"):
         container = resolve_default_container(session=session, task_id=task_id, container_config=container)
 
     return container
