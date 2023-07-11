@@ -12,6 +12,7 @@ import shlex
 import shutil
 import signal
 import string
+import socket
 import subprocess
 import sys
 import traceback
@@ -24,7 +25,7 @@ from functools import partial
 from os.path import basename
 from tempfile import mkdtemp, NamedTemporaryFile
 from time import sleep, time
-from typing import Text, Optional, Any, Tuple, List
+from typing import Text, Optional, Any, Tuple, List, Dict, Mapping, Union
 
 import attr
 import six
@@ -74,6 +75,7 @@ from clearml_agent.definitions import (
     ENV_SERVICES_DOCKER_RESTART,
     ENV_CONFIG_BC_IN_STANDALONE,
     ENV_FORCE_DOCKER_AGENT_REPO,
+    ENV_EXTRA_DOCKER_LABELS,
 )
 from clearml_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
 from clearml_agent.errors import (
@@ -319,6 +321,37 @@ def get_next_task(session, queue, get_task_info=False):
     return data
 
 
+def get_task_fields(session, task_id, fields: list, log=None) -> dict:
+    """
+    Returns dict with Task docker container setup {container: '', arguments: '', setup_shell_script: ''}
+    """
+    result = session.send_request(
+        service='tasks',
+        action='get_all',
+        json={'id': [task_id], 'only_fields': list(fields), 'search_hidden': True},
+        method=Request.def_method,
+        async_enable=False,
+    )
+    # noinspection PyBroadException
+    try:
+        results = {}
+        result = result.json()['data']['tasks'][0]
+        for field in fields:
+            cur = result
+            for part in field.split("."):
+                if part.isdigit():
+                    cur = cur[part]
+                else:
+                    cur = cur.get(part, {})
+            results[field] = cur
+        return results
+    except Exception as ex:
+        if log:
+            log.error("Failed obtaining values for task fields {}: {}", fields, ex)
+        pass
+    return {}
+
+
 def get_task_container(session, task_id):
     """
     Returns dict with Task docker container setup {container: '', arguments: '', setup_shell_script: ''}
@@ -336,20 +369,25 @@ def get_task_container(session, task_id):
             container = result.json()['data']['tasks'][0]['container'] if result.ok else {}
             if container.get('arguments'):
                 container['arguments'] = shlex.split(str(container.get('arguments')).strip())
+            if container.get('image'):
+                container['image'] = container.get('image').strip()
         except (ValueError, TypeError):
             container = {}
     else:
         response = get_task(session, task_id, only_fields=["execution.docker_cmd"])
-        task_docker_cmd_parts = shlex.split(str(response.execution.docker_cmd or '').strip())
-        try:
-            container = dict(
-                container=task_docker_cmd_parts[0],
-                arguments=task_docker_cmd_parts[1:] if len(task_docker_cmd_parts[0]) > 1 else ''
-            )
-        except (ValueError, TypeError):
-            container = {}
+        container = {}
+        if response.execution:
+            task_docker_cmd_parts = shlex.split(str(response.execution.docker_cmd or '').strip())
+            if task_docker_cmd_parts:
+                try:
+                    container = dict(
+                        image=task_docker_cmd_parts[0],
+                        arguments=task_docker_cmd_parts[1:] if len(task_docker_cmd_parts[0]) > 1 else ''
+                    )
+                except (ValueError, TypeError):
+                    pass
 
-    if (not container or not container.get('container')) and session.check_min_api_version("2.13"):
+    if (not container or not container.get('image')) and session.check_min_api_version("2.13"):
         container = resolve_default_container(session=session, task_id=task_id, container_config=container)
 
     return container
@@ -600,6 +638,8 @@ class Worker(ServiceCommandSection):
     _docker_fixed_user_cache = '/clearml_agent_cache'
     _temp_cleanup_list = []
 
+    hostname_task_runtime_prop = "_exec_agent_hostname"
+
     @property
     def service(self):
         """ Worker command service endpoint """
@@ -815,6 +855,20 @@ class Worker(ServiceCommandSection):
         # "Running task '{}'".format(task_id)
         print(self._task_logging_start_message.format(task_id))
         task_session = task_session or self._session
+
+        # noinspection PyBroadException
+        try:
+            res = task_session.send_request(
+                service='tasks', action='edit', method=Request.def_method,
+                json={
+                    "task": task_id, "force": True, "runtime": {self.hostname_task_runtime_prop: socket.gethostname()}
+                },
+            )
+            if not res.ok:
+                raise Exception("failed setting runtime property")
+        except Exception as ex:
+            print("Warning: failed obtaining/setting hostname for task '{}': {}".format(task_id, ex))
+
         # set task status to in_progress so we know it was popped from the queue
         # noinspection PyBroadException
         try:
@@ -890,11 +944,21 @@ class Worker(ServiceCommandSection):
 
             name_format = self._session.config.get('agent.docker_container_name_format', None)
             if name_format:
+                custom_fields = {}
+                name_format_fields = self._session.config.get('agent.docker_container_name_format_fields', None)
+                if name_format_fields:
+                    field_values = get_task_fields(task_session, task_id, name_format_fields.values(), log=self.log)
+                    custom_fields = {
+                        k: field_values.get(v)
+                        for k, v in name_format_fields.items()
+                    }
+
                 try:
                     name = name_format.format(
                         task_id=re.sub(r'[^a-zA-Z0-9._-]', '-', task_id),
                         worker_id=re.sub(r'[^a-zA-Z0-9._-]', '-', worker_id),
-                        rand_string="".join(sys_random.choice(string.ascii_lowercase) for _ in range(32))
+                        rand_string="".join(sys_random.choice(string.ascii_lowercase) for _ in range(32)),
+                        **custom_fields,
                     )
                 except Exception as ex:
                     print("Warning: failed generating docker container name: {}".format(ex))
@@ -2307,6 +2371,7 @@ class Worker(ServiceCommandSection):
                 raise CommandFailedError("Cloning failed")
         else:
             # make sure this task is not stuck in an execution queue, it shouldn't have been, but just in case.
+            # noinspection PyBroadException
             try:
                 res = self._session.api_client.tasks.dequeue(task=current_task.id)
                 if require_queue and res.meta.result_code != 200:
@@ -3775,6 +3840,60 @@ class Worker(ServiceCommandSection):
                         pass
         return results
 
+    @staticmethod
+    def _resolve_docker_env_args(docker_args):
+        # type: (List[str]) -> List[str]
+        """
+        Resolve -e / --env docker environment args matching $VAR or ${VAR} from the host environment
+
+        :argument docker_args: List of docker argument strings (flags and values)
+        """
+        non_list_args = (
+            "rm", "read-only", "sig-proxy", "tty", "privileged", "publish-all", "interactive", "init", "help", "detach"
+        )
+        non_list_args_single = (
+            "t", "P", "i", "d",
+        )
+
+        # if no filtering, do nothing
+        if not docker_args:
+            return docker_args
+
+        args = docker_args[:]
+        skip_arg = False
+        for i, cmd in enumerate(docker_args):
+            if skip_arg and not cmd.startswith("-"):
+                continue
+
+            skip_arg = False
+
+            if cmd.startswith("--"):
+                # jump over single command
+                if cmd[2:] in non_list_args:
+                    continue
+            elif cmd.startswith("-"):
+                # jump over single character non args
+                if cmd[1:] in non_list_args_single:
+                    continue
+
+            # if we are here we have a command to bypass and the list after it
+            if cmd in ('-e', '--env'):
+                skip_arg = True
+                for j in range(i+1, len(args)):
+                    if args[j].startswith("-"):
+                        break
+
+                    parts = args[j].split("=", 1)
+                    if len(parts) != 2:
+                        continue
+
+                    args[j] = "{}={}".format(parts[0], os.path.expandvars(parts[1]))
+
+            elif cmd.startswith("-"):
+                skip_arg = True
+
+        return args
+
     def _get_docker_cmd(
             self,
             worker_id, parent_worker_id,
@@ -3838,9 +3957,14 @@ class Worker(ServiceCommandSection):
             docker_arguments = list(docker_arguments) \
                 if isinstance(docker_arguments, (list, tuple)) else [docker_arguments]
             docker_arguments = self._filter_docker_args(docker_arguments)
+            if self._session.config.get("agent.docker_allow_host_environ", None):
+                docker_arguments = self._resolve_docker_env_args(docker_arguments)
             base_cmd += [a for a in docker_arguments if a]
 
         if extra_docker_arguments:
+            # we always resolve environments in the `extra_docker_arguments` becuase the admin set them (not users)
+            extra_docker_arguments = self._resolve_docker_env_args(extra_docker_arguments)
+
             extra_docker_arguments = [extra_docker_arguments] \
                 if isinstance(extra_docker_arguments, six.string_types) else extra_docker_arguments
             base_cmd += [str(a) for a in extra_docker_arguments if a]
@@ -3848,6 +3972,10 @@ class Worker(ServiceCommandSection):
         # set docker labels
         base_cmd += ['-l', self._worker_label.format(worker_id)]
         base_cmd += ['-l', self._parent_worker_label.format(parent_worker_id)]
+
+        extra_labels = ENV_EXTRA_DOCKER_LABELS.get()
+        for label in (extra_labels or []):
+            base_cmd += ['-l', label]
 
         self.debug("Command: {}".format(base_cmd), context="docker")
 
@@ -3912,7 +4040,7 @@ class Worker(ServiceCommandSection):
 
         base_cmd += ['-e', 'CLEARML_WORKER_ID='+worker_id, ]
         # update the docker image, so the system knows where it runs
-        base_cmd += ['-e', 'CLEARML_DOCKER_IMAGE={} {}'.format(docker_image, ' '.join(docker_arguments or [])).strip()]
+        base_cmd += ['-e', 'CLEARML_DOCKER_IMAGE={}'.format(docker_image)]
 
         if env_task_id:
             base_cmd += ['-e', 'CLEARML_TASK_ID={}'.format(env_task_id), ]
