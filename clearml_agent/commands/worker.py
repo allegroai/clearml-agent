@@ -858,10 +858,21 @@ class Worker(ServiceCommandSection):
 
         # noinspection PyBroadException
         try:
+            result = task_session.send_request(
+                service='tasks',
+                action='get_all',
+                version='2.15',
+                method=Request.def_method,
+                json={'id': [task_id], 'only_fields': ["runtime"], 'search_hidden': True}
+            )
+
+            runtime = result.json().get("data", {}).get("tasks", [])[0].get("runtime") or {}
+            runtime[self.hostname_task_runtime_prop] = socket.gethostname()
+
             res = task_session.send_request(
                 service='tasks', action='edit', method=Request.def_method,
                 json={
-                    "task": task_id, "force": True, "runtime": {self.hostname_task_runtime_prop: socket.gethostname()}
+                    "task": task_id, "force": True, "runtime": runtime
                 },
             )
             if not res.ok:
