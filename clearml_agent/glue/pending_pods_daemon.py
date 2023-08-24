@@ -101,7 +101,7 @@ class PendingPodsDaemon(K8sDaemon):
                                     status_message="Changed by K8S glue",
                                     force=True
                                 )
-                                self._agent.command.send_logs(
+                                self._agent.send_logs(
                                     task_id, ["K8S Error: {}".format(msg)],
                                     session=self._session
                                 )
