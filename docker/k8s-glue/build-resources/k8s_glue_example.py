@@ -65,6 +65,19 @@ def parse_args():
         help="Limit the maximum number of pods that this service can run at the same time."
              "Should not be used with ports-mode"
     )
+    parser.add_argument(
+        "--use-owner-token", action="store_true", default=False,
+        help="Generate and use task owner token for the execution of each task"
+    )
+    parser.add_argument(
+        "--standalone-mode", action="store_true", default=False,
+        help="Do not use any network connects, assume everything is pre-installed"
+    )
+    parser.add_argument(
+        "--child-report-tags", type=str, nargs="+", default=None,
+        help="List of tags to send with the status reports from a worker that runs a task"
+    )
+
     return parser.parse_args()
 
 
@@ -85,9 +98,14 @@ def main():
         user_props_cb=user_props_cb, overrides_yaml=args.overrides_yaml, clearml_conf_file=args.pod_clearml_conf,
         template_yaml=args.template_yaml, extra_bash_init_script=K8sIntegration.get_ssh_server_bash(
             ssh_port_number=args.ssh_server_port) if args.ssh_server_port else None,
-        namespace=args.namespace, max_pods_limit=args.max_pods or None,
+        namespace=args.namespace, max_pods_limit=args.max_pods or None
     )
-    k8s.k8s_daemon(args.queue)
+    k8s.k8s_daemon(
+        args.queue,
+        use_owner_token=args.use_owner_token,
+        standalone_mode=args.standalone_mode,
+        child_report_tags=args.child_report_tags
+    )
 
 
 if __name__ == "__main__":

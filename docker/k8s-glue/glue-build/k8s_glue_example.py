@@ -65,6 +65,10 @@ def parse_args():
         help="Limit the maximum number of pods that this service can run at the same time."
              "Should not be used with ports-mode"
     )
+    parser.add_argument(
+        "--use-owner-token", action="store_true", default=False,
+        help="Generate and use task owner token for the execution of each task"
+    )
     return parser.parse_args()
 
 
@@ -87,7 +91,7 @@ def main():
             ssh_port_number=args.ssh_server_port) if args.ssh_server_port else None,
         namespace=args.namespace, max_pods_limit=args.max_pods or None,
     )
-    k8s.k8s_daemon(args.queue)
+    k8s.k8s_daemon(args.queue, use_owner_token=args.use_owner_token)
 
 
 if __name__ == "__main__":

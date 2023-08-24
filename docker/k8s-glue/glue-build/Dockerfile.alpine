@@ -1,4 +1,4 @@
-ARG TAG=3.7.12-alpine3.15
+ARG TAG=3.7.17-alpine3.18
 
 FROM python:${TAG} as build
 
@@ -20,7 +20,7 @@ FROM python:${TAG} as target
 
 WORKDIR /app
 
-ARG KUBECTL_VERSION=1.22.4
+ARG KUBECTL_VERSION=1.24.0
 
 # Not sure about these ENV vars
 # ENV LC_ALL=en_US.UTF-8
