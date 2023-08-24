@@ -203,6 +203,8 @@ class Session(TokenManager):
             print("Using forced API version {}".format(self.force_max_api_version))
             Session.max_api_version = Session.api_version = str(self.force_max_api_version)
 
+        self.pre_vault_config = None
+
     def _setup_session(self, http_retries_config, initial_session=False, default_initial_connect_override=None):
         # type: (dict, bool, Optional[bool]) -> (dict, requests.Session)
         http_retries_config = http_retries_config or self.config.get(
@@ -254,7 +256,11 @@ class Session(TokenManager):
         def parse(vault):
             # noinspection PyBroadException
             try:
-                d = vault.get('data', None)
+                print("Loaded {} vault: {}".format(
+                    vault.get("scope", ""),
+                    (vault.get("description", None) or "")[:50] or vault.get("id", ""))
+                )
+                d = vault.get("data", None)
                 if d:
                     r = ConfigFactory.parse_string(d)
                     if isinstance(r, (ConfigTree, dict)):
@@ -270,6 +276,7 @@ class Session(TokenManager):
                 vaults = res.json().get("data", {}).get("vaults", [])
                 data = list(filter(None, map(parse, vaults)))
                 if data:
+                    self.pre_vault_config = self.config.copy()
                     self.config.set_overrides(*data)
                     return True
             elif res.status_code != 404:
