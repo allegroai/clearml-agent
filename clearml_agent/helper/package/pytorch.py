@@ -527,6 +527,8 @@ class PytorchRequirement(SimpleSubstitution):
                     # return the original line
                     line = req.line
 
+                print("PyTorch: Adding index `{}` and installing `{}`".format(extra_index_url[0], line))
+
                 return line
 
         except Exception:  # noqa
@@ -681,7 +683,7 @@ class PytorchRequirement(SimpleSubstitution):
             # noinspection PyBroadException
             try:
                 if requests.get(torch_url, timeout=10).ok:
-                    print('Torch CUDA {} index page found'.format(c))
+                    print('Torch CUDA {} index page found, adding `{}`'.format(c, torch_url))
                     cls.torch_index_url_lookup[c] = torch_url
                     return cls.torch_index_url_lookup[c], c
             except Exception:

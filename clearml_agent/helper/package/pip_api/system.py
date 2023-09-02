@@ -12,8 +12,6 @@ from clearml_agent.session import Session
 
 class SystemPip(PackageManager):
 
-    indices_args = None
-
     def __init__(self, interpreter=None, session=None):
         # type: (Optional[Text], Optional[Session]) -> ()
         """
@@ -99,21 +97,19 @@ class SystemPip(PackageManager):
         return Argv(self.bin, '-m', 'pip', '--disable-pip-version-check', *command)
 
     def install_flags(self):
-        if self.indices_args is None:
-            self.indices_args = tuple(
-                chain.from_iterable(('--extra-index-url', x) for x in PIP_EXTRA_INDICES)
-            )
+        indices_args = tuple(
+            chain.from_iterable(('--extra-index-url', x) for x in PIP_EXTRA_INDICES)
+        )
 
         extra_pip_flags = \
             ENV_PIP_EXTRA_INSTALL_FLAGS.get() or \
             self.session.config.get("agent.package_manager.extra_pip_install_flags", None)
 
-        return (self.indices_args + tuple(extra_pip_flags)) if extra_pip_flags else self.indices_args
+        return (indices_args + tuple(extra_pip_flags)) if extra_pip_flags else indices_args
 
     def download_flags(self):
-        if self.indices_args is None:
-            self.indices_args = tuple(
-                chain.from_iterable(('--extra-index-url', x) for x in PIP_EXTRA_INDICES)
-            )
+        indices_args = tuple(
+            chain.from_iterable(('--extra-index-url', x) for x in PIP_EXTRA_INDICES)
+        )
 
-        return self.indices_args
+        return indices_args
