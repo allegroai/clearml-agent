@@ -238,6 +238,8 @@ ENV_CUSTOM_BUILD_SCRIPT = EnvironmentConfig("CLEARML_AGENT_CUSTOM_BUILD_SCRIPT")
     standard flow.
 """
 
+ENV_PACKAGE_PYTORCH_RESOLVE = EnvironmentConfig("CLEARML_AGENT_PACKAGE_PYTORCH_RESOLVE")
+
 
 class FileBuffering(IntEnum):
     """
