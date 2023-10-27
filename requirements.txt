@@ -11,5 +11,5 @@ PyYAML>=3.12,<6.1
 requests>=2.20.0,<2.29.0
 six>=1.13.0,<1.17.0
 typing>=3.6.4,<3.8.0 ; python_version < '3.5'
-urllib3>=1.21.1,<1.27.0
+urllib3>=1.21.1,<2.0.7
 virtualenv>=16,<21
