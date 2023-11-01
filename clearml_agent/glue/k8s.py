@@ -587,7 +587,7 @@ class K8sIntegration(Worker):
             clearml_conf_create_script=clearml_conf_create_script,
             labels=labels,
             docker_image=container['image'],
-            docker_args=container['arguments'],
+            docker_args=container.get('arguments'),
             docker_bash=container.get('setup_shell_script'),
             task_id=task_id,
             queue=queue,
