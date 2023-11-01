@@ -31,7 +31,8 @@ def apply_environment(config):
     keys = list(filter(None, env_vars.keys()))
 
     for key in keys:
-        os.environ[str(key)] = str(env_vars[key] or "")
+        value = env_vars[key]
+        os.environ[str(key)] = str(value if value is not None else "")
 
     return keys
 
