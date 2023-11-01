@@ -76,6 +76,8 @@ from clearml_agent.definitions import (
     ENV_CONFIG_BC_IN_STANDALONE,
     ENV_FORCE_DOCKER_AGENT_REPO,
     ENV_EXTRA_DOCKER_LABELS,
+    ENV_AGENT_FORCE_CODE_DIR,
+    ENV_AGENT_FORCE_EXEC_SCRIPT,
 )
 from clearml_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
 from clearml_agent.errors import (
@@ -2465,6 +2467,12 @@ class Worker(ServiceCommandSection):
 
         execution = self.get_execution_info(current_task)
 
+        if ENV_AGENT_FORCE_EXEC_SCRIPT.get():
+            entry_point_parts = str(ENV_AGENT_FORCE_EXEC_SCRIPT.get()).split(":", 1)
+            execution.entry_point = entry_point_parts[-1]
+            execution.working_dir = entry_point_parts[0] if len(entry_point_parts) > 1 else "."
+            print("WARNING: Using forced script entry [{}:{}]".format(execution.working_dir, execution.entry_point))
+
         python_ver = self._get_task_python_version(current_task)
 
         freeze = None
@@ -2542,8 +2550,9 @@ class Worker(ServiceCommandSection):
                 code_folder = self._session.config.get("agent.venvs_dir")
                 code_folder = Path(os.path.expanduser(os.path.expandvars(code_folder)))
                 # let's make sure it is clear from previous runs
-                rm_tree(normalize_path(code_folder, WORKING_REPOSITORY_DIR))
-                rm_tree(normalize_path(code_folder, WORKING_STANDALONE_DIR))
+                if not standalone_mode:
+                    rm_tree(normalize_path(code_folder, WORKING_REPOSITORY_DIR))
+                    rm_tree(normalize_path(code_folder, WORKING_STANDALONE_DIR))
                 if not code_folder.exists():
                     code_folder.mkdir(parents=True, exist_ok=True)
                 alternative_code_folder = code_folder.as_posix()
@@ -2561,10 +2570,14 @@ class Worker(ServiceCommandSection):
 
                     print("\n")
 
-            # either use the venvs base folder for code or the cwd
-            directory, vcs, repo_info = self.get_repo_info(
-                execution, current_task, str(venv_folder or alternative_code_folder)
-            )
+            # if we force code directory - by definition we do not clone or apply any changes
+            if ENV_AGENT_FORCE_CODE_DIR.get():
+                directory, vcs, repo_info = ENV_AGENT_FORCE_CODE_DIR.get(), None, None
+            else:
+                # either use the venvs base folder for code or the cwd
+                directory, vcs, repo_info = self.get_repo_info(
+                    execution, current_task, str(alternative_code_folder or venv_folder)
+                )
 
             print("\n")
 
@@ -3017,7 +3030,7 @@ class Worker(ServiceCommandSection):
         # Todo: add support for poetry caching
         if not self.poetry.enabled:
             # add to cache
-            if add_venv_folder_cache:
+            if add_venv_folder_cache and not self._standalone_mode:
                 print('Adding venv into cache: {}'.format(add_venv_folder_cache))
                 self.package_api.add_cached_venv(
                     requirements=[freeze, previous_reqs],
