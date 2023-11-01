@@ -69,7 +69,7 @@ class PoetryConfig:
                 path = path.replace(':'+sys.base_prefix, ':'+sys.real_prefix, 1)
                 kwargs['env']['PATH'] = path
 
-        if self.session and self.session.config:
+        if self.session and self.session.config and args and args[0] == "install":
             extra_args = self.session.config.get("agent.package_manager.poetry_install_extra_args", None)
             if extra_args:
                 args = args + tuple(extra_args)
