@@ -1,5 +1,5 @@
-from ...backend_config.converters import safe_text_to_bool
-from ...backend_config.environment import EnvEntry
+from clearml_agent.helper.environment import EnvEntry
+from clearml_agent.helper.environment.converters import safe_text_to_bool
 
 
 ENV_HOST = EnvEntry("CLEARML_API_HOST", "TRAINS_API_HOST")

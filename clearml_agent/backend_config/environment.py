@@ -1,32 +1,6 @@
-from os import getenv, environ
+from os import environ
 
-from .converters import text_to_bool
-from .entry import Entry, NotSet
-
-
-class EnvEntry(Entry):
-    @classmethod
-    def default_conversions(cls):
-        conversions = super(EnvEntry, cls).default_conversions().copy()
-        conversions[bool] = text_to_bool
-        return conversions
-
-    def pop(self):
-        for k in self.keys:
-            environ.pop(k, None)
-
-    def _get(self, key):
-        value = getenv(key, "").strip()
-        return value or NotSet
-
-    def _set(self, key, value):
-        environ[key] = value
-
-    def __str__(self):
-        return "env:{}".format(super(EnvEntry, self).__str__())
-
-    def error(self, message):
-        print("Environment configuration: {}".format(message))
+from clearml_agent.helper.environment import EnvEntry
 
 
 def backward_compatibility_support():
@@ -34,6 +8,7 @@ def backward_compatibility_support():
     if ENVIRONMENT_BACKWARD_COMPATIBLE.get():
         # Add TRAINS_ prefix on every CLEARML_ os environment we support
         for k, v in ENVIRONMENT_CONFIG.items():
+            # noinspection PyBroadException
             try:
                 trains_vars = [var for var in v.vars if var.startswith('CLEARML_')]
                 if not trains_vars:
@@ -44,6 +19,7 @@ def backward_compatibility_support():
             except:
                 continue
         for k, v in ENVIRONMENT_SDK_PARAMS.items():
+            # noinspection PyBroadException
             try:
                 trains_vars = [var for var in v if var.startswith('CLEARML_')]
                 if not trains_vars:
@@ -62,3 +38,9 @@ def backward_compatibility_support():
         backwards_k = k.replace('CLEARML_', 'TRAINS_', 1)
         if backwards_k not in keys:
             environ[backwards_k] = environ[k]
+
+
+__all__ = [
+    "EnvEntry",
+    "backward_compatibility_support"
+]

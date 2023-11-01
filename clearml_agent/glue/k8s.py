@@ -18,7 +18,6 @@ from typing import Text, List, Callable, Any, Collection, Optional, Union, Itera
 
 import yaml
 
-from clearml_agent.backend_api.session import Request
 from clearml_agent.commands.events import Events
 from clearml_agent.commands.worker import Worker, get_task_container, set_task_container, get_next_task
 from clearml_agent.definitions import (
@@ -28,7 +27,6 @@ from clearml_agent.definitions import (
     ENV_FORCE_SYSTEM_SITE_PACKAGES,
 )
 from clearml_agent.errors import APIError, UsageError
-from clearml_agent.glue.definitions import ENV_START_AGENT_SCRIPT_PATH
 from clearml_agent.glue.errors import GetPodCountError
 from clearml_agent.glue.utilities import get_path, get_bash_output
 from clearml_agent.glue.pending_pods_daemon import PendingPodsDaemon
@@ -37,12 +35,17 @@ from clearml_agent.helper.dicts import merge_dicts
 from clearml_agent.helper.process import get_bash_output, stringify_bash_output
 from clearml_agent.helper.resource_monitor import ResourceMonitor
 from clearml_agent.interface.base import ObjectID
+from clearml_agent.backend_api.session import Request
+from clearml_agent.glue.definitions import (
+    ENV_START_AGENT_SCRIPT_PATH,
+    ENV_DEFAULT_EXECUTION_AGENT_ARGS,
+    ENV_POD_AGENT_INSTALL_ARGS,
+)
 
 
 class K8sIntegration(Worker):
     SUPPORTED_KIND = ("pod", "job")
     K8S_PENDING_QUEUE = "k8s_scheduler"
-
     K8S_DEFAULT_NAMESPACE = "clearml"
     AGENT_LABEL = "CLEARML=agent"
     QUEUE_LABEL = "clearml-agent-queue"
@@ -63,9 +66,6 @@ class K8sIntegration(Worker):
         'echo "export PATH=$PATH" >> /etc/profile',
         'echo "ldconfig" >> /etc/profile',
         "/usr/sbin/sshd -p {port}"]
-
-    DEFAULT_EXECUTION_AGENT_ARGS = os.getenv("K8S_GLUE_DEF_EXEC_AGENT_ARGS", "--full-monitoring --require-queue")
-    POD_AGENT_INSTALL_ARGS = os.getenv("K8S_GLUE_POD_AGENT_INSTALL_ARGS", "")
 
     CONTAINER_BASH_SCRIPT = [
         "export DEBIAN_FRONTEND='noninteractive'",
@@ -181,7 +181,7 @@ class K8sIntegration(Worker):
 
         self._agent_label = None
 
-        self._pending_pods_daemon = self._create_pending_pods_daemon(
+        self._pending_pods_daemon = self._create_daemon_instance(
             cls_=PendingPodsDaemon,
             polling_interval=self._polling_interval
         )
@@ -190,7 +190,7 @@ class K8sIntegration(Worker):
         self._min_cleanup_interval_per_ns_sec = 1.0
         self._last_pod_cleanup_per_ns = defaultdict(lambda: 0.)
 
-    def _create_pending_pods_daemon(self, cls_, **kwargs):
+    def _create_daemon_instance(self, cls_, **kwargs):
         return cls_(agent=self, **kwargs)
 
     def _load_overrides_yaml(self, overrides_yaml):
@@ -417,6 +417,10 @@ class K8sIntegration(Worker):
                 )
                 raise GetPodCountError()
 
+    def resource_applied(self, resource_name: str, namespace: str, task_id: str, session):
+        """ Called when a resource (pod/job) was applied """
+        pass
+
     def run_one_task(self, queue: Text, task_id: Text, worker_args=None, task_session=None, **_):
         print('Pulling task {} launching on kubernetes cluster'.format(task_id))
         session = task_session or self._session
@@ -573,25 +577,34 @@ class K8sIntegration(Worker):
         except (KeyError, TypeError, AttributeError):
             namespace = self.namespace
 
-        if template:
-            output, error = self._kubectl_apply(
-                template=template,
-                pod_number=pod_number,
-                clearml_conf_create_script=clearml_conf_create_script,
-                labels=labels,
-                docker_image=container['image'],
-                docker_args=container['arguments'],
-                docker_bash=container.get('setup_shell_script'),
-                task_id=task_id,
-                queue=queue,
-                namespace=namespace,
-            )
+        if not template:
+            print("ERROR: no template for task {}, skipping".format(task_id))
+            return
 
-            print('kubectl output:\n{}\n{}'.format(error, output))
-            if error:
-                send_log = "Running kubectl encountered an error: {}".format(error)
-                self.log.error(send_log)
-                self.send_logs(task_id, send_log.splitlines())
+        output, error, pod_name = self._kubectl_apply(
+            template=template,
+            pod_number=pod_number,
+            clearml_conf_create_script=clearml_conf_create_script,
+            labels=labels,
+            docker_image=container['image'],
+            docker_args=container['arguments'],
+            docker_bash=container.get('setup_shell_script'),
+            task_id=task_id,
+            queue=queue,
+            namespace=namespace,
+        )
+
+        print('kubectl output:\n{}\n{}'.format(error, output))
+        if error:
+            send_log = "Running kubectl encountered an error: {}".format(error)
+            self.log.error(send_log)
+            self.send_logs(task_id, send_log.splitlines())
+            return
+
+        if pod_name:
+            self.resource_applied(
+                resource_name=pod_name, namespace=namespace, task_id=task_id, session=session
+            )
 
         user_props = {"k8s-queue": str(queue_name)}
         if self.ports_mode:
@@ -675,8 +688,8 @@ class K8sIntegration(Worker):
             [line.format(extra_bash_init_cmd=self.extra_bash_init_script or '',
                          task_id=task_id,
                          extra_docker_bash_script=extra_docker_bash_script,
-                         default_execution_agent_args=self.DEFAULT_EXECUTION_AGENT_ARGS,
-                         agent_install_args=self.POD_AGENT_INSTALL_ARGS)
+                         default_execution_agent_args=ENV_DEFAULT_EXECUTION_AGENT_ARGS.get(),
+                         agent_install_args=ENV_POD_AGENT_INSTALL_ARGS.get())
              for line in container_bash_script])
 
         extra_bash_commands = list(clearml_conf_create_script or [])
@@ -718,7 +731,9 @@ class K8sIntegration(Worker):
         if "kind" in template:
             if template["kind"].lower() != self.kind:
                 return (
-                    "", f"Template kind {template['kind']} does not maych kind {self.kind.capitalize()} set for agent"
+                    "",
+                    f"Template kind {template['kind']} does not maych kind {self.kind.capitalize()} set for agent",
+                    None
                 )
         else:
             template["kind"] = self.kind.capitalize()
@@ -789,11 +804,11 @@ class K8sIntegration(Worker):
             process = subprocess.Popen(kubectl_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             output, error = process.communicate()
         except Exception as ex:
-            return None, str(ex)
+            return None, str(ex), None
         finally:
             safe_remove_file(yaml_file)
 
-        return stringify_bash_output(output), stringify_bash_output(error)
+        return stringify_bash_output(output), stringify_bash_output(error), name
 
     def _process_bash_lines_response(self, bash_cmd: str, raise_error=True):
         res = get_bash_output(bash_cmd, raise_error=raise_error)
