@@ -426,7 +426,7 @@ class K8sIntegration(Worker):
         if self._is_same_tenant(task_session):
             try:
                 print('Pushing task {} into temporary pending queue'.format(task_id))
-                _ = session.api_client.tasks.stop(task_id, force=True)
+                _ = session.api_client.tasks.stop(task_id, force=True, status_reason="moving to k8s pending queue")
 
                 # Just make sure to clean up in case the task is stuck in the queue (known issue)
                 self._session.api_client.queues.remove_task(
