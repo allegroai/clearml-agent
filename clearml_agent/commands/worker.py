@@ -4102,6 +4102,9 @@ class Worker(ServiceCommandSection):
         if skip_pip_venv_install:
             base_cmd += ['-e', '{}={}'.format(ENV_AGENT_SKIP_PIP_VENV_INSTALL.vars[0], skip_pip_venv_install)]
 
+        if self._services_mode:
+            base_cmd += ['-e', 'CLEARML_AGENT_SERVICE_TASK=1']
+
         # if we are running a RC version, install the same version in the docker
         # because the default latest, will be a release version (not RC)
         specify_version = ''
