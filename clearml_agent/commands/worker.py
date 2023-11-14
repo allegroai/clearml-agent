@@ -78,6 +78,7 @@ from clearml_agent.definitions import (
     ENV_EXTRA_DOCKER_LABELS,
     ENV_AGENT_FORCE_CODE_DIR,
     ENV_AGENT_FORCE_EXEC_SCRIPT,
+    ENV_TEMP_STDOUT_FILE_DIR,
 )
 from clearml_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
 from clearml_agent.errors import (
@@ -895,7 +896,7 @@ class Worker(ServiceCommandSection):
             return
         # setup console log
         temp_stdout_name = safe_mkstemp(
-            suffix=".txt", prefix=".clearml_agent_out.", name_only=True
+            suffix=".txt", prefix=".clearml_agent_out.", name_only=True, dir=(ENV_TEMP_STDOUT_FILE_DIR.get() or None)
         )
         # temp_stderr_name = safe_mkstemp(suffix=".txt", prefix=".clearml_agent_err.", name_only=True)
         temp_stderr_name = None
@@ -1660,6 +1661,7 @@ class Worker(ServiceCommandSection):
                 open_kwargs={
                     "buffering": self._session.config.get("agent.log_files_buffering", 1)
                 },
+                dir=(ENV_TEMP_STDOUT_FILE_DIR.get() or None)
             )
             print(
                 "Running CLEARML-AGENT daemon in background mode, writing stdout/stderr to {}".format(
@@ -1714,7 +1716,11 @@ class Worker(ServiceCommandSection):
                     if self._session.config.get("agent.crash_on_exception", False):
                         raise e
 
-                    crash_file, name = safe_mkstemp(prefix=".clearml_agent-crash", suffix=".log")
+                    crash_file, name = safe_mkstemp(
+                        prefix=".clearml_agent-crash",
+                        suffix=".log",
+                        dir=(ENV_TEMP_STDOUT_FILE_DIR.get() or None)
+                    )
                     try:
                         with crash_file:
                             crash_file.write(tb)
@@ -2229,7 +2235,11 @@ class Worker(ServiceCommandSection):
     def _build_docker(self, docker, target, task_id, entry_point=None, force_docker=False):
 
         self.temp_config_path = safe_mkstemp(
-            suffix=".cfg", prefix=".clearml_agent.", text=True, name_only=True
+            suffix=".cfg",
+            prefix=".clearml_agent.",
+            text=True,
+            name_only=True,
+            dir=(ENV_TEMP_STDOUT_FILE_DIR.get() or None)
         )
         if not target:
             target = "task_id_{}".format(task_id)
@@ -2428,7 +2438,11 @@ class Worker(ServiceCommandSection):
                 # make sure we support multiple instances if we need to
                 self._singleton()
                 self.temp_config_path = self.temp_config_path or safe_mkstemp(
-                    suffix=".cfg", prefix=".clearml_agent.", text=True, name_only=True
+                    suffix=".cfg",
+                    prefix=".clearml_agent.",
+                    text=True,
+                    name_only=True,
+                    dir=(ENV_TEMP_STDOUT_FILE_DIR.get() or None)
                 )
                 self.dump_config(filename=self.temp_config_path, config=self._session.pre_vault_config)
                 self._session._config_file = self.temp_config_path
@@ -2747,7 +2761,10 @@ class Worker(ServiceCommandSection):
             else:
                 # store stdout/stderr into file, and send to backend
                 temp_stdout_fname = log_file or safe_mkstemp(
-                    suffix=".txt", prefix=".clearml_agent_out.", name_only=True
+                    suffix=".txt",
+                    prefix=".clearml_agent_out.",
+                    name_only=True,
+                    dir=(ENV_TEMP_STDOUT_FILE_DIR.get() or None)
                 )
                 print("Storing stdout and stderr log into [%s]" % temp_stdout_fname)
                 exit_code, _ = self._log_command_output(
@@ -3794,7 +3811,11 @@ class Worker(ServiceCommandSection):
         install_opencv_libs = self._session.config.get("agent.docker_install_opencv_libs", True)
 
         self.temp_config_path = self.temp_config_path or safe_mkstemp(
-            suffix=".cfg", prefix=".clearml_agent.", text=True, name_only=True
+            suffix=".cfg",
+            prefix=".clearml_agent.",
+            text=True,
+            name_only=True,
+            dir=(ENV_TEMP_STDOUT_FILE_DIR.get() or None)
         )
 
         mounted_cache_dir = temp_config.get("sdk.storage.cache.default_base_dir")
