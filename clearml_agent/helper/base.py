@@ -20,19 +20,21 @@ from typing import Text, Dict, Any, Optional, AnyStr, IO, Union
 
 import attr
 import furl
+import six
 import yaml
 from attr import fields_dict
 from pathlib2 import Path
-
-import six
 from six.moves import reduce
-from clearml_agent.external import pyhocon
+
 from clearml_agent.errors import CommandFailedError
+from clearml_agent.external import pyhocon
 from clearml_agent.helper.dicts import filter_keys
 
 pretty_lines = False
 
 log = logging.getLogger(__name__)
+
+use_powershell = os.getenv("CLEARML_AGENT_USE_POWERSHELL", None)
 
 
 def which(cmd, path=None):
@@ -52,7 +54,7 @@ def select_for_platform(linux, windows):
 
 
 def bash_c():
-    return 'bash -c' if not is_windows_platform() else 'cmd /c'
+    return 'bash -c' if not is_windows_platform() else ('powershell -Command' if use_powershell else 'cmd /c')
 
 
 def return_list(arg):

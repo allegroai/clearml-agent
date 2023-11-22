@@ -16,6 +16,7 @@ import six
 from .requirements import (
     SimpleSubstitution, FatalSpecsResolutionError, SimpleVersion, MarkerRequirement,
     compare_version_rules, )
+from ...definitions import ENV_PACKAGE_PYTORCH_RESOLVE
 from ...external.requirements_parser.requirement import Requirement
 
 OS_TO_WHEEL_NAME = {"linux": "linux_x86_64", "windows": "win_amd64"}
@@ -174,6 +175,7 @@ class PytorchRequirement(SimpleSubstitution):
     extra_index_url_template = 'https://download.pytorch.org/whl/cu{}/'
     nightly_extra_index_url_template = 'https://download.pytorch.org/whl/nightly/cu{}/'
     torch_index_url_lookup = {}
+    resolver_types = ("pip", "direct", "none")
 
     def __init__(self, *args, **kwargs):
         os_name = kwargs.pop("os_override", None)
@@ -208,6 +210,13 @@ class PytorchRequirement(SimpleSubstitution):
         if self.config.get("agent.package_manager.torch_url_template", None):
             PytorchWheel.url_template = \
                 self.config.get("agent.package_manager.torch_url_template", None)
+        self.resolve_algorithm = str(
+            ENV_PACKAGE_PYTORCH_RESOLVE.get() or
+            self.config.get("agent.package_manager.pytorch_resolve", "pip")).lower()
+        if self.resolve_algorithm not in self.resolver_types:
+            print("WARNING: agent.package_manager.pytorch_resolve=={} not in {} reverting to '{}'".format(
+                self.resolve_algorithm, self.resolver_types, self.resolver_types[0]))
+            self.resolve_algorithm = self.resolver_types[0]
 
     def _init_python_ver_cuda_ver(self):
         if self.cuda is None:
@@ -261,6 +270,10 @@ class PytorchRequirement(SimpleSubstitution):
             )
 
     def match(self, req):
+        if self.resolve_algorithm == "none":
+            # skipping resolver
+            return False
+
         return req.name in self.packages
 
     @staticmethod
@@ -347,8 +360,10 @@ class PytorchRequirement(SimpleSubstitution):
                 from pip._internal.commands.show import search_packages_info
                 installed_torch = list(search_packages_info([req.name]))
                 # notice the comparison order, the first part will make sure we have a valid installed package
-                installed_torch_version = (getattr(installed_torch[0], 'version', None) or installed_torch[0]['version']) \
-                    if installed_torch else None
+                installed_torch_version = \
+                    (getattr(installed_torch[0], 'version', None) or
+                     installed_torch[0]['version']) if installed_torch else None
+
                 if installed_torch and installed_torch_version and \
                         req.compare_version(installed_torch_version):
                     print('PyTorch: requested "{}" version {}, using pre-installed version {}'.format(
@@ -356,6 +371,7 @@ class PytorchRequirement(SimpleSubstitution):
                     # package already installed, do nothing
                     req.specs = [('==', str(installed_torch_version))]
                     return '{} {} {}'.format(req.name, req.specs[0][0], req.specs[0][1]), True
+
         except Exception:
             pass
 
@@ -480,8 +496,11 @@ class PytorchRequirement(SimpleSubstitution):
         # we first try to resolve things ourselves because pytorch pip is not always picking the correct
         # versions from their pip repository
 
-        resolve_algorithm = str(self.config.get("agent.package_manager.pytorch_resolve", "pip")).lower()
-        if resolve_algorithm == "direct":
+        resolve_algorithm = self.resolve_algorithm
+        if resolve_algorithm == "none":
+            # skipping resolver
+            return None
+        elif resolve_algorithm == "direct":
             # noinspection PyBroadException
             try:
                 new_req = self._replace(req)
@@ -489,8 +508,8 @@ class PytorchRequirement(SimpleSubstitution):
                     self._original_req.append((req, new_req))
                 return new_req
             except Exception:
-                pass
-        elif resolve_algorithm not in ("direct", "pip"):
+                print("Warning: Failed resolving using `pytorch_resolve=direct` reverting to `pytorch_resolve=pip`")
+        elif resolve_algorithm not in self.resolver_types:
             print("Warning: `agent.package_manager.pytorch_resolve={}` "
                   "unrecognized, default to `pip`".format(resolve_algorithm))
 
@@ -526,6 +545,8 @@ class PytorchRequirement(SimpleSubstitution):
                 else:
                     # return the original line
                     line = req.line
+
+                print("PyTorch: Adding index `{}` and installing `{}`".format(extra_index_url[0], line))
 
                 return line
 
@@ -681,7 +702,7 @@ class PytorchRequirement(SimpleSubstitution):
             # noinspection PyBroadException
             try:
                 if requests.get(torch_url, timeout=10).ok:
-                    print('Torch CUDA {} index page found'.format(c))
+                    print('Torch CUDA {} index page found, adding `{}`'.format(c, torch_url))
                     cls.torch_index_url_lookup[c] = torch_url
                     return cls.torch_index_url_lookup[c], c
             except Exception:

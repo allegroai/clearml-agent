@@ -230,20 +230,20 @@ Notice: with `--detached` flag, the *clearml-agent* will run in the background
 clearml-agent daemon --detached --queue default --docker
 ```
 
-Example: spin two agents, one per gpu on the same machine, with default `nvidia/cuda:10.1-cudnn7-runtime-ubuntu18.04`
+Example: spin two agents, one per gpu on the same machine, with default `nvidia/cuda:11.0.3-cudnn8-runtime-ubuntu20.04`
 docker:
 
 ```bash
-clearml-agent daemon --detached --gpus 0 --queue default --docker nvidia/cuda:10.1-cudnn7-runtime-ubuntu18.04
-clearml-agent daemon --detached --gpus 1 --queue default --docker nvidia/cuda:10.1-cudnn7-runtime-ubuntu18.04
+clearml-agent daemon --detached --gpus 0 --queue default --docker nvidia/cuda:11.0.3-cudnn8-runtime-ubuntu20.04
+clearml-agent daemon --detached --gpus 1 --queue default --docker nvidia/cuda:11.0.3-cudnn8-runtime-ubuntu20.04
 ```
 
 Example: spin two agents, pulling from dedicated `dual_gpu` queue, two GPUs per agent, with default 
-`nvidia/cuda:10.1-cudnn7-runtime-ubuntu18.04` docker:
+`nvidia/cuda:11.0.3-cudnn8-runtime-ubuntu20.04` docker:
 
 ```bash
-clearml-agent daemon --detached --gpus 0,1 --queue dual_gpu --docker nvidia/cuda:10.1-cudnn7-runtime-ubuntu18.04
-clearml-agent daemon --detached --gpus 2,3 --queue dual_gpu --docker nvidia/cuda:10.1-cudnn7-runtime-ubuntu18.04
+clearml-agent daemon --detached --gpus 0,1 --queue dual_gpu --docker nvidia/cuda:11.0.3-cudnn8-runtime-ubuntu20.04
+clearml-agent daemon --detached --gpus 2,3 --queue dual_gpu --docker nvidia/cuda:11.0.3-cudnn8-runtime-ubuntu20.04
 ```
 
 ##### Starting the ClearML Agent - Priority Queues
@@ -268,7 +268,7 @@ To stop a **ClearML Agent** running in the background, run the same command line
 appended. For example, to stop the first of the above shown same machine, single gpu agents:
 
 ```bash
-clearml-agent daemon --detached --gpus 0 --queue default --docker nvidia/cuda:10.1-cudnn7-runtime-ubuntu18.04 --stop
+clearml-agent daemon --detached --gpus 0 --queue default --docker nvidia/cuda:11.0.3-cudnn8-runtime-ubuntu20.04 --stop
 ```
 
 ### How do I create an experiment on the ClearML Server? <a name="from-scratch"></a>

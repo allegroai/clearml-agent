@@ -33,4 +33,9 @@ echo "api.files_server: ${CLEARML_FILES_HOST}" >> ~/clearml.conf
 
 ./provider_entrypoint.sh
 
-python3 k8s_glue_example.py --queue ${QUEUE} --max-pods ${MAX_PODS} ${EXTRA_ARGS}
+if [[ -z "${K8S_GLUE_MAX_PODS}" ]]
+then
+  python3 k8s_glue_example.py --queue ${QUEUE} ${EXTRA_ARGS}
+else
+  python3 k8s_glue_example.py --queue ${QUEUE} --max-pods ${MAX_PODS} ${EXTRA_ARGS}
+fi

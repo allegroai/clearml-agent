@@ -1,4 +1,4 @@
-ARG TAG=3.7.12-slim-bullseye
+ARG TAG=3.7.17-slim-bullseye
 
 FROM python:${TAG} as target
 

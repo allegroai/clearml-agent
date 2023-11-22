@@ -13,13 +13,11 @@ from collections import defaultdict, namedtuple
 from copy import deepcopy
 from pathlib import Path
 from pprint import pformat
-from threading import Thread
 from time import sleep, time
 from typing import Text, List, Callable, Any, Collection, Optional, Union, Iterable, Dict, Tuple, Set
 
 import yaml
 
-from clearml_agent.backend_api.session import Request
 from clearml_agent.commands.events import Events
 from clearml_agent.commands.worker import Worker, get_task_container, set_task_container, get_next_task
 from clearml_agent.definitions import (
@@ -28,29 +26,31 @@ from clearml_agent.definitions import (
     ENV_AGENT_GIT_PASS,
     ENV_FORCE_SYSTEM_SITE_PACKAGES,
 )
-from clearml_agent.errors import APIError
-from clearml_agent.glue.definitions import ENV_START_AGENT_SCRIPT_PATH
+from clearml_agent.errors import APIError, UsageError
+from clearml_agent.glue.errors import GetPodCountError
+from clearml_agent.glue.utilities import get_path, get_bash_output
+from clearml_agent.glue.pending_pods_daemon import PendingPodsDaemon
 from clearml_agent.helper.base import safe_remove_file
 from clearml_agent.helper.dicts import merge_dicts
 from clearml_agent.helper.process import get_bash_output, stringify_bash_output
 from clearml_agent.helper.resource_monitor import ResourceMonitor
 from clearml_agent.interface.base import ObjectID
+from clearml_agent.backend_api.session import Request
+from clearml_agent.glue.definitions import (
+    ENV_START_AGENT_SCRIPT_PATH,
+    ENV_DEFAULT_EXECUTION_AGENT_ARGS,
+    ENV_POD_AGENT_INSTALL_ARGS,
+)
 
 
 class K8sIntegration(Worker):
+    SUPPORTED_KIND = ("pod", "job")
     K8S_PENDING_QUEUE = "k8s_scheduler"
-
     K8S_DEFAULT_NAMESPACE = "clearml"
     AGENT_LABEL = "CLEARML=agent"
     QUEUE_LABEL = "clearml-agent-queue"
 
     KUBECTL_APPLY_CMD = "kubectl apply --namespace={namespace} -f"
-
-    KUBECTL_CLEANUP_DELETE_CMD = "kubectl delete pods " \
-                                 "-l={agent_label} " \
-                                 "--field-selector=status.phase!=Pending,status.phase!=Running " \
-                                 "--namespace={namespace} " \
-                                 "--output name"
 
     BASH_INSTALL_SSH_CMD = [
         "apt-get update",
@@ -67,9 +67,6 @@ class K8sIntegration(Worker):
         'echo "ldconfig" >> /etc/profile',
         "/usr/sbin/sshd -p {port}"]
 
-    DEFAULT_EXECUTION_AGENT_ARGS = os.getenv("K8S_GLUE_DEF_EXEC_AGENT_ARGS", "--full-monitoring --require-queue")
-    POD_AGENT_INSTALL_ARGS = os.getenv("K8S_GLUE_POD_AGENT_INSTALL_ARGS", "")
-
     CONTAINER_BASH_SCRIPT = [
         "export DEBIAN_FRONTEND='noninteractive'",
         "echo 'Binary::apt::APT::Keep-Downloaded-Packages \"true\";' > /etc/apt/apt.conf.d/docker-clean",
@@ -82,7 +79,7 @@ class K8sIntegration(Worker):
         "[ ! -z $LOCAL_PYTHON ] || apt-get install -y python3-pip",
         "[ ! -z $LOCAL_PYTHON ] || export LOCAL_PYTHON=python3",
         "{extra_bash_init_cmd}",
-        "$LOCAL_PYTHON -m pip install clearml-agent{agent_install_args}",
+        "[ ! -z $CLEARML_AGENT_NO_UPDATE ] || $LOCAL_PYTHON -m pip install clearml-agent{agent_install_args}",
         "{extra_docker_bash_script}",
         "$LOCAL_PYTHON -m clearml_agent execute {default_execution_agent_args} --id {task_id}"
     ]
@@ -136,6 +133,10 @@ class K8sIntegration(Worker):
         :param int max_pods_limit: Maximum number of pods that K8S glue can run at the same time
         """
         super(K8sIntegration, self).__init__()
+        self.kind = os.environ.get("CLEARML_K8S_GLUE_KIND", "pod").strip().lower()
+        if self.kind not in self.SUPPORTED_KIND:
+            raise UsageError(f"Kind '{self.kind}' not supported (expected {','.join(self.SUPPORTED_KIND)})")
+        self.using_jobs = self.kind == "job"
         self.pod_name_prefix = pod_name_prefix or self.DEFAULT_POD_NAME_PREFIX
         self.limit_pod_label = limit_pod_label or self.DEFAULT_LIMIT_POD_LABEL
         self.k8s_pending_queue_name = k8s_pending_queue_name or self.K8S_PENDING_QUEUE
@@ -180,10 +181,17 @@ class K8sIntegration(Worker):
 
         self._agent_label = None
 
-        self._monitor_hanging_pods()
+        self._pending_pods_daemon = self._create_daemon_instance(
+            cls_=PendingPodsDaemon,
+            polling_interval=self._polling_interval
+        )
+        self._pending_pods_daemon.start()
 
         self._min_cleanup_interval_per_ns_sec = 1.0
         self._last_pod_cleanup_per_ns = defaultdict(lambda: 0.)
+
+    def _create_daemon_instance(self, cls_, **kwargs):
+        return cls_(agent=self, **kwargs)
 
     def _load_overrides_yaml(self, overrides_yaml):
         if not overrides_yaml:
@@ -210,26 +218,33 @@ class K8sIntegration(Worker):
             self.log.warning('Removing containers section: {}'.format(overrides['spec'].pop('containers')))
         self.overrides_json_string = json.dumps(overrides)
 
-    def _monitor_hanging_pods(self):
-        _check_pod_thread = Thread(target=self._monitor_hanging_pods_daemon)
-        _check_pod_thread.daemon = True
-        _check_pod_thread.start()
-
     @staticmethod
     def _load_template_file(path):
         with open(os.path.expandvars(os.path.expanduser(str(path))), 'rt') as f:
             return yaml.load(f, Loader=getattr(yaml, 'FullLoader', None))
 
-    def _get_kubectl_options(self, command, extra_labels=None, filters=None, output="json", labels=None):
-        # type: (str, Iterable[str], Iterable[str], str, Iterable[str]) -> Dict
-        if not labels:
+    @staticmethod
+    def _get_path(d, *path, default=None):
+        try:
+            return functools.reduce(
+                lambda a, b: a[b], path, d
+            )
+        except (IndexError, KeyError):
+            return default
+
+    def _get_kubectl_options(self, command, extra_labels=None, filters=None, output="json", labels=None, ns=None):
+        # type: (str, Iterable[str], Iterable[str], str, Iterable[str], str) -> Dict
+        if labels is False:
+            labels = []
+        elif not labels:
             labels = [self._get_agent_label()]
         labels = list(labels) + (list(extra_labels) if extra_labels else [])
         d = {
-            "-l": ",".join(labels),
-            "-n": str(self.namespace),
+            "-n": ns or str(self.namespace),
             "-o": output,
         }
+        if labels:
+            d["-l"] = ",".join(labels)
         if filters:
             d["--field-selector"] = ",".join(filters)
         return d
@@ -239,132 +254,6 @@ class K8sIntegration(Worker):
         return 'kubectl {command} {opts}'.format(
             command=command, opts=" ".join(x for item in opts.items() for x in item)
         )
-
-    def _monitor_hanging_pods_daemon(self):
-        last_tasks_msgs = {}  # last msg updated for every task
-
-        while True:
-            kubectl_cmd = self.get_kubectl_command("get pods", filters=["status.phase=Pending"])
-            self.log.debug("Detecting hanging pods: {}".format(kubectl_cmd))
-            output = stringify_bash_output(get_bash_output(kubectl_cmd))
-            try:
-                output_config = json.loads(output)
-            except Exception as ex:
-                self.log.warning('K8S Glue pods monitor: Failed parsing kubectl output:\n{}\nEx: {}'.format(output, ex))
-                sleep(self._polling_interval)
-                continue
-            pods = output_config.get('items', [])
-            task_id_to_details = dict()
-            for pod in pods:
-                pod_name = pod.get('metadata', {}).get('name', None)
-                if not pod_name:
-                    continue
-
-                task_id = pod_name.rpartition('-')[-1]
-                if not task_id:
-                    continue
-
-                namespace = pod.get('metadata', {}).get('namespace', None)
-                if not namespace:
-                    continue
-
-                task_id_to_details[task_id] = (pod_name, namespace)
-
-                msg = None
-
-                waiting = self._get_path(pod, 'status', 'containerStatuses', 0, 'state', 'waiting')
-                if not waiting:
-                    condition = self._get_path(pod, 'status', 'conditions', 0)
-                    if condition:
-                        reason = condition.get('reason')
-                        if reason == 'Unschedulable':
-                            message = condition.get('message')
-                            msg = reason + (" ({})".format(message) if message else "")
-                else:
-                    reason = waiting.get("reason", None)
-                    message = waiting.get("message", None)
-
-                    msg = reason + (" ({})".format(message) if message else "")
-
-                    if reason == 'ImagePullBackOff':
-                        delete_pod_cmd = 'kubectl delete pods {} -n {}'.format(pod_name, namespace)
-                        self.log.debug(" - deleting pod due to ImagePullBackOff: {}".format(delete_pod_cmd))
-                        get_bash_output(delete_pod_cmd)
-                        try:
-                            self.log.debug(" - Detecting hanging pods: {}".format(kubectl_cmd))
-                            self._session.api_client.tasks.failed(
-                                task=task_id,
-                                status_reason="K8S glue error: {}".format(msg),
-                                status_message="Changed by K8S glue",
-                                force=True
-                            )
-                        except Exception as ex:
-                            self.log.warning(
-                                'K8S Glue pods monitor: Failed deleting task "{}"\nEX: {}'.format(task_id, ex)
-                            )
-
-                        # clean up any msg for this task
-                        last_tasks_msgs.pop(task_id, None)
-                        continue
-                if msg and last_tasks_msgs.get(task_id, None) != msg:
-                    try:
-                        result = self._session.send_request(
-                            service='tasks',
-                            action='update',
-                            json={"task": task_id, "status_message": "K8S glue status: {}".format(msg)},
-                            method=Request.def_method,
-                            async_enable=False,
-                        )
-                        if not result.ok:
-                            result_msg = self._get_path(result.json(), 'meta', 'result_msg')
-                            raise Exception(result_msg or result.text)
-
-                        # update last msg for this task
-                        last_tasks_msgs[task_id] = msg
-                    except Exception as ex:
-                        self.log.warning(
-                            'K8S Glue pods monitor: Failed setting status message for task "{}"\nMSG: {}\nEX: {}'.format(
-                                task_id, msg, ex
-                            )
-                        )
-
-            if task_id_to_details:
-                try:
-                    result = self._session.get(
-                        service='tasks',
-                        action='get_all',
-                        json={"id": list(task_id_to_details), "status": ["stopped"], "only_fields": ["id"]},
-                        method=Request.def_method,
-                        async_enable=False,
-                    )
-                    aborted_task_ids = list(filter(None, (task.get("id") for task in result["tasks"])))
-
-                    for task_id in aborted_task_ids:
-                        pod_name, namespace = task_id_to_details.get(task_id)
-                        if not pod_name:
-                            self.log.error("Failed locating aborted task {} in pending pods list".format(task_id))
-                            continue
-                        self.log.info(
-                            "K8S Glue pods monitor: task {} was aborted by its pod {} is still pending, "
-                            "deleting pod".format(task_id, pod_name)
-                        )
-
-                        kubectl_cmd = "kubectl delete pod {pod_name} --output name {namespace}".format(
-                            namespace=f"--namespace={namespace}" if namespace else "", pod_name=pod_name,
-                        ).strip()
-                        self.log.debug("Deleting aborted task pending pod: {}".format(kubectl_cmd))
-                        output = stringify_bash_output(get_bash_output(kubectl_cmd))
-                        if not output:
-                            self.log.warning("K8S Glue pods monitor: failed deleting pod {}".format(pod_name))
-                except Exception as ex:
-                    self.log.warning(
-                        'K8S Glue pods monitor: failed checking aborted tasks for hanging pods: {}'.format(ex)
-                    )
-
-            # clean up any last message for a task that wasn't seen as a pod
-            last_tasks_msgs = {k: v for k, v in last_tasks_msgs.items() if k in task_id_to_details}
-
-            sleep(self._polling_interval)
 
     def _set_task_user_properties(self, task_id: str, task_session=None, **properties: str):
         session = task_session or self._session
@@ -465,6 +354,73 @@ class K8sIntegration(Worker):
         except Exception as ex:
             print("ERROR: Failed getting tenant for task session: {}".format(ex))
 
+    def get_jobs_info(self, info_path: str, condition: str = None, namespace=None, debug_msg: str = None)\
+            -> Dict[str, str]:
+        cond = "==".join((x.strip("=") for x in condition.partition("=")[::2]))
+        output = f"jsonpath='{{range .items[?(@.{cond})]}}{{@.{info_path}}}{{\" \"}}{{@.metadata.namespace}}{{\"\\n\"}}{{end}}'"
+        kubectl_cmd = self.get_kubectl_command("get job", output=output, ns=namespace)
+        if debug_msg:
+            self.log.debug(debug_msg.format(cmd=kubectl_cmd))
+        output = stringify_bash_output(get_bash_output(kubectl_cmd))
+        output = output.strip("'")  # for Windows debugging :(
+        try:
+            data_items = dict(l.strip().partition(" ")[::2] for l in output.splitlines())
+            return data_items
+        except Exception as ex:
+            self.log.warning('Failed parsing kubectl output:\n{}\nEx: {}'.format(output, ex))
+
+    def get_pods_for_jobs(self, job_condition: str = None, pod_filters: List[str] = None, debug_msg: str = None):
+        controller_uids = self.get_jobs_info(
+            "spec.selector.matchLabels.controller-uid", condition=job_condition, debug_msg=debug_msg
+        )
+        if not controller_uids:
+            # No pods were found for these jobs
+            return []
+        pods = self.get_pods(filters=pod_filters, debug_msg=debug_msg)
+        return [
+            pod for pod in pods
+            if get_path(pod, "metadata", "labels", "controller-uid") in controller_uids
+        ]
+
+    def get_pods(self, filters: List[str] = None, debug_msg: str = None):
+        kubectl_cmd = self.get_kubectl_command(
+            "get pods",
+            filters=filters,
+            labels=False if self.using_jobs else None,
+        )
+        if debug_msg:
+            self.log.debug(debug_msg.format(cmd=kubectl_cmd))
+        output = stringify_bash_output(get_bash_output(kubectl_cmd))
+        try:
+            output_config = json.loads(output)
+        except Exception as ex:
+            self.log.warning('Failed parsing kubectl output:\n{}\nEx: {}'.format(output, ex))
+            return
+        return output_config.get('items', [])
+
+    def _get_pod_count(self, extra_labels: List[str] = None, msg: str = None):
+            kubectl_cmd_new = self.get_kubectl_command(
+                f"get {self.kind}s",
+                extra_labels= extra_labels
+            )
+            self.log.debug("{}{}".format((msg + ": ") if msg else "", kubectl_cmd_new))
+            process = subprocess.Popen(kubectl_cmd_new.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            output, error = process.communicate()
+            output = stringify_bash_output(output)
+            error = stringify_bash_output(error)
+
+            try:
+                return len(json.loads(output).get("items", []))
+            except (ValueError, TypeError) as ex:
+                self.log.warning(
+                    "K8S Glue pods monitor: Failed parsing kubectl output:\n{}\nEx: {}".format(output, ex)
+                )
+                raise GetPodCountError()
+
+    def resource_applied(self, resource_name: str, namespace: str, task_id: str, session):
+        """ Called when a resource (pod/job) was applied """
+        pass
+
     def run_one_task(self, queue: Text, task_id: Text, worker_args=None, task_session=None, **_):
         print('Pulling task {} launching on kubernetes cluster'.format(task_id))
         session = task_session or self._session
@@ -474,7 +430,13 @@ class K8sIntegration(Worker):
         if self._is_same_tenant(task_session):
             try:
                 print('Pushing task {} into temporary pending queue'.format(task_id))
-                _ = session.api_client.tasks.stop(task_id, force=True)
+                _ = session.api_client.tasks.stop(task_id, force=True, status_reason="moving to k8s pending queue")
+
+                # Just make sure to clean up in case the task is stuck in the queue (known issue)
+                self._session.api_client.queues.remove_task(
+                    task=task_id,
+                    queue=self.k8s_pending_queue_id,
+                )
 
                 res = self._session.api_client.tasks.enqueue(
                     task_id,
@@ -515,14 +477,14 @@ class K8sIntegration(Worker):
 
         hocon_config_encoded = config_content.encode("ascii")
 
-        create_clearml_conf = ["echo '{}' | base64 --decode >> ~/clearml.conf".format(
+        clearml_conf_create_script = ["echo '{}' | base64 --decode >> ~/clearml.conf".format(
             base64.b64encode(
                 hocon_config_encoded
             ).decode('ascii')
         )]
 
         if task_session:
-            create_clearml_conf.append(
+            clearml_conf_create_script.append(
                 "export CLEARML_AUTH_TOKEN=$(echo '{}' | base64 --decode)".format(
                     base64.b64encode(task_session.token.encode("ascii")).decode('ascii')
                 )
@@ -543,23 +505,15 @@ class K8sIntegration(Worker):
         while self.ports_mode or self.max_pods_limit:
             pod_number = self.base_pod_num + pod_count
 
-            kubectl_cmd_new = self.get_kubectl_command(
-                "get pods",
-                extra_labels=[self.limit_pod_label.format(pod_number=pod_number)] if self.ports_mode else None
-            )
-            self.log.debug("Looking for a free pod/port: {}".format(kubectl_cmd_new))
-            process = subprocess.Popen(kubectl_cmd_new.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            output, error = process.communicate()
-            output = stringify_bash_output(output)
-            error = stringify_bash_output(error)
-
             try:
-                items_count = len(json.loads(output).get("items", []))
-            except (ValueError, TypeError) as ex:
+                items_count = self._get_pod_count(
+                    extra_labels=[self.limit_pod_label.format(pod_number=pod_number)] if self.ports_mode else None,
+                    msg="Looking for a free pod/port"
+                )
+            except GetPodCountError:
                 self.log.warning(
-                    "K8S Glue pods monitor: Failed parsing kubectl output:\n{}\ntask '{}' "
-                    "will be enqueued back to queue '{}'\nEx: {}".format(
-                        output, task_id, queue, ex
+                    "K8S Glue pods monitor: task '{}' will be enqueued back to queue '{}'".format(
+                        task_id, queue
                     )
                 )
                 session.api_client.tasks.stop(task_id, force=True)
@@ -583,8 +537,6 @@ class K8sIntegration(Worker):
 
             if current_pod_count >= max_count:
                 # All pods are taken, exit
-                self.log.debug(
-                    "kubectl last result: {}\n{}".format(error, output))
                 self.log.warning(
                     "All k8s services are in use, task '{}' "
                     "will be enqueued back to queue '{}'".format(
@@ -625,25 +577,34 @@ class K8sIntegration(Worker):
         except (KeyError, TypeError, AttributeError):
             namespace = self.namespace
 
-        if template:
-            output, error = self._kubectl_apply(
-                template=template,
-                pod_number=pod_number,
-                create_clearml_conf=create_clearml_conf,
-                labels=labels,
-                docker_image=container['image'],
-                docker_args=container['arguments'],
-                docker_bash=container.get('setup_shell_script'),
-                task_id=task_id,
-                queue=queue,
-                namespace=namespace,
-            )
+        if not template:
+            print("ERROR: no template for task {}, skipping".format(task_id))
+            return
+
+        output, error, pod_name = self._kubectl_apply(
+            template=template,
+            pod_number=pod_number,
+            clearml_conf_create_script=clearml_conf_create_script,
+            labels=labels,
+            docker_image=container['image'],
+            docker_args=container.get('arguments'),
+            docker_bash=container.get('setup_shell_script'),
+            task_id=task_id,
+            queue=queue,
+            namespace=namespace,
+        )
 
         print('kubectl output:\n{}\n{}'.format(error, output))
         if error:
             send_log = "Running kubectl encountered an error: {}".format(error)
             self.log.error(send_log)
             self.send_logs(task_id, send_log.splitlines())
+            return
+
+        if pod_name:
+            self.resource_applied(
+                resource_name=pod_name, namespace=namespace, task_id=task_id, session=session
+            )
 
         user_props = {"k8s-queue": str(queue_name)}
         if self.ports_mode:
@@ -704,32 +665,10 @@ class K8sIntegration(Worker):
             return {target: results} if results else {}
         return results
 
-    def _kubectl_apply(
-        self,
-        create_clearml_conf,
-        docker_image,
-        docker_args,
-        docker_bash,
-        labels,
-        queue,
-        task_id,
-        namespace,
-        template=None,
-        pod_number=None
-    ):
-        template.setdefault('apiVersion', 'v1')
-        template['kind'] = 'Pod'
-        template.setdefault('metadata', {})
-        name = self.pod_name_prefix + str(task_id)
-        template['metadata']['name'] = name
-        template.setdefault('spec', {})
-        template['spec'].setdefault('containers', [])
-        template['spec'].setdefault('restartPolicy', 'Never')
-        if labels:
-            labels_dict = dict(pair.split('=', 1) for pair in labels)
-            template['metadata'].setdefault('labels', {})
-            template['metadata']['labels'].update(labels_dict)
-
+    def _create_template_container(
+        self, pod_name: str, task_id: str, docker_image: str, docker_args: List[str],
+        docker_bash: str, clearml_conf_create_script: List[str]
+    ) -> dict:
         container = self._get_docker_args(
             docker_args,
             target="env",
@@ -749,11 +688,11 @@ class K8sIntegration(Worker):
             [line.format(extra_bash_init_cmd=self.extra_bash_init_script or '',
                          task_id=task_id,
                          extra_docker_bash_script=extra_docker_bash_script,
-                         default_execution_agent_args=self.DEFAULT_EXECUTION_AGENT_ARGS,
-                         agent_install_args=self.POD_AGENT_INSTALL_ARGS)
+                         default_execution_agent_args=ENV_DEFAULT_EXECUTION_AGENT_ARGS.get(),
+                         agent_install_args=ENV_POD_AGENT_INSTALL_ARGS.get())
              for line in container_bash_script])
 
-        extra_bash_commands = list(create_clearml_conf or [])
+        extra_bash_commands = list(clearml_conf_create_script or [])
 
         start_agent_script_path = ENV_START_AGENT_SCRIPT_PATH.get() or "~/__start_agent__.sh"
 
@@ -767,20 +706,79 @@ class K8sIntegration(Worker):
         )
 
         # Notice: we always leave with exit code 0, so pods are never restarted
-        container = self._merge_containers(
+        return self._merge_containers(
             container,
-            dict(name=name, image=docker_image,
+            dict(name=pod_name, image=docker_image,
                  command=['/bin/bash'],
                  args=['-c', '{} ; exit 0'.format(' ; '.join(extra_bash_commands))])
         )
 
-        if template['spec']['containers']:
-            template['spec']['containers'][0] = self._merge_containers(template['spec']['containers'][0], container)
+    def _kubectl_apply(
+        self,
+        clearml_conf_create_script: List[str],
+        docker_image,
+        docker_args,
+        docker_bash,
+        labels,
+        queue,
+        task_id,
+        namespace,
+        template=None,
+        pod_number=None
+    ):
+        if "apiVersion" not in template:
+            template["apiVersion"] = "batch/v1" if self.using_jobs else "v1"
+        if "kind" in template:
+            if template["kind"].lower() != self.kind:
+                return (
+                    "",
+                    f"Template kind {template['kind']} does not maych kind {self.kind.capitalize()} set for agent",
+                    None
+                )
         else:
-            template['spec']['containers'].append(container)
+            template["kind"] = self.kind.capitalize()
+
+        metadata = template.setdefault('metadata', {})
+        name = self.pod_name_prefix + str(task_id)
+        metadata['name'] = name
+
+        def place_labels(metadata_dict):
+            labels_dict = dict(pair.split('=', 1) for pair in labels)
+            metadata_dict.setdefault('labels', {}).update(labels_dict)
+
+        if labels:
+            # Place labels on base resource (job or single pod)
+            place_labels(metadata)
+
+        spec = template.setdefault('spec', {})
+        if self.using_jobs:
+            spec.setdefault('backoffLimit', 0)
+            spec_template = spec.setdefault('template', {})
+            if labels:
+                # Place same labels fro any pod spawned by the job
+                place_labels(spec_template.setdefault('metadata', {}))
+
+            spec = spec_template.setdefault('spec', {})
+
+        containers = spec.setdefault('containers', [])
+        spec.setdefault('restartPolicy', 'Never')
+
+        container = self._create_template_container(
+            pod_name=name,
+            task_id=task_id,
+            docker_image=docker_image,
+            docker_args=docker_args,
+            docker_bash=docker_bash,
+            clearml_conf_create_script=clearml_conf_create_script
+        )
+
+        if containers:
+            containers[0] = self._merge_containers(containers[0], container)
+        else:
+            containers.append(container)
 
         if self._docker_force_pull:
-            for c in template['spec']['containers']:
+            for c in containers:
                 c.setdefault('imagePullPolicy', 'Always')
 
         fp, yaml_file = tempfile.mkstemp(prefix='clearml_k8stmpl_', suffix='.yml')
@@ -806,11 +804,88 @@ class K8sIntegration(Worker):
             process = subprocess.Popen(kubectl_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             output, error = process.communicate()
         except Exception as ex:
-            return None, str(ex)
+            return None, str(ex), None
         finally:
             safe_remove_file(yaml_file)
 
-        return stringify_bash_output(output), stringify_bash_output(error)
+        return stringify_bash_output(output), stringify_bash_output(error), name
+
+    def _process_bash_lines_response(self, bash_cmd: str, raise_error=True):
+        res = get_bash_output(bash_cmd, raise_error=raise_error)
+        lines = [
+            line for line in
+            (r.strip().rpartition("/")[-1] for r in res.splitlines())
+            if line.startswith(self.pod_name_prefix)
+        ]
+        return lines
+
+    def _delete_pods(self, selectors: List[str], namespace: str, msg: str = None) -> List[str]:
+        kubectl_cmd = \
+            "kubectl delete pod -l={agent_label} " \
+            "--namespace={namespace} --field-selector={selector} --output name".format(
+                selector=",".join(selectors),
+                agent_label=self._get_agent_label(),
+                namespace=namespace,
+            )
+        self.log.debug("Deleting old/failed pods{} for ns {}: {}".format(
+            msg or "", namespace, kubectl_cmd
+        ))
+        lines = self._process_bash_lines_response(kubectl_cmd)
+        self.log.debug(" - deleted pods %s", ", ".join(lines))
+        return lines
+
+    def _delete_jobs_by_names(self, names_to_ns: Dict[str, str], msg: str = None) -> List[str]:
+        if not names_to_ns:
+            return []
+        ns_to_names = defaultdict(list)
+        for name, ns in names_to_ns.items():
+            ns_to_names[ns].append(name)
+
+        results = []
+        for ns, names in ns_to_names.items():
+            kubectl_cmd = "kubectl delete job --namespace={ns} --output=name {names}".format(
+                ns=ns, names=" ".join(names)
+            )
+            self.log.debug("Deleting jobs {}: {}".format(
+                msg or "", kubectl_cmd
+            ))
+            lines = self._process_bash_lines_response(kubectl_cmd)
+            if not lines:
+                continue
+            self.log.debug(" - deleted jobs %s", ", ".join(lines))
+            results.extend(lines)
+        return results
+
+    def _delete_completed_or_failed_pods(self, namespace, msg: str = None):
+        if not self.using_jobs:
+            return self._delete_pods(
+                selectors=["status.phase!=Pending", "status.phase!=Running"], namespace=namespace, msg=msg
+            )
+
+        job_names_to_delete = {}
+
+        # locate failed pods for jobs
+        failed_pods = self.get_pods_for_jobs(
+            job_condition="status.active=1",
+            pod_filters=["status.phase!=Pending", "status.phase!=Running", "status.phase!=Terminating"],
+            debug_msg="Deleting failed pods: {cmd}"
+        )
+        if failed_pods:
+            job_names_to_delete = {
+                get_path(pod, "metadata", "labels", "job-name"): get_path(pod, "metadata", "namespace")
+                for pod in failed_pods
+                if get_path(pod, "metadata", "labels", "job-name")
+            }
+            self.log.debug(f" - found jobs with failed pods: {' '.join(job_names_to_delete)}")
+
+        completed_job_names = self.get_jobs_info(
+            "metadata.name", condition="status.succeeded=1", namespace=namespace, debug_msg=msg
+        )
+        if completed_job_names:
+            self.log.debug(f" - found completed jobs: {' '.join(completed_job_names)}")
+            job_names_to_delete.update(completed_job_names)
+
+        return self._delete_jobs_by_names(names_to_ns=job_names_to_delete, msg=msg)
 
     def _cleanup_old_pods(self, namespaces, extra_msg=None):
         # type: (Iterable[str], Optional[str]) -> Dict[str, List[str]]
@@ -820,23 +895,12 @@ class K8sIntegration(Worker):
             if time() - self._last_pod_cleanup_per_ns[namespace] < self._min_cleanup_interval_per_ns_sec:
                 # Do not try to cleanup the same namespace too quickly
                 continue
-            kubectl_cmd = self.KUBECTL_CLEANUP_DELETE_CMD.format(
-                namespace=namespace, agent_label=self._get_agent_label()
-            )
-            self.log.debug("Deleting old/failed pods{} for ns {}: {}".format(
-                extra_msg or "", namespace, kubectl_cmd
-            ))
+
             try:
-                res = get_bash_output(kubectl_cmd, raise_error=True)
-                lines = [
-                    line for line in
-                    (r.strip().rpartition("/")[-1] for r in res.splitlines())
-                    if line.startswith(self.pod_name_prefix)
-                ]
-                self.log.debug(" - deleted pod(s) %s", ", ".join(lines))
-                deleted_pods[namespace].extend(lines)
+                res = self._delete_completed_or_failed_pods(namespace, extra_msg)
+                deleted_pods[namespace].extend(res)
             except Exception as ex:
-                self.log.error("Failed deleting old/failed pods for ns %s: %s", namespace, str(ex))
+                self.log.error("Failed deleting completed/failed pods for ns %s: %s", namespace, str(ex))
             finally:
                 self._last_pod_cleanup_per_ns[namespace] = time()
 
@@ -857,7 +921,7 @@ class K8sIntegration(Worker):
                 )
                 tasks_to_abort = result["tasks"]
         except Exception as ex:
-            self.log.warning('Failed getting running tasks for deleted pods: {}'.format(ex))
+            self.log.warning('Failed getting running tasks for deleted {}(s): {}'.format(self.kind, ex))
 
         for task in tasks_to_abort:
             task_id = task.get("id")
@@ -870,15 +934,27 @@ class K8sIntegration(Worker):
                     self._session.get(
                         service='tasks',
                         action='dequeue',
-                        json={"task": task_id, "force": True, "status_reason": "Pod deleted (not pending or running)",
-                              "status_message": "Pod deleted by agent {}".format(self.worker_id or "unknown")},
+                        json={
+                            "task": task_id,
+                            "force": True,
+                            "status_reason": "Pod deleted (not pending or running)",
+                            "status_message": "{} deleted by agent {}".format(
+                                self.kind.capitalize(), self.worker_id or "unknown"
+                            )
+                        },
                         method=Request.def_method,
                     )
                 self._session.get(
                     service='tasks',
                     action='failed',
-                    json={"task": task_id, "force": True, "status_reason": "Pod deleted (not pending or running)",
-                          "status_message": "Pod deleted by agent {}".format(self.worker_id or "unknown")},
+                    json={
+                        "task": task_id,
+                        "force": True,
+                        "status_reason": "Pod deleted (not pending or running)",
+                        "status_message": "{} deleted by agent {}".format(
+                            self.kind.capitalize(), self.worker_id or "unknown"
+                        )
+                    },
                     method=Request.def_method,
                 )
             except Exception as ex:
@@ -919,10 +995,10 @@ class K8sIntegration(Worker):
             # check if have pod limit, then check if we hit it.
             if self.max_pods_limit:
                 if current_pods >= self.max_pods_limit:
-                    print("Maximum pod limit reached {}/{}, sleeping for {:.1f} seconds".format(
-                        current_pods, self.max_pods_limit, self._polling_interval))
+                    print("Maximum {} limit reached {}/{}, sleeping for {:.1f} seconds".format(
+                        self.kind, current_pods, self.max_pods_limit, self._polling_interval))
                     # delete old completed / failed pods
-                    self._cleanup_old_pods(namespaces, " due to pod limit")
+                    self._cleanup_old_pods(namespaces, f" due to {self.kind} limit")
                     # go to sleep
                     sleep(self._polling_interval)
                     continue
@@ -930,7 +1006,7 @@ class K8sIntegration(Worker):
             # iterate over queues (priority style, queues[0] is highest)
             for queue in queues:
                 # delete old completed / failed pods
-                self._cleanup_old_pods(namespaces)
+                self._cleanup_old_pods(namespaces, extra_msg="Cleanup cycle {cmd}")
 
                 # get next task in queue
                 try:
