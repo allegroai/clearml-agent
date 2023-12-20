@@ -19,7 +19,7 @@ from pathlib2 import Path
 
 import six
 
-from clearml_agent.definitions import ENV_AGENT_GIT_USER, ENV_AGENT_GIT_PASS, ENV_AGENT_GIT_HOST
+from clearml_agent.definitions import ENV_AGENT_GIT_USER, ENV_AGENT_GIT_PASS, ENV_AGENT_GIT_HOST, ENV_GIT_CLONE_VERBOSE
 from clearml_agent.helper.console import ensure_text, ensure_binary
 from clearml_agent.errors import CommandFailedError
 from clearml_agent.helper.base import (
@@ -197,8 +197,9 @@ class VCS(object):
             self.log.info("successfully applied uncommitted changes")
         return True
 
-    # Command-line flags for clone command
-    clone_flags = ()
+    def clone_flags(self):
+        """Command-line flags for clone command"""
+        return tuple()
 
     @abc.abstractmethod
     def executable_not_found_error_help(self):
@@ -366,7 +367,7 @@ class VCS(object):
         self._set_ssh_url()
         # if we are on linux no need for the full auth url because we use GIT_ASKPASS
         url = self.url_without_auth if self._use_ask_pass else self.url_with_auth
-        clone_command = ("clone", url, self.location) + self.clone_flags
+        clone_command = ("clone", url, self.location) + self.clone_flags()
         # clone all branches regardless of when we want to later checkout
         # if branch:
         #    clone_command += ("-b", branch)
@@ -543,7 +544,6 @@ class VCS(object):
 class Git(VCS):
     executable_name = "git"
     main_branch = ("master", "main")
-    clone_flags = ("--quiet", "--recursive")
     checkout_flags = ("--force",)
     COMMAND_ENV = {
         # do not prompt for password
@@ -568,6 +568,12 @@ class Git(VCS):
         return [
             "origin/{}".format(b) for b in ([branch] if isinstance(branch, str) else branch)
         ]
+
+    def clone_flags(self):
+        return (
+            "--recursive",
+            "--verbose" if ENV_GIT_CLONE_VERBOSE.get() else "--quiet"
+        )
 
     def executable_not_found_error_help(self):
         return 'Cannot find "{}" executable. {}'.format(
