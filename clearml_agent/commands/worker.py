@@ -4026,15 +4026,20 @@ class Worker(ServiceCommandSection):
             docker_arguments = self._filter_docker_args(docker_arguments)
             if self._session.config.get("agent.docker_allow_host_environ", None):
                 docker_arguments = self._resolve_docker_env_args(docker_arguments)
-            base_cmd += [a for a in docker_arguments if a]
 
         if extra_docker_arguments:
             # we always resolve environments in the `extra_docker_arguments` becuase the admin set them (not users)
             extra_docker_arguments = self._resolve_docker_env_args(extra_docker_arguments)
-
             extra_docker_arguments = [extra_docker_arguments] \
                 if isinstance(extra_docker_arguments, six.string_types) else extra_docker_arguments
-            base_cmd += [str(a) for a in extra_docker_arguments if a]
+
+        # decide on order of docker args when merging overlapping arguments
+        # from extra_docker_args and the Task's docker_args
+        base_cmd += DockerArgsSanitizer.merge_docker_args(
+            config=self._session.config,
+            task_docker_arguments=docker_arguments,
+            extra_docker_arguments=extra_docker_arguments
+        )
 
         # set docker labels
         base_cmd += ['-l', self._worker_label.format(worker_id)]
