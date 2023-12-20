@@ -505,19 +505,7 @@ class TaskStopSignal(object):
             return True
 
         # check if abort callback is turned on
-        cb_completed = None
-        # TODO: add retries on network error with timeout
-        try:
-            task_info = self.session.get(
-                service="tasks", action="get_all", version="2.13", id=[self.task_id],
-                only_fields=["status", "status_message", "runtime._abort_callback_timeout",
-                             "runtime._abort_poll_freq", "runtime._abort_callback_completed"])
-            abort_timeout = task_info['tasks'][0]['runtime'].get('_abort_callback_timeout', 0)
-            poll_timeout = task_info['tasks'][0]['runtime'].get('_abort_poll_freq', 0)
-            cb_completed = task_info['tasks'][0]['runtime'].get('_abort_callback_completed', None)
-        except:  # noqa
-            abort_timeout = None
-            poll_timeout = None
+        abort_timeout, poll_timeout, cb_completed = self._get_abort_callback_stat()
 
         if not abort_timeout:
             # no callback set we can leave
@@ -540,8 +528,39 @@ class TaskStopSignal(object):
         self._active_callback_timeout = timeout
         return bool(cb_completed)
 
-    def was_abort_function_called(self):
-        return bool(self._active_callback_timestamp)
+    def _get_abort_callback_stat(self):
+        # TODO: add retries on network error with timeout
+        try:
+            task_info = self.session.get(
+                service="tasks", action="get_all", version="2.13", id=[self.task_id],
+                only_fields=["status", "status_message", "runtime._abort_callback_timeout",
+                             "runtime._abort_poll_freq", "runtime._abort_callback_completed"])
+            abort_timeout = task_info['tasks'][0]['runtime'].get('_abort_callback_timeout', 0)
+            poll_timeout = task_info['tasks'][0]['runtime'].get('_abort_poll_freq', 0)
+            cb_completed = task_info['tasks'][0]['runtime'].get('_abort_callback_completed', None)
+        except:  # noqa
+            abort_timeout = None
+            poll_timeout = None
+            cb_completed = None
+
+        return abort_timeout, poll_timeout, cb_completed
+
+    def was_abort_function_called(self, process_error_code=None):
+        if not self._support_callback:
+            return False
+
+        if self._active_callback_timestamp:
+            return True
+
+        # if the process error code is SIGKILL (exit code 137) -
+        # check the runtime info of the Task - it might have killed itself because it was aborted
+        if process_error_code in (-9, 137):
+            # check if abort callback is turned on
+            _, _, cb_completed = self._get_abort_callback_stat()
+            if cb_completed:
+                return True
+
+        return False
 
     def _test(self):
         # type: () -> TaskStopReason
@@ -2005,7 +2024,7 @@ class Worker(ServiceCommandSection):
             stderr_line_count += report_lines(printed_lines, "stderr")
 
         # make sure that if the abort function was called, the task is marked as aborted
-        if stop_signal and stop_signal.was_abort_function_called():
+        if stop_signal and stop_signal.was_abort_function_called(status):
             stop_reason = TaskStopReason.stopped
 
         return status, stop_reason
