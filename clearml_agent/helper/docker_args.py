@@ -17,6 +17,30 @@ if TYPE_CHECKING:
     from clearml_agent.session import Session
 
 
+def sanitize_urls(s: str) -> Tuple[str, bool]:
+    """
+    Replaces passwords in URLs with asterisks.
+    Returns the sanitized string and a boolean indicating whether sanitation was performed.
+    """
+    regex = re.compile("^([^:]*:)[^@]+(.*)$")
+    tokens = re.split(r"\s", s)
+    changed = False
+    for k in range(len(tokens)):
+        if "@" in tokens[k]:
+            res = urlparse(tokens[k])
+            if regex.match(res.netloc):
+                changed = True
+                tokens[k] = urlunparse((
+                    res.scheme,
+                    regex.sub("\\1********\\2", res.netloc),
+                    res.path,
+                    res.params,
+                    res.query,
+                    res.fragment
+                ))
+    return " ".join(tokens) if changed else s, changed
+
+
 class DockerArgsSanitizer:
     @classmethod
     def sanitize_docker_command(cls, session, docker_command):
@@ -62,38 +86,17 @@ class DockerArgsSanitizer:
                     elif key in keys:
                         val = "********"
                     elif parse_embedded_urls:
-                        val = cls._sanitize_urls(val)[0]
+                        val = sanitize_urls(val)[0]
                     result[i + 1] = "{}={}".format(key, val)
                     skip_next = True
                 elif parse_embedded_urls and not item.startswith("-"):
-                    item, changed = cls._sanitize_urls(item)
+                    item, changed = sanitize_urls(item)
                     if changed:
                         result[i] = item
             except (KeyError, TypeError):
                 pass
 
         return result
-
-    @staticmethod
-    def _sanitize_urls(s: str) -> Tuple[str, bool]:
-        """ Replaces passwords in URLs with asterisks """
-        regex = re.compile("^([^:]*:)[^@]+(.*)$")
-        tokens = re.split(r"\s", s)
-        changed = False
-        for k in range(len(tokens)):
-            if "@" in tokens[k]:
-                res = urlparse(tokens[k])
-                if regex.match(res.netloc):
-                    changed = True
-                    tokens[k] = urlunparse((
-                        res.scheme,
-                        regex.sub("\\1********\\2", res.netloc),
-                        res.path,
-                        res.params,
-                        res.query,
-                        res.fragment
-                    ))
-        return " ".join(tokens) if changed else s, changed
 
     @staticmethod
     def get_list_of_switches(docker_args: List[str]) -> List[str]:
