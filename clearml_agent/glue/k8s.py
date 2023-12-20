@@ -676,6 +676,17 @@ class K8sIntegration(Worker):
             convert=lambda env: {'name': env.partition("=")[0], 'value': env.partition("=")[2]},
         )
 
+        # Set worker ID
+        task_worker_id = f"{self.worker_id}:{task_id}"
+        env_vars = container.get('env', [])
+        found_worker_id = False
+        for entry in env_vars:
+            if entry.get('name') == 'CLEARML_WORKER_ID':
+                entry['name'] = task_worker_id
+                found_worker_id = True
+        if not found_worker_id:
+            container['env'] = env_vars + [{'name': 'CLEARML_WORKER_ID', 'value': task_worker_id}]
+
         container_bash_script = [self.container_bash_script] if isinstance(self.container_bash_script, str) \
             else self.container_bash_script
 
