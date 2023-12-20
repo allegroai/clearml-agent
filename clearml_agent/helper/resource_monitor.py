@@ -79,6 +79,7 @@ class ResourceMonitor(object):
         self._gpustat_fail = 0
         self._gpustat = gpustat
         self._active_gpus = None
+        self._disk_use_path = str(session.config.get("agent.resource_monitoring.disk_use_path", None) or Path.home())
         if not worker_tags and ENV_WORKER_TAGS.get():
             worker_tags = shlex.split(ENV_WORKER_TAGS.get())
         self._worker_tags = worker_tags
@@ -242,7 +243,7 @@ class ResourceMonitor(object):
         virtual_memory = psutil.virtual_memory()
         stats["memory_used"] = BytesSizes.megabytes(virtual_memory.used)
         stats["memory_free"] = BytesSizes.megabytes(virtual_memory.available)
-        disk_use_percentage = psutil.disk_usage(Text(Path.home())).percent
+        disk_use_percentage = psutil.disk_usage(self._disk_use_path).percent
         stats["disk_free_percent"] = 100 - disk_use_percentage
         sensor_stat = (
             psutil.sensors_temperatures()
