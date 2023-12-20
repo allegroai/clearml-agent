@@ -266,8 +266,10 @@ class ResourceMonitor(object):
                 gpu_stat = self._gpustat.new_query()
                 for i, g in enumerate(gpu_stat.gpus):
                     # only monitor the active gpu's, if none were selected, monitor everything
-                    if self._active_gpus and str(i) not in self._active_gpus:
-                        continue
+                    if self._active_gpus:
+                        uuid = getattr(g, "uuid", None)
+                        if str(i) not in self._active_gpus and (not uuid or uuid not in self._active_gpus):
+                            continue
                     stats["gpu_temperature_{:d}".format(i)] = g["temperature.gpu"]
                     stats["gpu_utilization_{:d}".format(i)] = g["utilization.gpu"]
                     stats["gpu_mem_usage_{:d}".format(i)] = (

@@ -665,9 +665,12 @@ class K8sIntegration(Worker):
             return {target: results} if results else {}
         return results
 
+    def get_task_worker_id(self, template, task_id, pod_name, namespace, queue):
+        return f"{self.worker_id}:{task_id}"
+
     def _create_template_container(
         self, pod_name: str, task_id: str, docker_image: str, docker_args: List[str],
-        docker_bash: str, clearml_conf_create_script: List[str]
+        docker_bash: str, clearml_conf_create_script: List[str], task_worker_id: str
     ) -> dict:
         container = self._get_docker_args(
             docker_args,
@@ -677,7 +680,6 @@ class K8sIntegration(Worker):
         )
 
         # Set worker ID
-        task_worker_id = f"{self.worker_id}:{task_id}"
         env_vars = container.get('env', [])
         found_worker_id = False
         for entry in env_vars:
@@ -734,7 +736,7 @@ class K8sIntegration(Worker):
         queue,
         task_id,
         namespace,
-        template=None,
+        template,
         pod_number=None
     ):
         if "apiVersion" not in template:
@@ -774,13 +776,16 @@ class K8sIntegration(Worker):
         containers = spec.setdefault('containers', [])
         spec.setdefault('restartPolicy', 'Never')
 
+        task_worker_id = self.get_task_worker_id(template, task_id, name, namespace, queue)
+
         container = self._create_template_container(
             pod_name=name,
             task_id=task_id,
             docker_image=docker_image,
             docker_args=docker_args,
             docker_bash=docker_bash,
-            clearml_conf_create_script=clearml_conf_create_script
+            clearml_conf_create_script=clearml_conf_create_script,
+            task_worker_id=task_worker_id
         )
 
         if containers:
