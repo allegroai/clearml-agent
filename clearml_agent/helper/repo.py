@@ -555,7 +555,7 @@ class Git(VCS):
     def __init__(self, *args, **kwargs):
         super(Git, self).__init__(*args, **kwargs)
 
-        self._use_ask_pass = False if not self.session.config.get('agent.enable_git_ask_pass', None) \
+        self._use_ask_pass = False if not self.session.config.get('agent.enable_git_ask_pass', True) \
             else sys.platform == "linux"
 
         try:
