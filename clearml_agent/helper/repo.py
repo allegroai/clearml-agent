@@ -346,11 +346,18 @@ class VCS(object):
         # if we have git_user / git_pass replace ssh credentials with https authentication
         if (ENV_AGENT_GIT_USER.get() or self.session.config.get('agent.git_user', None)) and \
                 (ENV_AGENT_GIT_PASS.get() or self.session.config.get('agent.git_pass', None)):
+
             # only apply to a specific domain (if requested)
             config_domain = \
                 ENV_AGENT_GIT_HOST.get() or self.session.config.get("agent.git_host", None)
-            if config_domain and config_domain != furl(self.url).host:
-                return
+            if config_domain:
+                if config_domain != furl(self.url).host:
+                    # bail out here if we have a git_host configured and it's different than the URL host
+                    # however, we should make sure this is not an ssh@ URL that furl failed to parse
+                    ssh_git_url_match = self.SSH_URL_GIT_SYNTAX.match(self.url)
+                    if not ssh_git_url_match or config_domain != ssh_git_url_match.groupdict().get("host"):
+                        # do not replace to ssh url
+                        return
 
             new_url = self.replace_ssh_url(self.url)
             if new_url != self.url:
