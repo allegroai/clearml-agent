@@ -106,6 +106,7 @@ class K8sIntegration(Worker):
             max_pods_limit=None,
             pod_name_prefix=None,
             limit_pod_label=None,
+            force_system_packages=None,
             **kwargs
     ):
         """
@@ -142,7 +143,8 @@ class K8sIntegration(Worker):
         self.k8s_pending_queue_name = k8s_pending_queue_name or self.K8S_PENDING_QUEUE
         self.k8s_pending_queue_id = None
         self.container_bash_script = container_bash_script or self.CONTAINER_BASH_SCRIPT
-        force_system_packages = ENV_FORCE_SYSTEM_SITE_PACKAGES.get()
+        if force_system_packages is None:
+            force_system_packages = ENV_FORCE_SYSTEM_SITE_PACKAGES.get()
         self._force_system_site_packages = force_system_packages if force_system_packages is not None else True
         if self._force_system_site_packages:
             # Use system packages, because by we will be running inside a docker
