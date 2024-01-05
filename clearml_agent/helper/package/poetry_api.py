@@ -40,11 +40,11 @@ def prop_guard(prop, log_prop=None):
 
 class PoetryConfig:
 
-    def __init__(self, session, interpreter=None):
+    def __init__(self, session):
         # type: (Session, str) -> None
         self.session = session
         self._log = session.get_logger(__name__)
-        self._python = interpreter or sys.executable
+        self._python = sys.executable  # default, overwritten from session config in initialize()
         self._initialized = False
 
     @property
@@ -88,6 +88,11 @@ class PoetryConfig:
     @_guard_enabled
     def initialize(self, cwd=None):
         if not self._initialized:
+            # use correct python version -- detected in Worker.install_virtualenv() and written to
+            # session
+            if self.session.config.get('agent.python_binary', None) is not None:
+                self._python = self.session.config.get('agent.python_binary')
+
             if self.session.config.get("agent.package_manager.poetry_version", None) is not None:
                 version = str(self.session.config.get("agent.package_manager.poetry_version"))
 
