@@ -13,7 +13,7 @@ def parse_args():
     group = parser.add_mutually_exclusive_group()
 
     parser.add_argument(
-        "--queue", type=str, help="Queue to pull tasks from"
+        "--queue", type=str, help="Queues to pull tasks from. If multiple queues, use comma separated list, e.g. 'queue1,queue2'",
     )
     group.add_argument(
         "--ports-mode", action='store_true', default=False,
@@ -91,6 +91,9 @@ def main():
             ssh_port_number=args.ssh_server_port) if args.ssh_server_port else None,
         namespace=args.namespace, max_pods_limit=args.max_pods or None,
     )
+    if "," in args.queue:
+        args.queue = [q.strip() for q in args.queue.split(",")]
+    else: args.queue = [args.queue]
     k8s.k8s_daemon(args.queue, use_owner_token=args.use_owner_token)
 
 
