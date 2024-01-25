@@ -78,23 +78,16 @@ Find Dockerfiles in the [docker](./docker) dir and a helm Chart in https://githu
 - Seamless integration with ML/DL experiment manager
 - Web UI for customization, scheduling & prioritization of jobs
 
-**Two K8s integration flavours**
-
-- Spin ClearML-Agent as a long-lasting service pod:
-    - Use [clearml-agent](https://hub.docker.com/r/allegroai/clearml-agent) docker image
-    - map docker socket into the pod (soon replaced by [podman](https://github.com/containers/podman))
-    - Allow the clearml-agent to manage sibling dockers
-    - Benefits: full use of the ClearML scheduling, no need to worry about wrong container images / lost pods etc.
-    - Downside: sibling containers
-- Kubernetes Glue, map ClearML jobs directly to K8s jobs:
-    - Run the [clearml-k8s glue](https://github.com/allegroai/clearml-agent/blob/master/examples/k8s_glue_example.py) on
-      a K8s cpu node
-    - The clearml-k8s glue pulls jobs from the ClearML job execution queue and prepares a K8s job (based on provided
-      yaml template)
-    - Inside the pod itself the clearml-agent will install the job (experiment) environment and spin and monitor the
-      experiment's process
-    - Benefits: Kubernetes full view of all running jobs in the system
-    - Downside: No real scheduling (k8s scheduler), no docker image verification (post-mortem only)
+**Run the agent in Kubernetes Glue mode an map ClearML jobs directly to K8s jobs:**
+- Use the [ClearML Agent Helm Chart](https://github.com/allegroai/clearml-helm-charts/tree/main/charts/clearml-agent) to spin an agent pod acting as a controller
+  - Alternatively (less recommended) run the [clearml-k8s glue](https://github.com/allegroai/clearml-agent/blob/master/examples/k8s_glue_example.py) on
+    a K8s cpu node
+- The clearml-k8s glue pulls jobs from the ClearML job execution queue and prepares a K8s job (based on provided
+  yaml template)
+- Inside each task pod itself the clearml-agent will install the job (experiment) environment and spin and monitor the
+  experiment's process
+- Benefits: Kubernetes full view of all running jobs in the system
+- Downside: No real scheduling (k8s scheduler), no docker image verification (post-mortem only)
 
 ### Using the ClearML Agent
 
