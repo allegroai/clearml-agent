@@ -225,6 +225,7 @@ class VCS(object):
         (?:(?P<user>{regular}*?)@)?
         (?P<host>{regular}*?)
         :
+        (?:v3/)? # present in azure ssh urls
         (?P<path>{regular}.*)?
         $
         """.format(
@@ -253,6 +254,16 @@ class VCS(object):
         match = cls.SSH_URL_GIT_SYNTAX.match(url)
         if match:
             user, host, path = match.groups()
+
+            # handle special azure cases
+            if "ssh" and "azure" in host:
+                host = host.replace("ssh.", "")
+
+                # azure http url is different than ssh url
+                # the format is https://dev.azure.com/{organization}/{project}/_git/{repo}
+                path_components = path.split("/")
+                path = "/".join(path_components[:-1]) + "/_git/" + path_components[-1]
+
             return (
                 furl()
                 .set(scheme="https", username=get_username(user), host=host, path=path)
