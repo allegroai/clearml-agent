@@ -20,4 +20,6 @@ RUN chmod +x /root/provider_entrypoint.sh
 COPY ./k8s_glue_example.py /root/k8s_glue_example.py
 COPY ./clearml.conf /root/clearml.conf
 
+RUN python3 -m pip install git+https://github.com/FeU-aKlos/clearml-agent.git@feature/support_multi_queeus_with_k8s_test
+
 ENTRYPOINT ["/root/entrypoint.sh"]
