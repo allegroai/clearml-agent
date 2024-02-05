@@ -69,6 +69,10 @@ def parse_args():
         "--use-owner-token", action="store_true", default=False,
         help="Generate and use task owner token for the execution of each task"
     )
+    parser.add_argument(
+        "--create-queue", action="store_true", default=False,
+        help="Create the queue if it does not exist (default: %(default)s)"
+    )
     return parser.parse_args()
 
 
@@ -94,7 +98,7 @@ def main():
     if "," in args.queue:
         args.queue = [q.strip() for q in args.queue.split(",")]
     else: args.queue = [args.queue]
-    k8s.k8s_daemon(args.queue, use_owner_token=args.use_owner_token)
+    k8s.k8s_daemon(args.queue, use_owner_token=args.use_owner_token, create_queue=args.create_queue)
 
 
 if __name__ == "__main__":
