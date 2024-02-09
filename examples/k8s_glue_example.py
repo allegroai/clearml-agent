@@ -95,9 +95,8 @@ def main():
             ssh_port_number=args.ssh_server_port) if args.ssh_server_port else None,
         namespace=args.namespace, max_pods_limit=args.max_pods or None,
     )
-    if "," in args.queue:
-        args.queue = [q.strip() for q in args.queue.split(",")]
-    else: args.queue = [args.queue]
+    args.queue = [q.strip() for q in args.queue.split(",") if q.strip()]
+
     k8s.k8s_daemon(args.queue, use_owner_token=args.use_owner_token, create_queue=args.create_queue)
 
 
