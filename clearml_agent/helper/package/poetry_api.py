@@ -90,8 +90,8 @@ class PoetryConfig:
         if not self._initialized:
             # use correct python version -- detected in Worker.install_virtualenv() and written to
             # session
-            if self.session.config.get('agent.python_binary', None) is not None:
-                self._python = self.session.config.get('agent.python_binary')
+            if self.session.config.get("agent.python_binary", None) is not None:
+                self._python = self.session.config.get("agent.python_binary")
 
             if self.session.config.get("agent.package_manager.poetry_version", None) is not None:
                 version = str(self.session.config.get("agent.package_manager.poetry_version"))
