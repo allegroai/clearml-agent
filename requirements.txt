@@ -10,7 +10,7 @@ pyparsing>=2.0.3,<2.5.0
 python-dateutil>=2.4.2,<2.9.0
 pyjwt>=2.4.0,<2.5.0
 PyYAML>=3.12,<5.5.0
-requests>=2.20.0,<2.26.0
+requests
 six>=1.13.0,<1.16.0
 typing>=3.6.4,<3.8.0 ; python_version < '3.5'
 urllib3>=1.21.1,<1.27.0
