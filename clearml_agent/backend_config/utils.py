@@ -4,7 +4,7 @@ from os.path import expandvars, expanduser
 from pathlib import Path
 from typing import List, TYPE_CHECKING
 
-from pyhocon import HOCONConverter, ConfigTree
+from clearml_agent.external.pyhocon import HOCONConverter, ConfigTree
 
 if TYPE_CHECKING:
     from .config import Config
@@ -31,7 +31,8 @@ def apply_environment(config):
     keys = list(filter(None, env_vars.keys()))
 
     for key in keys:
-        os.environ[str(key)] = str(env_vars[key] or "")
+        value = env_vars[key]
+        os.environ[str(key)] = str(value if value is not None else "")
 
     return keys
 
@@ -52,6 +53,7 @@ def apply_files(config):
         target_fmt = data.get("target_format", "string")
         overwrite = bool(data.get("overwrite", True))
         contents = data.get("contents")
+        mode = data.get("mode")
 
         target = Path(expanduser(expandvars(path)))
 
@@ -109,4 +111,15 @@ def apply_files(config):
             print("Saved [{}]: {}".format(key, target))
         except Exception as ex:
             print("Skipped [{}]: failed saving file {} ({})".format(key, target, ex))
+            continue
+
+        try:
+            if mode:
+                if isinstance(mode, int):
+                    mode = int(str(mode), 8)
+                else:
+                    mode = int(mode, 8)
+                target.chmod(mode)
+        except Exception as ex:
+            print("Skipped [{}]: failed setting mode {} for {} ({})".format(key, mode, target, ex))
             continue

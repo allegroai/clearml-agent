@@ -5,9 +5,9 @@ from enum import IntEnum
 from os import getenv, environ
 from typing import Text, Optional, Union, Tuple, Any
 
+import six
 from pathlib2 import Path
 
-import six
 from clearml_agent.helper.base import normalize_path
 
 PROGRAM_NAME = "clearml-agent"
@@ -69,41 +69,65 @@ ENV_AWS_SECRET_KEY = EnvironmentConfig("AWS_SECRET_ACCESS_KEY")
 ENV_AZURE_ACCOUNT_KEY = EnvironmentConfig("AZURE_STORAGE_KEY")
 
 ENVIRONMENT_CONFIG = {
-    "api.api_server": EnvironmentConfig("CLEARML_API_HOST", "TRAINS_API_HOST", ),
-    "api.files_server": EnvironmentConfig("CLEARML_FILES_HOST", "TRAINS_FILES_HOST", ),
-    "api.web_server": EnvironmentConfig("CLEARML_WEB_HOST", "TRAINS_WEB_HOST", ),
+    "api.api_server": EnvironmentConfig(
+        "CLEARML_API_HOST",
+        "TRAINS_API_HOST",
+    ),
+    "api.files_server": EnvironmentConfig(
+        "CLEARML_FILES_HOST",
+        "TRAINS_FILES_HOST",
+    ),
+    "api.web_server": EnvironmentConfig(
+        "CLEARML_WEB_HOST",
+        "TRAINS_WEB_HOST",
+    ),
     "api.credentials.access_key": EnvironmentConfig(
-        "CLEARML_API_ACCESS_KEY", "TRAINS_API_ACCESS_KEY",
+        "CLEARML_API_ACCESS_KEY",
+        "TRAINS_API_ACCESS_KEY",
     ),
     "api.credentials.secret_key": ENV_AGENT_SECRET_KEY,
-    "agent.worker_name": EnvironmentConfig("CLEARML_WORKER_NAME", "TRAINS_WORKER_NAME", ),
-    "agent.worker_id": EnvironmentConfig("CLEARML_WORKER_ID", "TRAINS_WORKER_ID", ),
-    "agent.cuda_version": EnvironmentConfig(
-        "CLEARML_CUDA_VERSION", "TRAINS_CUDA_VERSION", "CUDA_VERSION"
+    "agent.worker_name": EnvironmentConfig(
+        "CLEARML_WORKER_NAME",
+        "TRAINS_WORKER_NAME",
     ),
-    "agent.cudnn_version": EnvironmentConfig(
-        "CLEARML_CUDNN_VERSION", "TRAINS_CUDNN_VERSION", "CUDNN_VERSION"
+    "agent.worker_id": EnvironmentConfig(
+        "CLEARML_WORKER_ID",
+        "TRAINS_WORKER_ID",
     ),
-    "agent.cpu_only": EnvironmentConfig(
-        names=("CLEARML_CPU_ONLY", "TRAINS_CPU_ONLY", "CPU_ONLY"), type=bool
-    ),
+    "agent.cuda_version": EnvironmentConfig("CLEARML_CUDA_VERSION", "TRAINS_CUDA_VERSION", "CUDA_VERSION"),
+    "agent.cudnn_version": EnvironmentConfig("CLEARML_CUDNN_VERSION", "TRAINS_CUDNN_VERSION", "CUDNN_VERSION"),
+    "agent.cpu_only": EnvironmentConfig(names=("CLEARML_CPU_ONLY", "TRAINS_CPU_ONLY", "CPU_ONLY"), type=bool),
+    "agent.crash_on_exception": EnvironmentConfig("CLEAMRL_AGENT_CRASH_ON_EXCEPTION", type=bool),
     "sdk.aws.s3.key": EnvironmentConfig("AWS_ACCESS_KEY_ID"),
     "sdk.aws.s3.secret": ENV_AWS_SECRET_KEY,
     "sdk.aws.s3.region": EnvironmentConfig("AWS_DEFAULT_REGION"),
-    "sdk.azure.storage.containers.0": {'account_name': EnvironmentConfig("AZURE_STORAGE_ACCOUNT"),
-                                       'account_key': ENV_AZURE_ACCOUNT_KEY},
+    "sdk.azure.storage.containers.0": {
+        "account_name": EnvironmentConfig("AZURE_STORAGE_ACCOUNT"),
+        "account_key": ENV_AZURE_ACCOUNT_KEY,
+    },
     "sdk.google.storage.credentials_json": EnvironmentConfig("GOOGLE_APPLICATION_CREDENTIALS"),
 }
 
 ENVIRONMENT_SDK_PARAMS = {
-    "task_id": ("CLEARML_TASK_ID", "TRAINS_TASK_ID", ),
-    "config_file": ("CLEARML_CONFIG_FILE", "TRAINS_CONFIG_FILE", ),
-    "log_level": ("CLEARML_LOG_LEVEL", "TRAINS_LOG_LEVEL", ),
-    "log_to_backend": ("CLEARML_LOG_TASK_TO_BACKEND", "TRAINS_LOG_TASK_TO_BACKEND", ),
+    "task_id": (
+        "CLEARML_TASK_ID",
+        "TRAINS_TASK_ID",
+    ),
+    "config_file": (
+        "CLEARML_CONFIG_FILE",
+        "TRAINS_CONFIG_FILE",
+    ),
+    "log_level": (
+        "CLEARML_LOG_LEVEL",
+        "TRAINS_LOG_LEVEL",
+    ),
+    "log_to_backend": (
+        "CLEARML_LOG_TASK_TO_BACKEND",
+        "TRAINS_LOG_TASK_TO_BACKEND",
+    ),
 }
 
-ENVIRONMENT_BACKWARD_COMPATIBLE = EnvironmentConfig(
-    names=("CLEARML_AGENT_ALG_ENV", "TRAINS_AGENT_ALG_ENV"), type=bool)
+ENVIRONMENT_BACKWARD_COMPATIBLE = EnvironmentConfig(names=("CLEARML_AGENT_ALG_ENV", "TRAINS_AGENT_ALG_ENV"), type=bool)
 
 VIRTUAL_ENVIRONMENT_PATH = {
     "python2": normalize_path(CONFIG_DIR, "py2venv"),
@@ -122,34 +146,69 @@ TOKEN_EXPIRATION_SECONDS = int(timedelta(days=2).total_seconds())
 
 METADATA_EXTENSION = ".json"
 
-DEFAULT_VENV_UPDATE_URL = (
-    "https://raw.githubusercontent.com/Yelp/venv-update/v3.2.4/venv_update.py"
-)
+DEFAULT_VENV_UPDATE_URL = "https://raw.githubusercontent.com/Yelp/venv-update/v3.2.4/venv_update.py"
 WORKING_REPOSITORY_DIR = "task_repository"
 WORKING_STANDALONE_DIR = "code"
 DEFAULT_VCS_CACHE = normalize_path(CONFIG_DIR, "vcs-cache")
-PIP_EXTRA_INDICES = [
-]
+PIP_EXTRA_INDICES = []
 DEFAULT_PIP_DOWNLOAD_CACHE = normalize_path(CONFIG_DIR, "pip-download-cache")
-ENV_DOCKER_IMAGE = EnvironmentConfig('CLEARML_DOCKER_IMAGE', 'TRAINS_DOCKER_IMAGE')
-ENV_WORKER_ID = EnvironmentConfig('CLEARML_WORKER_ID', 'TRAINS_WORKER_ID')
-ENV_WORKER_TAGS = EnvironmentConfig('CLEARML_WORKER_TAGS')
-ENV_AGENT_SKIP_PIP_VENV_INSTALL = EnvironmentConfig('CLEARML_AGENT_SKIP_PIP_VENV_INSTALL')
-ENV_AGENT_SKIP_PYTHON_ENV_INSTALL = EnvironmentConfig('CLEARML_AGENT_SKIP_PYTHON_ENV_INSTALL', type=bool)
-ENV_DOCKER_SKIP_GPUS_FLAG = EnvironmentConfig('CLEARML_DOCKER_SKIP_GPUS_FLAG', 'TRAINS_DOCKER_SKIP_GPUS_FLAG')
-ENV_AGENT_GIT_USER = EnvironmentConfig('CLEARML_AGENT_GIT_USER', 'TRAINS_AGENT_GIT_USER')
-ENV_AGENT_GIT_PASS = EnvironmentConfig('CLEARML_AGENT_GIT_PASS', 'TRAINS_AGENT_GIT_PASS')
-ENV_AGENT_GIT_HOST = EnvironmentConfig('CLEARML_AGENT_GIT_HOST', 'TRAINS_AGENT_GIT_HOST')
-ENV_AGENT_DISABLE_SSH_MOUNT = EnvironmentConfig('CLEARML_AGENT_DISABLE_SSH_MOUNT', type=bool)
-ENV_SSH_AUTH_SOCK = EnvironmentConfig('SSH_AUTH_SOCK')
-ENV_TASK_EXECUTE_AS_USER = EnvironmentConfig('CLEARML_AGENT_EXEC_USER', 'TRAINS_AGENT_EXEC_USER')
-ENV_TASK_EXTRA_PYTHON_PATH = EnvironmentConfig('CLEARML_AGENT_EXTRA_PYTHON_PATH', 'TRAINS_AGENT_EXTRA_PYTHON_PATH')
-ENV_DOCKER_HOST_MOUNT = EnvironmentConfig('CLEARML_AGENT_K8S_HOST_MOUNT', 'CLEARML_AGENT_DOCKER_HOST_MOUNT',
-                                          'TRAINS_AGENT_K8S_HOST_MOUNT', 'TRAINS_AGENT_DOCKER_HOST_MOUNT')
-ENV_VENV_CACHE_PATH = EnvironmentConfig('CLEARML_AGENT_VENV_CACHE_PATH')
-ENV_EXTRA_DOCKER_ARGS = EnvironmentConfig('CLEARML_AGENT_EXTRA_DOCKER_ARGS', type=list)
+ENV_PIP_EXTRA_INSTALL_FLAGS = EnvironmentConfig("CLEARML_EXTRA_PIP_INSTALL_FLAGS", type=list)
+ENV_DOCKER_IMAGE = EnvironmentConfig("CLEARML_DOCKER_IMAGE", "TRAINS_DOCKER_IMAGE")
+ENV_WORKER_ID = EnvironmentConfig("CLEARML_WORKER_ID", "TRAINS_WORKER_ID")
+ENV_WORKER_TAGS = EnvironmentConfig("CLEARML_WORKER_TAGS")
+ENV_AGENT_SKIP_PIP_VENV_INSTALL = EnvironmentConfig("CLEARML_AGENT_SKIP_PIP_VENV_INSTALL")
+ENV_AGENT_SKIP_PYTHON_ENV_INSTALL = EnvironmentConfig("CLEARML_AGENT_SKIP_PYTHON_ENV_INSTALL", type=bool)
+ENV_AGENT_FORCE_CODE_DIR = EnvironmentConfig("CLEARML_AGENT_FORCE_CODE_DIR")
+ENV_AGENT_FORCE_EXEC_SCRIPT = EnvironmentConfig("CLEARML_AGENT_FORCE_EXEC_SCRIPT")
+ENV_DOCKER_SKIP_GPUS_FLAG = EnvironmentConfig("CLEARML_DOCKER_SKIP_GPUS_FLAG", "TRAINS_DOCKER_SKIP_GPUS_FLAG")
+ENV_AGENT_GIT_USER = EnvironmentConfig("CLEARML_AGENT_GIT_USER", "TRAINS_AGENT_GIT_USER")
+ENV_AGENT_GIT_PASS = EnvironmentConfig("CLEARML_AGENT_GIT_PASS", "TRAINS_AGENT_GIT_PASS")
+ENV_AGENT_GIT_HOST = EnvironmentConfig("CLEARML_AGENT_GIT_HOST", "TRAINS_AGENT_GIT_HOST")
+ENV_AGENT_DISABLE_SSH_MOUNT = EnvironmentConfig("CLEARML_AGENT_DISABLE_SSH_MOUNT", type=bool)
+ENV_SSH_AUTH_SOCK = EnvironmentConfig("SSH_AUTH_SOCK")
+ENV_TASK_EXECUTE_AS_USER = EnvironmentConfig("CLEARML_AGENT_EXEC_USER", "TRAINS_AGENT_EXEC_USER")
+ENV_TASK_EXTRA_PYTHON_PATH = EnvironmentConfig("CLEARML_AGENT_EXTRA_PYTHON_PATH", "TRAINS_AGENT_EXTRA_PYTHON_PATH")
+ENV_DOCKER_HOST_MOUNT = EnvironmentConfig(
+    "CLEARML_AGENT_K8S_HOST_MOUNT",
+    "CLEARML_AGENT_DOCKER_HOST_MOUNT",
+    "TRAINS_AGENT_K8S_HOST_MOUNT",
+    "TRAINS_AGENT_DOCKER_HOST_MOUNT",
+)
+ENV_VENV_CACHE_PATH = EnvironmentConfig("CLEARML_AGENT_VENV_CACHE_PATH")
+ENV_EXTRA_DOCKER_ARGS = EnvironmentConfig("CLEARML_AGENT_EXTRA_DOCKER_ARGS", type=list)
+ENV_EXTRA_DOCKER_LABELS = EnvironmentConfig("CLEARML_AGENT_EXTRA_DOCKER_LABELS", type=list)
+ENV_DEBUG_INFO = EnvironmentConfig("CLEARML_AGENT_DEBUG_INFO")
+ENV_CHILD_AGENTS_COUNT_CMD = EnvironmentConfig("CLEARML_AGENT_CHILD_AGENTS_COUNT_CMD")
+ENV_DOCKER_ARGS_FILTERS = EnvironmentConfig("CLEARML_AGENT_DOCKER_ARGS_FILTERS")
+ENV_DOCKER_ARGS_HIDE_ENV = EnvironmentConfig("CLEARML_AGENT_DOCKER_ARGS_HIDE_ENV")
+ENV_CONFIG_BC_IN_STANDALONE = EnvironmentConfig("CLEARML_AGENT_STANDALONE_CONFIG_BC", type=bool)
+""" Maintain backwards compatible configuration when launching in standalone mode """
 
-ENV_CUSTOM_BUILD_SCRIPT = EnvironmentConfig('CLEARML_AGENT_CUSTOM_BUILD_SCRIPT')
+ENV_FORCE_DOCKER_AGENT_REPO = EnvironmentConfig("FORCE_CLEARML_AGENT_REPO", "CLEARML_AGENT_DOCKER_AGENT_REPO")
+
+ENV_SERVICES_DOCKER_RESTART = EnvironmentConfig("CLEARML_AGENT_SERVICES_DOCKER_RESTART")
+"""
+    Specify a restart value for a services agent task containers.
+    Note that when a restart value is provided, task containers will not be run with the '--rm' flag and will
+     not be cleaned up automatically when completed (this will need to be done externally using the
+     'docker container prune' command to free up resources).
+    Value format for this env var is "<restart-value>;<task-selector>", where:
+    - <restart-value> can be any valid restart value for docker-run (see https://docs.docker.com/engine/reference/commandline/run/#restart)
+    - <task-selector> is optional, allowing to restrict this behaviour to specific tasks. The format is:
+        "<path-to-task-field>=<value>" where:
+        * <path-to-task-field> is a dot-separated path to a task field (e.g. "container.image")
+        * <value> is optional. If not provided, the restart policy till be applied for the task container if the
+            path provided exists. If provided, the restart policy will be applied if the value matches the value
+            obtained from the task (value parsing and comparison is based on the type of value obtained from the task) 
+    For example:
+        CLEARML_AGENT_SERVICES_DOCKER_RESTART=unless-stopped
+        CLEARML_AGENT_SERVICES_DOCKER_RESTART=unless-stopped;container.image=some-image
+"""
+
+ENV_FORCE_SYSTEM_SITE_PACKAGES = EnvironmentConfig("CLEARML_AGENT_FORCE_SYSTEM_SITE_PACKAGES", type=bool)
+""" Force system_site_packages: true when running tasks in containers (i.e. docker mode or k8s glue) """
+
+ENV_CUSTOM_BUILD_SCRIPT = EnvironmentConfig("CLEARML_AGENT_CUSTOM_BUILD_SCRIPT")
 """
     Specifies a custom environment setup script to be executed instead of installing a virtual environment.
     If provided, this script is executed following Git cloning. Script command may include environment variable and
@@ -180,6 +239,12 @@ ENV_CUSTOM_BUILD_SCRIPT = EnvironmentConfig('CLEARML_AGENT_CUSTOM_BUILD_SCRIPT')
     into the file specified in CLEARML_CUSTOM_BUILD_OUTPUT, the agent will emit a warning and continue with the
     standard flow.
 """
+
+ENV_PACKAGE_PYTORCH_RESOLVE = EnvironmentConfig("CLEARML_AGENT_PACKAGE_PYTORCH_RESOLVE")
+
+ENV_TEMP_STDOUT_FILE_DIR = EnvironmentConfig("CLEARML_AGENT_TEMP_STDOUT_FILE_DIR")
+
+ENV_GIT_CLONE_VERBOSE = EnvironmentConfig("CLEARML_AGENT_GIT_CLONE_VERBOSE", type=bool)
 
 
 class FileBuffering(IntEnum):

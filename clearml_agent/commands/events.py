@@ -2,8 +2,7 @@ from __future__ import print_function
 
 import json
 import time
-
-from future.builtins import super
+from typing import List, Tuple
 
 from clearml_agent.commands.base import ServiceCommandSection
 from clearml_agent.helper.base import return_list
@@ -58,6 +57,42 @@ class Events(ServiceCommandSection):
         sent_events += send_packet(lines)
         # print('Sending events done: %d / %d events sent' % (sent_events, len(list_events)))
         return sent_events
+
+    def send_log_events_with_timestamps(
+        self, worker_id, task_id, lines_with_ts: List[Tuple[str, str]], level="DEBUG", session=None
+    ):
+        log_events = []
+
+        # break log lines into event packets
+        for ts, line in return_list(lines_with_ts):
+            # HACK ignore terminal reset ANSI code
+            if line == '\x1b[0m':
+                continue
+            while line:
+                if len(line) <= self.max_event_size:
+                    msg = line
+                    line = None
+                else:
+                    msg = line[:self.max_event_size]
+                    line = line[self.max_event_size:]
+
+                log_events.append(
+                    {
+                        "type": "log",
+                        "level": level,
+                        "task": task_id,
+                        "worker": worker_id,
+                        "msg": msg,
+                        "timestamp": ts,
+                    }
+                )
+
+                if line and ts is not None:
+                    # advance timestamp in case we break a line to more than one part
+                    ts += 1
+
+        # now send the events
+        return self.send_events(list_events=log_events, session=session)
 
     def send_log_events(self, worker_id, task_id, lines, level='DEBUG', session=None):
         log_events = []

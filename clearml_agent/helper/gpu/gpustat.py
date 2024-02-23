@@ -15,10 +15,8 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import json
-import os.path
 import platform
 import sys
-import time
 from datetime import datetime
 from typing import Optional
 
@@ -164,13 +162,14 @@ class GPUStatCollection(object):
     _device_count = None
     _gpu_device_info = {}
 
-    def __init__(self, gpu_list, driver_version=None):
+    def __init__(self, gpu_list, driver_version=None, driver_cuda_version=None):
         self.gpus = gpu_list
 
         # attach additional system information
         self.hostname = platform.node()
         self.query_time = datetime.now()
         self.driver_version = driver_version
+        self.driver_cuda_version = driver_cuda_version
 
     @staticmethod
     def clean_processes():
@@ -181,10 +180,11 @@ class GPUStatCollection(object):
     @staticmethod
     def new_query(shutdown=False, per_process_stats=False, get_driver_info=False):
         """Query the information of all the GPUs on local machine"""
-
+        initialized = False
         if not GPUStatCollection._initialized:
             N.nvmlInit()
             GPUStatCollection._initialized = True
+            initialized = True
 
         def _decode(b):
             if isinstance(b, bytes):
@@ -200,10 +200,10 @@ class GPUStatCollection(object):
                 if nv_process.pid not in GPUStatCollection.global_processes:
                     GPUStatCollection.global_processes[nv_process.pid] = \
                         psutil.Process(pid=nv_process.pid)
-                ps_process = GPUStatCollection.global_processes[nv_process.pid]
                 process['pid'] = nv_process.pid
                 # noinspection PyBroadException
                 try:
+                    # ps_process = GPUStatCollection.global_processes[nv_process.pid]
                     # we do not actually use these, so no point in collecting them
                     # process['username'] = ps_process.username()
                     # # cmdline returns full path;
@@ -286,11 +286,11 @@ class GPUStatCollection(object):
                 for nv_process in nv_comp_processes + nv_graphics_processes:
                     try:
                         process = get_process_info(nv_process)
-                        processes.append(process)
                     except psutil.NoSuchProcess:
                         # TODO: add some reminder for NVML broken context
                         # e.g. nvidia-smi reset  or  reboot the system
-                        pass
+                        process = None
+                    processes.append(process)
 
                 # we do not actually use these, so no point in collecting them
                 # # TODO: Do not block if full process info is not requested
@@ -314,7 +314,7 @@ class GPUStatCollection(object):
                 # Convert bytes into MBytes
                 'memory.used': memory.used // MB if memory else None,
                 'memory.total': memory.total // MB if memory else None,
-                'processes': processes,
+                'processes': None if (processes and all(p is None for p in processes)) else processes
             }
             if per_process_stats:
                 GPUStatCollection.clean_processes()
@@ -337,15 +337,32 @@ class GPUStatCollection(object):
                 driver_version = _decode(N.nvmlSystemGetDriverVersion())
             except N.NVMLError:
                 driver_version = None  # N/A
+
+            # noinspection PyBroadException
+            try:
+                cuda_driver_version = str(N.nvmlSystemGetCudaDriverVersion())
+            except BaseException:
+                # noinspection PyBroadException
+                try:
+                    cuda_driver_version = str(N.nvmlSystemGetCudaDriverVersion_v2())
+                except BaseException:
+                    cuda_driver_version = None
+            if cuda_driver_version:
+                try:
+                    cuda_driver_version = '{}.{}'.format(
+                        int(cuda_driver_version)//1000, (int(cuda_driver_version) % 1000)//10)
+                except (ValueError, TypeError):
+                    pass
         else:
             driver_version = None
+            cuda_driver_version = None
 
         # no need to shutdown:
-        if shutdown:
+        if shutdown and initialized:
             N.nvmlShutdown()
             GPUStatCollection._initialized = False
 
-        return GPUStatCollection(gpu_list, driver_version=driver_version)
+        return GPUStatCollection(gpu_list, driver_version=driver_version, driver_cuda_version=cuda_driver_version)
 
     def __len__(self):
         return len(self.gpus)

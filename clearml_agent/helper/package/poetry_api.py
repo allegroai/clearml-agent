@@ -69,6 +69,11 @@ class PoetryConfig:
                 path = path.replace(':'+sys.base_prefix, ':'+sys.real_prefix, 1)
                 kwargs['env']['PATH'] = path
 
+        if self.session and self.session.config and args and args[0] == "install":
+            extra_args = self.session.config.get("agent.package_manager.poetry_install_extra_args", None)
+            if extra_args:
+                args = args + tuple(extra_args)
+
         if check_if_command_exists("poetry"):
             argv = Argv("poetry", *args)
         else:
@@ -142,7 +147,7 @@ class PoetryAPI(object):
             any((self.path / indicator).exists() for indicator in self.INDICATOR_FILES)
         )
 
-    def freeze(self):
+    def freeze(self, freeze_full_environment=False):
         lines = self.config.run("show", cwd=str(self.path)).splitlines()
         lines = [[p for p in line.split(' ') if p] for line in lines]
         return {"pip": [parts[0]+'=='+parts[1]+' # '+' '.join(parts[2:]) for parts in lines]}

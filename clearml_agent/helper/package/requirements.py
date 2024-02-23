@@ -11,9 +11,10 @@ from os import path
 from typing import Text, List, Type, Optional, Tuple, Dict
 
 from pathlib2 import Path
-from pyhocon import ConfigTree
+from clearml_agent.external.pyhocon import ConfigTree
 
 import six
+from six.moves.urllib.parse import unquote
 import logging
 from clearml_agent.definitions import PIP_EXTRA_INDICES
 from clearml_agent.helper.base import (
@@ -99,7 +100,8 @@ class MarkerRequirement(object):
             return ','.join(starmap(operator.add, self.specs))
 
         op, version = self.specs[0]
-        for v in self._sub_versions_pep440:
+        # noinspection PyProtectedMember
+        for v in SimpleVersion._sub_versions_pep440:
             version = version.replace(v, '.')
         if num_parts:
             version = (version.strip('.').split('.') + ['0'] * num_parts)[:max_num_parts]
@@ -175,11 +177,13 @@ class MarkerRequirement(object):
             return
         local_path = Path(self.uri[len("file://"):])
         if not local_path.exists():
-            line = self.line
-            if self.remove_local_file_ref():
-                # print warning
-                logging.getLogger(__name__).warning(
-                    'Local file not found [{}], references removed'.format(line))
+            local_path = Path(unquote(self.uri)[len("file://"):])
+            if not local_path.exists():
+                line = self.line
+                if self.remove_local_file_ref():
+                    # print warning
+                    logging.getLogger(__name__).warning(
+                        'Local file not found [{}], references removed'.format(line))
 
 
 class SimpleVersion:
@@ -236,6 +240,23 @@ class SimpleVersion:
         if not version_b:
             return True
 
+        # remove trailing "*" in both
+        if "*" in version_a:
+            ignore_sub_versions = True
+            while version_a.endswith(".*"):
+                version_a = version_a[:-2]
+            if version_a == "*":
+                version_a = ""
+            num_parts = min(len(version_a.split('.')), len(version_b.split('.')), )
+
+        if "*" in version_b:
+            ignore_sub_versions = True
+            while version_b.endswith(".*"):
+                version_b = version_b[:-2]
+            if version_b == "*":
+                version_b = ""
+            num_parts = min(len(version_a.split('.')), len(version_b.split('.')), )
+
         if not num_parts:
             num_parts = max(len(version_a.split('.')), len(version_b.split('.')), )
 
@@ -275,6 +296,8 @@ class SimpleVersion:
             return version_a_key > version_b_key
         if op == '<':
             return version_a_key < version_b_key
+        if op == '!=':
+            return version_a_key != version_b_key
         raise ValueError('Unrecognized comparison operator [{}]'.format(op))
 
     @classmethod
@@ -359,7 +382,7 @@ def compare_version_rules(specs_a, specs_b):
     # specs_a/b are a list of tuples: [('==', '1.2.3'), ] or [('>=', '1.2'), ('<', '1.3')]
     # section definition:
     class Section(object):
-        def __init__(self, left=None, left_eq=False, right=None, right_eq=False):
+        def __init__(self, left="-999999999", left_eq=False, right="999999999", right_eq=False):
             self.left, self.left_eq, self.right, self.right_eq = left, left_eq, right, right_eq
     # first create a list of in/out sections for each spec
     # >, >= are left rule
@@ -430,6 +453,11 @@ def compare_version_rules(specs_a, specs_b):
 class RequirementSubstitution(object):
 
     _pip_extra_index_url = PIP_EXTRA_INDICES
+
+    @classmethod
+    def set_add_install_extra_index(cls, extra_index_url):
+        if extra_index_url not in cls._pip_extra_index_url:
+            cls._pip_extra_index_url.append(extra_index_url)
 
     def __init__(self, session):
         # type: (Session) -> ()

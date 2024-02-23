@@ -135,7 +135,12 @@ class CondaAPI(PackageManager):
         if self.env_read_only:
             print('Conda environment in read-only mode, skipping pip upgrade.')
             return ''
-        return self._install(select_for_platform(windows='pip{}', linux='pip{}').format(self.pip.get_pip_version()))
+        return self._install(
+            *select_for_platform(
+                windows=self.pip.get_pip_versions(),
+                linux=self.pip.get_pip_versions()
+            )
+        )
 
     def create(self):
         """

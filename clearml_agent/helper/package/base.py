@@ -50,7 +50,7 @@ class PackageManager(object):
         pass
 
     @abc.abstractmethod
-    def freeze(self):
+    def freeze(self, freeze_full_environment=False):
         pass
 
     @abc.abstractmethod
@@ -80,7 +80,12 @@ class PackageManager(object):
 
     def upgrade_pip(self):
         result = self._install(
-            select_for_platform(windows='pip{}', linux='pip{}').format(self.get_pip_version()), "--upgrade")
+            *select_for_platform(
+                windows=self.get_pip_versions(),
+                linux=self.get_pip_versions()
+            ),
+            "--upgrade"
+        )
         packages = self.run_with_env(('list',), output=True).splitlines()
         # p.split is ('pip', 'x.y.z')
         pip = [p.split() for p in packages if len(p.split()) == 2 and p.split()[0] == 'pip']
@@ -136,8 +141,9 @@ class PackageManager(object):
     @classmethod
     def out_of_scope_install_package(cls, package_name, *args):
         if PackageManager._selected_manager is not None:
+            # noinspection PyBroadException
             try:
-                result = PackageManager._selected_manager._install(package_name, *args)
+                result = PackageManager._selected_manager.install_packages(package_name, *args)
                 if result not in (0, None, True):
                     return False
             except Exception:
@@ -145,10 +151,11 @@ class PackageManager(object):
         return True
 
     @classmethod
-    def out_of_scope_freeze(cls):
+    def out_of_scope_freeze(cls, freeze_full_environment=False):
         if PackageManager._selected_manager is not None:
+            # noinspection PyBroadException
             try:
-                return PackageManager._selected_manager.freeze()
+                return PackageManager._selected_manager.freeze(freeze_full_environment)
             except Exception:
                 pass
         return []
@@ -157,15 +164,26 @@ class PackageManager(object):
     def set_pip_version(cls, version):
         if not version:
             return
-        version = version.replace(' ', '')
-        if ('=' in version) or ('~' in version) or ('<' in version) or ('>' in version):
-            cls._pip_version = version
+
+        if isinstance(version, (list, tuple)):
+            versions = version
         else:
-            cls._pip_version = "=="+version
+            versions = [version]
+
+        cls._pip_version = []
+        for version in versions:
+            version = version.strip()
+            if ('=' in version) or ('~' in version) or ('<' in version) or ('>' in version):
+                cls._pip_version.append(version)
+            else:
+                cls._pip_version.append("==" + version)
 
     @classmethod
-    def get_pip_version(cls):
-        return cls._pip_version or ''
+    def get_pip_versions(cls, pip="pip", wrap=''):
+        return [
+            (wrap + pip + version + wrap)
+            for version in cls._pip_version or [pip]
+        ]
 
     def get_cached_venv(self, requirements, docker_cmd, python_version, cuda_version, destination_folder):
         # type: (Dict, Optional[Union[dict, str]], Optional[str], Optional[str], Path) -> Optional[Path]
@@ -176,8 +194,13 @@ class PackageManager(object):
         if not self._get_cache_manager():
             return None
 
-        keys = self._generate_reqs_hash_keys(requirements, docker_cmd, python_version, cuda_version)
-        return self._get_cache_manager().copy_cached_entry(keys, destination_folder)
+        try:
+            keys = self._generate_reqs_hash_keys(requirements, docker_cmd, python_version, cuda_version)
+            return self._get_cache_manager().copy_cached_entry(keys, destination_folder)
+        except Exception as ex:
+            print("WARNING: Failed accessing venvs cache at {}: {}".format(destination_folder, ex))
+            print("WARNING: Skipping venv cache - folder not accessible!")
+            return None
 
     def add_cached_venv(
             self,
@@ -194,9 +217,15 @@ class PackageManager(object):
         """
         if not self._get_cache_manager():
             return
-        keys = self._generate_reqs_hash_keys(requirements, docker_cmd, python_version, cuda_version)
-        return self._get_cache_manager().add_entry(
-            keys=keys, source_folder=source_folder, exclude_sub_folders=exclude_sub_folders)
+
+        try:
+            keys = self._generate_reqs_hash_keys(requirements, docker_cmd, python_version, cuda_version)
+            return self._get_cache_manager().add_entry(
+                keys=keys, source_folder=source_folder, exclude_sub_folders=exclude_sub_folders)
+        except Exception as ex:
+            print("WARNING: Failed accessing venvs cache at {}: {}".format(source_folder, ex))
+            print("WARNING: Skipping venv cache - folder not accessible!")
+            return None
 
     def get_cache_folder(self):
         # type: () -> Optional[Path]
@@ -212,6 +241,13 @@ class PackageManager(object):
         if not self._get_cache_manager():
             return
         return self._get_cache_manager().get_last_copied_entry()
+
+    def is_cached_enabled(self):
+        if not self._cache_manager:
+            cache_folder = ENV_VENV_CACHE_PATH.get() or self.session.config.get(self._config_cache_folder, None)
+            if not cache_folder:
+                return False
+        return True
 
     @classmethod
     def _generate_reqs_hash_keys(cls, requirements_list, docker_cmd, python_version, cuda_version):
@@ -257,12 +293,19 @@ class PackageManager(object):
 
     def _get_cache_manager(self):
         if not self._cache_manager:
-            cache_folder = ENV_VENV_CACHE_PATH.get() or self.session.config.get(self._config_cache_folder, None)
-            if not cache_folder:
+            cache_folder = None
+            try:
+                cache_folder = ENV_VENV_CACHE_PATH.get() or self.session.config.get(self._config_cache_folder, None)
+                if not cache_folder:
+                    return None
+
+                max_entries = int(self.session.config.get(self._config_cache_max_entries, 10))
+                free_space_threshold = float(self.session.config.get(self._config_cache_free_space_threshold, 0))
+                self._cache_manager = FolderCache(
+                    cache_folder, max_cache_entries=max_entries, min_free_space_gb=free_space_threshold)
+            except Exception as ex:
+                print("WARNING: Failed accessing venvs cache at {}: {}".format(cache_folder, ex))
+                print("WARNING: Skipping venv cache - folder not accessible!")
                 return None
 
-            max_entries = int(self.session.config.get(self._config_cache_max_entries, 10))
-            free_space_threshold = float(self.session.config.get(self._config_cache_free_space_threshold, 0))
-            self._cache_manager = FolderCache(
-                cache_folder, max_cache_entries=max_entries, min_free_space_gb=free_space_threshold)
         return self._cache_manager

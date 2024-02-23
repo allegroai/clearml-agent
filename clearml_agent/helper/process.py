@@ -16,7 +16,6 @@ from typing import Union, Text, Sequence, Any, TypeVar, Callable
 
 import psutil
 from furl import furl
-from future.builtins import super
 from pathlib2 import Path
 
 import six
@@ -26,7 +25,7 @@ from clearml_agent.helper.base import bash_c, is_windows_platform, select_for_pl
 PathLike = Union[Text, Path]
 
 
-def get_bash_output(cmd, strip=False, stderr=subprocess.STDOUT, stdin=False):
+def get_bash_output(cmd, strip=False, stderr=subprocess.STDOUT, stdin=False, raise_error=False):
     try:
         output = (
             subprocess.check_output(
@@ -38,8 +37,14 @@ def get_bash_output(cmd, strip=False, stderr=subprocess.STDOUT, stdin=False):
             .strip()
         )
     except subprocess.CalledProcessError:
+        if raise_error:
+            raise
         output = None
     return output if not strip or not output else output.strip()
+
+
+def stringify_bash_output(value):
+    return '' if not value else (value if isinstance(value, str) else value.decode('utf-8'))
 
 
 def terminate_process(pid, timeout=10., ignore_zombie=True, include_children=False):
@@ -112,10 +117,11 @@ def terminate_all_child_processes(pid=None, timeout=10., include_parent=True):
 
 
 def get_docker_id(docker_cmd_contains):
+    # noinspection PyBroadException
     try:
         containers_running = get_bash_output(cmd='docker ps --no-trunc --format \"{{.ID}}: {{.Command}}\"')
         for docker_line in containers_running.split('\n'):
-            parts = docker_line.split(':')
+            parts = docker_line.split(':', 1)
             if docker_cmd_contains in parts[-1]:
                 # we found our docker, return it
                 return parts[0]

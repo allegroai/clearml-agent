@@ -1,6 +1,8 @@
 import json
 import re
 import shlex
+
+from clearml_agent.backend_api.session import Request
 from clearml_agent.helper.package.requirements import (
     RequirementsManager, MarkerRequirement,
     compare_version_rules, )
@@ -26,7 +28,7 @@ def resolve_default_container(session, task_id, container_config):
                               'script.repository', 'script.branch',
                               'project', 'container'],
               'search_hidden': True},
-        method='get',
+        method=Request.def_method,
         async_enable=False,
     )
     try:
@@ -53,7 +55,7 @@ def resolve_default_container(session, task_id, container_config):
                 'id': [task_info.get('project')],
                 'only_fields': ['name'],
             },
-            method='get',
+            method=Request.def_method,
             async_enable=False,
         )
         try:
@@ -107,15 +109,15 @@ def resolve_default_container(session, task_id, container_config):
                     match.get('script.binary', None), entry))
                 continue
 
-        if match.get('container', None):
-            # noinspection PyBroadException
-            try:
-                if not re.search(match.get('container', None), requested_container.get('image', '')):
-                    continue
-            except Exception:
-                print('Failed parsing regular expression \"{}\" in rule: {}'.format(
-                    match.get('container', None), entry))
-                continue
+        # if match.get('image', None):
+        #     # noinspection PyBroadException
+        #     try:
+        #         if not re.search(match.get('image', None), requested_container.get('image', '')):
+        #             continue
+        #     except Exception:
+        #         print('Failed parsing regular expression \"{}\" in rule: {}'.format(
+        #             match.get('image', None), entry))
+        #         continue
 
         matched = True
         for req_section in ['script.requirements.pip', 'script.requirements.conda']:
@@ -154,8 +156,8 @@ def resolve_default_container(session, task_id, container_config):
             break
 
         if matched:
-            if not container_config.get('container'):
-                container_config['container'] = entry.get('image', None)
+            if not container_config.get('image'):
+                container_config['image'] = entry.get('image', None)
             if not container_config.get('arguments'):
                 container_config['arguments'] = entry.get('arguments', None)
                 container_config['arguments'] = shlex.split(str(container_config.get('arguments') or '').strip())

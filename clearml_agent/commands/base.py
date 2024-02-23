@@ -118,13 +118,15 @@ class ServiceCommandSection(BaseCommandSection):
         """ The name of the REST service used by this command """
         pass
 
-    def get(self, endpoint, *args, session=None, **kwargs):
+    def get(self, endpoint, *args, service=None, session=None, **kwargs):
         session = session or self._session
-        return session.get(service=self.service, action=endpoint, *args, **kwargs)
+        service = service or self.service
+        return session.get(service=service, action=endpoint, *args, **kwargs)
 
-    def post(self, endpoint, *args, session=None, **kwargs):
+    def post(self, endpoint, *args, service=None, session=None, **kwargs):
         session = session or self._session
-        return session.post(service=self.service, action=endpoint, *args, **kwargs)
+        service = service or self.service
+        return session.post(service=service, action=endpoint, *args, **kwargs)
 
     def get_with_act_as(self, endpoint, *args, **kwargs):
         return self._session.get_with_act_as(service=self.service, action=endpoint, *args, **kwargs)
@@ -347,7 +349,7 @@ class ServiceCommandSection(BaseCommandSection):
         except AttributeError:
             raise NameResolutionError('Name resolution unavailable for {}'.format(service))
 
-        request = request_cls.from_dict(dict(name=name, only_fields=['name', 'id']))
+        request = request_cls.from_dict(dict(name=re.escape(name), only_fields=['name', 'id']))
         # from_dict will ignore unrecognised keyword arguments - not all GetAll's have only_fields
         response = getattr(self._session.send_api(request), service)
         matches = [db_object for db_object in response if name.lower() == db_object.name.lower()]

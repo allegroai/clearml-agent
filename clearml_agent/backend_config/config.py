@@ -7,16 +7,17 @@ import sys
 from os.path import expanduser
 from typing import Any
 
-import pyhocon
 import six
 from pathlib2 import Path
-from pyhocon import ConfigTree, ConfigFactory
 from pyparsing import (
     ParseFatalException,
     ParseException,
     RecursiveGrammarException,
     ParseSyntaxException,
 )
+
+from clearml_agent.external import pyhocon
+from clearml_agent.external.pyhocon import ConfigTree, ConfigFactory
 
 from .defs import (
     Environment,
@@ -191,15 +192,19 @@ class Config(object):
             config, self._read_extra_env_config_values(), copy_trees=True
         )
 
-        if self._overrides_configs:
-            config = functools.reduce(
-                lambda cfg, override: ConfigTree.merge_configs(cfg, override, copy_trees=True),
-                self._overrides_configs,
-                config,
-            )
+        config = self.resolve_override_configs(config)
 
         config["env"] = env
         return config
+
+    def resolve_override_configs(self, initial=None):
+        if not self._overrides_configs:
+            return initial
+        return functools.reduce(
+            lambda cfg, override: ConfigTree.merge_configs(cfg, override, copy_trees=True),
+            self._overrides_configs,
+            initial or ConfigTree(),
+        )
 
     def _read_extra_env_config_values(self) -> ConfigTree:
         """ Loads extra configuration from environment-injected values """
@@ -288,6 +293,12 @@ class Config(object):
                 )
             )
         return value
+
+    def put(self, key, value):
+        self._config.put(key, value)
+
+    def pop(self, key, default=None):
+        return self._config.pop(key, default=default)
 
     def to_dict(self):
         return self._config.as_plain_ordered_dict()
