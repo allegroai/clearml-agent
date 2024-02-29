@@ -6,6 +6,7 @@ import sys
 import os
 from pathlib2 import Path
 
+from clearml_agent.definitions import ENV_AGENT_FORCE_POETRY
 from clearml_agent.helper.process import Argv, DEVNULL, check_if_command_exists
 from clearml_agent.session import Session, POETRY
 
@@ -40,7 +41,7 @@ def prop_guard(prop, log_prop=None):
 class PoetryConfig:
 
     def __init__(self, session, interpreter=None):
-        # type: (Session, str) -> ()
+        # type: (Session, str) -> None
         self.session = session
         self._log = session.get_logger(__name__)
         self._python = interpreter or sys.executable
@@ -52,7 +53,7 @@ class PoetryConfig:
 
     @property
     def enabled(self):
-        return self.session.config["agent.package_manager.type"] == POETRY
+        return ENV_AGENT_FORCE_POETRY.get() or self.session.config["agent.package_manager.type"] == POETRY
 
     _guard_enabled = prop_guard(enabled, log)
 
@@ -89,30 +90,46 @@ class PoetryConfig:
         if not self._initialized:
             if self.session.config.get("agent.package_manager.poetry_version", None) is not None:
                 version = str(self.session.config.get("agent.package_manager.poetry_version"))
-                print('Upgrading Poetry package {}'.format(version))
-                # first upgrade pip if we need to
-                try:
-                    from clearml_agent.helper.package.pip_api.venv import VirtualenvPip
-                    pip = VirtualenvPip(
-                        session=self.session, python=self._python,
-                        requirements_manager=None, path=None, interpreter=self._python)
-                    pip.upgrade_pip()
-                except Exception as ex:
-                    self.log.warning("failed upgrading pip: {}".format(ex))
 
+                # get poetry version
+                version = version.replace(' ', '')
+                if ('=' in version) or ('~' in version) or ('<' in version) or ('>' in version):
+                    version = version
+                elif version:
+                    version = "==" + version
+                # (we are not running it yet)
+                argv = Argv(self._python, "-m", "pip", "install", "poetry{}".format(version),
+                            "--upgrade", "--disable-pip-version-check")
+                # this is just for beauty and checks, we already set the verion in the Argv
+                if not version:
+                    version = "latest"
+            else:
+                # mark to install poetry if not already installed (we are not running it yet)
+                argv = Argv(self._python, "-m", "pip", "install", "poetry", "--disable-pip-version-check")
+                version = ""
+
+            # first upgrade pip if we need to
+            try:
+                from clearml_agent.helper.package.pip_api.venv import VirtualenvPip
+                pip = VirtualenvPip(
+                    session=self.session, python=self._python,
+                    requirements_manager=None, path=None, interpreter=self._python)
+                pip.upgrade_pip()
+            except Exception as ex:
+                self.log.warning("failed upgrading pip: {}".format(ex))
+
+            # check if we do not have a specific version and poetry is found skip installation
+            if not version and check_if_command_exists("poetry"):
+                print("Notice: Poetry was found, no specific version required, skipping poetry installation")
+            else:
+                print('Installing / Upgrading Poetry package to {}'.format(version))
                 # now install poetry
                 try:
-                    version = version.replace(' ', '')
-                    if ('=' in version) or ('~' in version) or ('<' in version) or ('>' in version):
-                        version = version
-                    elif version:
-                        version = "==" + version
-                    argv = Argv(self._python, "-m", "pip", "install", "poetry{}".format(version),
-                                "--upgrade", "--disable-pip-version-check")
                     print(argv.get_output())
                 except Exception as ex:
-                    self.log.warning("failed upgrading poetry: {}".format(ex))
+                    self.log.warning("failed installing poetry: {}".format(ex))
 
+            # now setup poetry
             self._initialized = True
             try:
                 self._config("--local", "virtualenvs.in-project",  "true", cwd=cwd)

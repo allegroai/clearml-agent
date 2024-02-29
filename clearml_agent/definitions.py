@@ -1,6 +1,5 @@
 import shlex
 from datetime import timedelta
-from distutils.util import strtobool
 from enum import IntEnum
 from os import getenv, environ
 from typing import Text, Optional, Union, Tuple, Any
@@ -9,6 +8,7 @@ import six
 from pathlib2 import Path
 
 from clearml_agent.helper.base import normalize_path
+from clearml_agent.helper.environment.converters import strtobool
 
 PROGRAM_NAME = "clearml-agent"
 FROM_FILE_PREFIX_CHARS = "@"
@@ -160,6 +160,7 @@ ENV_AGENT_SKIP_PIP_VENV_INSTALL = EnvironmentConfig("CLEARML_AGENT_SKIP_PIP_VENV
 ENV_AGENT_SKIP_PYTHON_ENV_INSTALL = EnvironmentConfig("CLEARML_AGENT_SKIP_PYTHON_ENV_INSTALL", type=bool)
 ENV_AGENT_FORCE_CODE_DIR = EnvironmentConfig("CLEARML_AGENT_FORCE_CODE_DIR")
 ENV_AGENT_FORCE_EXEC_SCRIPT = EnvironmentConfig("CLEARML_AGENT_FORCE_EXEC_SCRIPT")
+ENV_AGENT_FORCE_TASK_INIT = EnvironmentConfig("CLEARML_AGENT_FORCE_TASK_INIT", type=bool)
 ENV_DOCKER_SKIP_GPUS_FLAG = EnvironmentConfig("CLEARML_DOCKER_SKIP_GPUS_FLAG", "TRAINS_DOCKER_SKIP_GPUS_FLAG")
 ENV_AGENT_GIT_USER = EnvironmentConfig("CLEARML_AGENT_GIT_USER", "TRAINS_AGENT_GIT_USER")
 ENV_AGENT_GIT_PASS = EnvironmentConfig("CLEARML_AGENT_GIT_PASS", "TRAINS_AGENT_GIT_PASS")
