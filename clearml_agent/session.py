@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import platform
+import re
 import sys
 from copy import deepcopy
 from typing import Any, Callable
@@ -240,39 +241,39 @@ class Session(_Session):
             except:
                 pass
 
-    def print_configuration(
-            self,
-            remove_secret_keys=("secret", "pass", "token", "account_key", "contents"),
-            remove_secret_keys_exceptions=("enable_git_ask_pass",),
-            skip_value_keys=("environment",),
-            docker_args_sanitize_keys=("extra_docker_arguments", ),
-            sanitize_urls_keys=("extra_index_url", ),
-    ):
+    def print_configuration(self):
+        def load_config(key, default):
+            return [re.compile(x) for x in self.config.get(f"agent.sanitize_config_printout.{key}", default=default)]
+
+        dont_hide_secret_keys = load_config("dont_hide_secrets", ("^enable_git_ask_pass$",))
+        hide_secret_keys = load_config("hide_secrets", ("secret", "pass", "token", "account_key", "contents"))
+        hide_secret_section_keys = load_config("hide_secrets_recursive", ("^environment$",))
+        docker_cmd_keys = load_config("docker_commands", ("^extra_docker_arguments$",))
+        urls_keys = load_config("urls", ("^extra_index_url$",))
+
         # remove all the secrets from the print
         def recursive_remove_secrets(dictionary):
             for k in list(dictionary):
-                for s in remove_secret_keys:
-                    if s in k and k not in remove_secret_keys_exceptions:
+                if not any(r.search(k) for r in dont_hide_secret_keys):
+                    if any(r.search(k) for r in hide_secret_keys):
                         dictionary[k] = '****'
                         break
-                for s in skip_value_keys:
-                    if s == k:
+                    if any(r.search(k) for r in hide_secret_section_keys):
                         dictionary[k] = {key: '****' for key in dictionary[k]} \
                             if isinstance(dictionary[k], dict) else '****'
                         break
-                for s in sanitize_urls_keys:
-                    if s == k:
-                        value = dictionary.get(k, None)
-                        if isinstance(value, str):
-                            dictionary[k] = sanitize_urls(value)[0]
-                        elif isinstance(value, (list, tuple)):
-                            dictionary[k] = [sanitize_urls(v)[0] for v in value]
-                        elif isinstance(value, dict):
-                            dictionary[k] = {k_: sanitize_urls(v)[0] for k_, v in value.items()}
+                if any(r.search(k) for r in urls_keys):
+                    value = dictionary.get(k, None)
+                    if isinstance(value, str):
+                        dictionary[k] = sanitize_urls(value)[0]
+                    elif isinstance(value, (list, tuple)):
+                        dictionary[k] = [sanitize_urls(v)[0] for v in value]
+                    elif isinstance(value, dict):
+                        dictionary[k] = {k_: sanitize_urls(v)[0] for k_, v in value.items()}
                 if isinstance(dictionary.get(k, None), dict):
                     recursive_remove_secrets(dictionary[k])
                 elif isinstance(dictionary.get(k, None), (list, tuple)):
-                    if k in (docker_args_sanitize_keys or []):
+                    if any(r.match(k) for r in docker_cmd_keys):
                         dictionary[k] = DockerArgsSanitizer.sanitize_docker_command(self, dictionary[k])
                     for item in dictionary[k]:
                         if isinstance(item, dict):
@@ -281,7 +282,7 @@ class Session(_Session):
         config = deepcopy(self.config.to_dict())
         # remove the env variable, it's not important
         config.pop('env', None)
-        if remove_secret_keys or skip_value_keys or docker_args_sanitize_keys or sanitize_urls_keys:
+        if hide_secret_keys or hide_secret_section_keys or docker_cmd_keys or urls_keys:
             recursive_remove_secrets(config)
         # remove logging.loggers.urllib3.level from the print
         try:
