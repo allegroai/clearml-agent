@@ -78,7 +78,7 @@ from clearml_agent.definitions import (
     ENV_EXTRA_DOCKER_LABELS,
     ENV_AGENT_FORCE_CODE_DIR,
     ENV_AGENT_FORCE_EXEC_SCRIPT,
-    ENV_TEMP_STDOUT_FILE_DIR,
+    ENV_TEMP_STDOUT_FILE_DIR, ENV_AGENT_FORCE_TASK_INIT,
 )
 from clearml_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
 from clearml_agent.errors import (
@@ -142,7 +142,8 @@ from clearml_agent.helper.process import (
     check_if_command_exists,
     terminate_all_child_processes,
 )
-from clearml_agent.helper.repo import clone_repository_cached, RepoInfo, VCS, fix_package_import_diff_patch
+from clearml_agent.helper.repo import clone_repository_cached, RepoInfo, VCS, fix_package_import_diff_patch, \
+    patch_add_task_init_call
 from clearml_agent.helper.resource_monitor import ResourceMonitor
 from clearml_agent.helper.runtime_verification import check_runtime, print_uptime_properties
 from clearml_agent.helper.singleton import Singleton
@@ -2666,7 +2667,8 @@ class Worker(ServiceCommandSection):
                 execution_info=execution,
                 update_requirements=not skip_freeze_update,
             )
-            script_dir = (directory if isinstance(directory, Path) else Path(directory)).absolute().as_posix()
+            script_dir = (directory if isinstance(directory, Path) else Path(directory)
+                          ).expanduser().absolute().as_posix()
 
         # run code
         # print("Running task id [%s]:" % current_task.id)
@@ -2676,6 +2678,10 @@ class Worker(ServiceCommandSection):
             extra.append(
                 WorkerParams(optimization=optimization).get_optimization_flag()
             )
+
+        # check if we need to patch entry point script
+        if ENV_AGENT_FORCE_TASK_INIT.get():
+            patch_add_task_init_call((Path(script_dir) / execution.entry_point).as_posix())
 
         # check if this is a module load, then load it.
         # noinspection PyBroadException
@@ -3170,6 +3176,18 @@ class Worker(ServiceCommandSection):
         if cached_requirements and (cached_requirements.get('pip') is not None or
                                     cached_requirements.get('conda') is not None):
             self.log("Found task requirements section, trying to install")
+            if ENV_AGENT_FORCE_TASK_INIT.get():
+                # notice we have PackageCollectorRequirement to protect against double includes of "clearml"
+                print("Force clearml Task.init patch adding clearml package to requirements")
+                if cached_requirements.get('pip'):
+                    cached_requirements["pip"] = ("clearml\n" + cached_requirements["pip"]) \
+                        if isinstance(cached_requirements["pip"], str) else \
+                        (["clearml"] + cached_requirements["pip"])
+                if cached_requirements.get('conda'):
+                    cached_requirements["conda"] = ("clearml\n" + cached_requirements["conda"]) \
+                        if isinstance(cached_requirements["conda"], str) else \
+                        (["clearml"] + cached_requirements["conda"])
+
             try:
                 package_api.load_requirements(cached_requirements)
             except Exception as e:
@@ -3197,6 +3215,11 @@ class Worker(ServiceCommandSection):
                 continue
             print("Trying pip install: {}".format(requirements_file))
             requirements_text = requirements_file.read_text()
+            if ENV_AGENT_FORCE_TASK_INIT.get():
+                # notice we have PackageCollectorRequirement to protect against double includes of "clearml"
+                print("Force clearml Task.init patch adding clearml package to requirements")
+                requirements_text = "clearml\n" + requirements_text
+
             new_requirements = requirements_manager.replace(requirements_text)
 
             temp_file = None
