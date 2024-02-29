@@ -182,7 +182,7 @@ class PackageManager(object):
     def get_pip_versions(cls, pip="pip", wrap=''):
         return [
             (wrap + pip + version + wrap)
-            for version in cls._pip_version or [pip]
+            for version in cls._pip_version or [""]
         ]
 
     def get_cached_venv(self, requirements, docker_cmd, python_version, cuda_version, destination_folder):
