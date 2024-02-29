@@ -1042,6 +1042,8 @@ class K8sIntegration(Worker):
                         print("No tasks in queue {}".format(queue))
                         continue
 
+                    print('Received task {} from queue {}'.format(task_id, queue))
+
                     task_session = None
                     if self._impersonate_as_task_owner:
                         try:
