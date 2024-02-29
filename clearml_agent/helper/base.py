@@ -420,6 +420,7 @@ def mkstemp(
         open_kwargs=None,  # type: Optional[Dict[Text, Any]]
         text=True,         # type: bool
         name_only=False,   # type: bool
+        mode=None,         # type: str
         *args,
         **kwargs):
     # type: (...) -> Union[(IO[AnyStr], Text), Text]
@@ -429,12 +430,14 @@ def mkstemp(
     :param open_kwargs: keyword arguments for ``io.open``
     :param text: open in text mode
     :param name_only: close the file and return its name
+    :param mode: open file mode
     :param args: tempfile.mkstemp args
     :param kwargs: tempfile.mkstemp kwargs
     """
     fd, name = tempfile.mkstemp(text=text, *args, **kwargs)
-    mode = 'w+'
-    if not text:
+    if not mode:
+        mode = 'w+'
+    if not text and 'b' not in mode:
         mode += 'b'
     if name_only:
         os.close(fd)

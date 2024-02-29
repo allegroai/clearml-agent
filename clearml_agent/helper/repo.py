@@ -6,7 +6,6 @@ import stat
 import subprocess
 import sys
 import tempfile
-from distutils.spawn import find_executable
 from hashlib import md5
 from os import environ
 from random import random
@@ -30,7 +29,7 @@ from clearml_agent.helper.base import (
     create_file_if_not_exists, safe_remove_file,
 )
 from clearml_agent.helper.os.locks import FileLock
-from clearml_agent.helper.process import DEVNULL, Argv, PathLike, COMMAND_SUCCESS
+from clearml_agent.helper.process import DEVNULL, Argv, PathLike, COMMAND_SUCCESS, find_executable
 from clearml_agent.session import Session
 
 

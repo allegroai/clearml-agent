@@ -1680,7 +1680,8 @@ class Worker(ServiceCommandSection):
                 open_kwargs={
                     "buffering": self._session.config.get("agent.log_files_buffering", 1)
                 },
-                dir=(ENV_TEMP_STDOUT_FILE_DIR.get() or None)
+                dir=(ENV_TEMP_STDOUT_FILE_DIR.get() or None),
+                mode="a",
             )
             print(
                 "Running CLEARML-AGENT daemon in background mode, writing stdout/stderr to {}".format(
@@ -1875,20 +1876,27 @@ class Worker(ServiceCommandSection):
     ):
         # type: (...) -> Tuple[Optional[int], Optional[TaskStopReason]]
         def _print_file(file_path, prev_pos=0):
-            with open(file_path, "ab+") as f:
-                f.seek(prev_pos)
-                binary_text = f.read()
-                if not self._truncate_task_output_files:
-                    # non-buffered behavior
+            mode = "rb+" if self._truncate_task_output_files else "rb"
+            # noinspection PyBroadException
+            try:
+                with open(file_path, mode) as f:
+                    f.seek(prev_pos)
+                    binary_text = f.read()
                     pos = f.tell()
-                else:
-                    # buffered - read everything and truncate
-                    # noinspection PyBroadException
-                    try:
-                        f.truncate(0)
+                    if self._truncate_task_output_files:
+                        # buffered - read everything and truncate
+                        # noinspection PyBroadException
+                        try:
+                            # we must seek to the beginning otherwise truncate will add \00
+                            f.seek(0)
+                            # os level truncate because f.truncate will push \00 at the end of the file
+                            os.ftruncate(f.fileno(), 0)
+                            os.fsync(f.fileno())
+                        except Exception:
+                            pass
                         pos = 0
-                    except Exception:
-                        pos = f.tell()
+            except Exception:
+                return [], prev_pos
 
             # skip the previously printed lines,
             blines = binary_text.split(b'\n') if binary_text else []
@@ -1901,8 +1909,13 @@ class Worker(ServiceCommandSection):
                 pos
             )
 
-        stdout = open(stdout_path, "wt")
-        stderr = open(stderr_path, "wt") if stderr_path else stdout
+        safe_remove_file(stdout_path)
+        stdout = open(stdout_path, "at")
+        if stderr_path:
+            safe_remove_file(stderr_path)
+            stderr = open(stderr_path, "at")
+        else:
+            stderr = stdout
         stdout_line_count, stdout_pos_count, stdout_last_lines = 0, 0, []
         stderr_line_count, stderr_pos_count, stderr_last_lines = 0, 0, []
         lines_buffer = defaultdict(list)

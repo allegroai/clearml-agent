@@ -28,6 +28,7 @@ class PackageManager(object):
     _config_cache_folder = 'agent.venvs_cache.path'
     _config_cache_max_entries = 'agent.venvs_cache.max_entries'
     _config_cache_free_space_threshold = 'agent.venvs_cache.free_space_threshold_gb'
+    _config_cache_lock_timeout = 'agent.venvs_cache.lock_timeout'
 
     def __init__(self):
         self._cache_manager = None
@@ -302,7 +303,9 @@ class PackageManager(object):
                 max_entries = int(self.session.config.get(self._config_cache_max_entries, 10))
                 free_space_threshold = float(self.session.config.get(self._config_cache_free_space_threshold, 0))
                 self._cache_manager = FolderCache(
-                    cache_folder, max_cache_entries=max_entries, min_free_space_gb=free_space_threshold)
+                    cache_folder, max_cache_entries=max_entries,
+                    min_free_space_gb=free_space_threshold,
+                    lock_timeout_seconds=self.session.config.get(self._config_cache_lock_timeout, None))
             except Exception as ex:
                 print("WARNING: Failed accessing venvs cache at {}: {}".format(cache_folder, ex))
                 print("WARNING: Skipping venv cache - folder not accessible!")

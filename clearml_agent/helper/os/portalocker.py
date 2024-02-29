@@ -20,6 +20,9 @@ class exceptions:
     class FileToLarge(BaseLockException):
         pass
 
+    class LockTimeout(BaseLockException):
+        pass
+
 
 class constants:
     # The actual tests will execute the code anyhow so the following code can
@@ -185,6 +188,10 @@ elif os.name == 'posix':  # pragma: no cover
             # The exception code varies on different systems so we'll catch
             # every IO error
             raise exceptions.LockException(exc_value, fh=file_)
+        except BaseException as ex:
+            # DEBUG
+            print("Uncaught [{}] Exception [{}] in portalock: {}".format(locking_exceptions, type(ex), ex))
+            raise
 
     def unlock(file_):
         fcntl.flock(file_.fileno(), constants.LOCK_UN)

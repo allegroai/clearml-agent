@@ -47,9 +47,11 @@ class FolderCache(object):
         # lock so we make sure no one deletes it before we copy it
         # noinspection PyBroadException
         try:
-            self._lock.acquire(timeout=self._lock_timeout_seconds)
+            self._lock.acquire(timeout=self._lock_timeout_seconds, readonly=True)
         except BaseException as ex:
             warning('Could not lock cache folder {}: {}'.format(self._cache_folder, ex))
+            import traceback
+            warning('DEBUG: Exception {}: {}'.format(ex, traceback.format_exc()))
             return None
 
         src = None
@@ -116,6 +118,8 @@ class FolderCache(object):
                     self._lock.acquire(timeout=self._lock_timeout_seconds)
                 except BaseException as ex:
                     warning('Could not lock cache folder {}: {}'.format(self._cache_folder, ex))
+                    import traceback
+                    warning('DEBUG: Exception {}: {}'.format(ex, traceback.format_exc()))
                     # failed locking do nothing
                     return True
                 keys = sorted(list(set(keys) | set(cached_keys)))
@@ -195,16 +199,23 @@ class FolderCache(object):
                           if cache_folder.is_dir() and not cache_folder.name.startswith(self._temp_entry_prefix)]
         folder_entries = sorted(folder_entries, key=lambda x: x[1], reverse=True)
 
+        number_of_entries_to_keep = self._max_cache_entries - 1 \
+            if max_cache_entries is None else max(0, int(max_cache_entries))
+
+        # if nothing to do, leave
+        if not folder_entries[number_of_entries_to_keep:]:
+            return
+
         # lock so we make sure no one deletes it before we copy it
         # noinspection PyBroadException
         try:
             self._lock.acquire(timeout=self._lock_timeout_seconds)
         except BaseException as ex:
             warning('Could not lock cache folder {}: {}'.format(self._cache_folder, ex))
+            import traceback
+            warning('DEBUG: Exception {}: {}'.format(ex, traceback.format_exc()))
             return
 
-        number_of_entries_to_keep = self._max_cache_entries - 1 \
-            if max_cache_entries is None else max(0, int(max_cache_entries))
         for folder, ts in folder_entries[number_of_entries_to_keep:]:
             try:
                 shutil.rmtree(folder.as_posix(), ignore_errors=True)
