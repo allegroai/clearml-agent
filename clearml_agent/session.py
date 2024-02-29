@@ -243,7 +243,8 @@ class Session(_Session):
     def print_configuration(
             self,
             remove_secret_keys=("secret", "pass", "token", "account_key", "contents"),
-            skip_value_keys=("environment", ),
+            remove_secret_keys_exceptions=("enable_git_ask_pass",),
+            skip_value_keys=("environment",),
             docker_args_sanitize_keys=("extra_docker_arguments", ),
             sanitize_urls_keys=("extra_index_url", ),
     ):
@@ -251,8 +252,8 @@ class Session(_Session):
         def recursive_remove_secrets(dictionary):
             for k in list(dictionary):
                 for s in remove_secret_keys:
-                    if s in k:
-                        dictionary.pop(k)
+                    if s in k and k not in remove_secret_keys_exceptions:
+                        dictionary[k] = '****'
                         break
                 for s in skip_value_keys:
                     if s == k:
