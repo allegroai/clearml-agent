@@ -5,7 +5,6 @@ import re
 import os
 import subprocess
 from collections import OrderedDict
-from distutils.spawn import find_executable
 from functools import partial
 from itertools import chain
 from typing import Text, Iterable, Union, Dict, Set, Sequence, Any
@@ -22,7 +21,7 @@ from clearml_agent.errors import CommandFailedError
 from clearml_agent.helper.base import (
     rm_tree, NonStrictAttrs, select_for_platform, is_windows_platform, ExecutionInfo,
     convert_cuda_version_to_float_single_digit_str, convert_cuda_version_to_int_10_base_str, )
-from clearml_agent.helper.process import Argv, Executable, DEVNULL, CommandSequence, PathLike
+from clearml_agent.helper.process import Argv, Executable, DEVNULL, CommandSequence, PathLike, find_executable
 from clearml_agent.helper.package.requirements import SimpleVersion
 from clearml_agent.session import Session
 from .base import PackageManager

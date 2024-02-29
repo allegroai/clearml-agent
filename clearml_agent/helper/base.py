@@ -14,7 +14,6 @@ import sys
 import tempfile
 from abc import ABCMeta
 from collections import OrderedDict
-from distutils.spawn import find_executable
 from functools import total_ordering
 from typing import Text, Dict, Any, Optional, AnyStr, IO, Union
 
@@ -38,6 +37,7 @@ use_powershell = os.getenv("CLEARML_AGENT_USE_POWERSHELL", None)
 
 
 def which(cmd, path=None):
+    from clearml_agent.helper.process import find_executable
     result = find_executable(cmd, path)
     if not result:
         raise ValueError('command "{}" not found'.format(cmd))

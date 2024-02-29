@@ -19,8 +19,6 @@ import traceback
 from collections import defaultdict
 from copy import deepcopy, copy
 from datetime import datetime
-from distutils.spawn import find_executable
-from distutils.util import strtobool
 from functools import partial
 from os.path import basename
 from tempfile import mkdtemp, NamedTemporaryFile
@@ -114,6 +112,7 @@ from clearml_agent.helper.base import (
 )
 from clearml_agent.helper.check_update import start_check_update_daemon
 from clearml_agent.helper.console import ensure_text, print_text, decode_binary_lines
+from clearml_agent.helper.environment.converters import strtobool
 from clearml_agent.helper.os.daemonize import daemonize_process
 from clearml_agent.helper.package.base import PackageManager
 from clearml_agent.helper.package.conda_api import CondaAPI
@@ -140,7 +139,7 @@ from clearml_agent.helper.process import (
     commit_docker,
     terminate_process,
     check_if_command_exists,
-    terminate_all_child_processes,
+    terminate_all_child_processes, find_executable,
 )
 from clearml_agent.helper.repo import clone_repository_cached, RepoInfo, VCS, fix_package_import_diff_patch, \
     patch_add_task_init_call
