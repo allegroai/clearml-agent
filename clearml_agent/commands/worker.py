@@ -2033,6 +2033,11 @@ class Worker(ServiceCommandSection):
         if stop_signal and stop_signal.was_abort_function_called(status):
             stop_reason = TaskStopReason.stopped
 
+        # now we delete the temp files
+        safe_remove_file(stdout_path)
+        if stderr_path:
+            safe_remove_file(stdout_path)
+
         return status, stop_reason
 
     def _check_if_internal_agent_started(self, printed_lines, service_mode_internal_agent_started, task_id):
