@@ -13,16 +13,17 @@ from .locks import FileLock
 
 class FolderCache(object):
     _lock_filename = '.clearml.lock'
-    _lock_timeout_seconds = 30
+    _def_lock_timeout_seconds = 30
     _temp_entry_prefix = '_temp.'
 
-    def __init__(self, cache_folder, max_cache_entries=5, min_free_space_gb=None):
+    def __init__(self, cache_folder, max_cache_entries=5, min_free_space_gb=None, lock_timeout_seconds=None):
         self._cache_folder = Path(os.path.expandvars(cache_folder)).expanduser().absolute()
         self._cache_folder.mkdir(parents=True, exist_ok=True)
         self._max_cache_entries = max_cache_entries
         self._last_copied_entry_folder = None
         self._min_free_space_gb = min_free_space_gb if min_free_space_gb and min_free_space_gb > 0 else None
         self._lock = FileLock((self._cache_folder / self._lock_filename).as_posix())
+        self._lock_timeout_seconds = float(lock_timeout_seconds or self._def_lock_timeout_seconds)
 
     def get_cache_folder(self):
         # type: () -> Path
