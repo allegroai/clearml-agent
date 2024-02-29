@@ -372,8 +372,9 @@ class K8sIntegration(Worker):
             self.log.warning('Failed parsing kubectl output:\n{}\nEx: {}'.format(output, ex))
 
     def get_pods_for_jobs(self, job_condition: str = None, pod_filters: List[str] = None, debug_msg: str = None):
+        # Use metadata.uid so job related pods can be found filterin g following list with this param
         controller_uids = self.get_jobs_info(
-            "spec.selector.matchLabels.controller-uid", condition=job_condition, debug_msg=debug_msg
+            "metadata.uid", condition=job_condition, debug_msg=debug_msg
         )
         if not controller_uids:
             # No pods were found for these jobs
