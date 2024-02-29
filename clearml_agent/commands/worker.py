@@ -1883,8 +1883,13 @@ class Worker(ServiceCommandSection):
                     pos = f.tell()
                 else:
                     # buffered - read everything and truncate
-                    f.truncate(0)
-                    pos = 0
+                    # noinspection PyBroadException
+                    try:
+                        f.truncate(0)
+                        pos = 0
+                    except Exception:
+                        pos = f.tell()
+
             # skip the previously printed lines,
             blines = binary_text.split(b'\n') if binary_text else []
             if not blines:
