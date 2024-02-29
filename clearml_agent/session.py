@@ -257,11 +257,11 @@ class Session(_Session):
                 if not any(r.search(k) for r in dont_hide_secret_keys):
                     if any(r.search(k) for r in hide_secret_keys):
                         dictionary[k] = '****'
-                        break
+                        continue
                     if any(r.search(k) for r in hide_secret_section_keys):
                         dictionary[k] = {key: '****' for key in dictionary[k]} \
                             if isinstance(dictionary[k], dict) else '****'
-                        break
+                        continue
                 if any(r.search(k) for r in urls_keys):
                     value = dictionary.get(k, None)
                     if isinstance(value, str):
