@@ -3365,7 +3365,14 @@ class Worker(ServiceCommandSection):
                         stderr=subprocess.STDOUT
                     )
                 except subprocess.CalledProcessError as ex:
-                    self.log.warning("error getting %s version: %s", executable, ex)
+                    # Windows returns 9009 code and suggests to install Python from Windows Store
+                    if is_windows_platform() and ex.returncode == 9009:
+                        self.log.debug("version not found: {}".format(ex))
+                    else:
+                        self.log.warning("error getting %s version: %s", executable, ex)
+                    continue
+                except FileNotFoundError as ex:
+                    self.log.debug("version not found: {}".format(ex))
                     continue
 
                 if not default_python:
