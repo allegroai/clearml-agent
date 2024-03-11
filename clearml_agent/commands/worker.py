@@ -3569,8 +3569,8 @@ class Worker(ServiceCommandSection):
                     executable_version, executable_version_suffix, executable_name = \
                         self.find_python_executable_for_version(def_python_version)
 
-                self._session.config.put("agent.default_python", executable_version_suffix)
-                self._session.config.put("agent.python_binary", executable_name)
+            self._session.config.put("agent.default_python", executable_version_suffix)
+            self._session.config.put("agent.python_binary", executable_name)
 
         venv_dir = Path(venv_dir) if venv_dir else \
             Path(self._session.config["agent.venvs_dir"], executable_version_suffix)
