@@ -1573,6 +1573,7 @@ class Worker(ServiceCommandSection):
         self._use_owner_token(kwargs.get('use_owner_token', False))
 
         self._standalone_mode = kwargs.get('standalone_mode', False)
+        self._polling_interval = kwargs.get('polling_interval', False)
         self._services_mode = kwargs.get('services_mode', False)
         # must have docker in services_mode
         if self._services_mode:
