@@ -2061,6 +2061,7 @@ class Worker(ServiceCommandSection):
                 service_mode_internal_agent_started = True
                 filter_lines = printed_lines[:i+1]
             elif line.startswith(log_control_end_msg):
+                service_mode_internal_agent_started = True
                 return filter_lines, service_mode_internal_agent_started, 0
 
         return filter_lines, service_mode_internal_agent_started, None
