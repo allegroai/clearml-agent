@@ -1095,8 +1095,9 @@ class K8sIntegration(Worker):
 
         :param list(str) queue: queue name to pull from
         """
+        queues = queue if isinstance(queue, (list, tuple)) else ([queue] if queue else None)
         return self.daemon(
-            queues=[ObjectID(name=q) for q in queue] if queue else None,
+            queues=[ObjectID(name=q) for q in queues] if queues else None,
             log_level=logging.INFO, foreground=True, docker=False, **kwargs,
         )
 
