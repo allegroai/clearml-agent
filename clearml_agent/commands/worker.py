@@ -1396,7 +1396,7 @@ class Worker(ServiceCommandSection):
     def _setup_dynamic_gpus(self, gpu_queues):
         available_gpus = self.get_runtime_properties()
         if available_gpus is None:
-            raise ValueError("Dynamic GPU allocation is not supported by the ClearML-server")
+            raise ValueError("Dynamic GPU allocation is not supported by your ClearML-server")
         available_gpus = [prop["value"] for prop in available_gpus if prop["key"] == 'available_gpus']
         if available_gpus:
             gpus = []
@@ -1413,7 +1413,9 @@ class Worker(ServiceCommandSection):
 
         if not self.set_runtime_properties(
                 key='available_gpus', value=','.join(str(g) for g in available_gpus)):
-            raise ValueError("Dynamic GPU allocation is not supported by the ClearML-server")
+            raise ValueError("Dynamic GPU allocation is not supported by your ClearML-server")
+
+        self.cluster_report_monitor(available_gpus=available_gpus, gpu_queues=gpu_queues)
 
         return available_gpus, gpu_queues
 
@@ -1809,7 +1811,7 @@ class Worker(ServiceCommandSection):
         available_gpus = self._dynamic_gpu_get_available(gpu_indexes)
         if not self.set_runtime_properties(
                 key='available_gpus', value=','.join(str(g) for g in available_gpus)):
-            raise ValueError("Dynamic GPU allocation is not supported by the ClearML-server")
+            raise ValueError("Dynamic GPU allocation is not supported by your ClearML-server")
 
     def report_monitor(self, report):
         if not self.monitor:
@@ -1817,6 +1819,13 @@ class Worker(ServiceCommandSection):
         else:
             self.monitor.set_report(report)
         self.monitor.send_report()
+
+    def cluster_report_monitor(self, available_gpus, gpu_queues):
+        if not self.monitor:
+            self.new_monitor()
+        self.monitor.setup_cluster_report(
+            worker_id=self.worker_id, available_gpus=available_gpus, gpu_queues=gpu_queues
+        )
 
     def stop_monitor(self):
         if self.monitor:
