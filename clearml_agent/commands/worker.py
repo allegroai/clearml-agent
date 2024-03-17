@@ -4505,10 +4505,15 @@ class Worker(ServiceCommandSection):
             if self._session.feature_set == "basic":
                 raise ValueError("Server does not support --use-owner-token option")
 
-            role = self._session.get_decoded_token(self._session.token).get("identity", {}).get("role", None)
-            if role and role not in ["admin", "root", "system"]:
+            identity = self._session.get_decoded_token(self._session.token).get("identity", {})
+            role = identity.get("role", None)
+            try:
+                service_account_type = int(identity.get("service_account_type", 0))
+            except ValueError:
+                service_account_type = 0
+            if role and (role not in ["admin", "root", "system"] and service_account_type < 2):
                 raise ValueError(
-                    "User role not suitable for --use-owner-token option (requires at least admin,"
+                    "User role not suitable for --use-owner-token option (requires at least admin or service account,"
                     " found {})".format(role)
                 )
 
