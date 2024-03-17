@@ -4279,7 +4279,8 @@ class Worker(ServiceCommandSection):
         if docker_bash_setup_script and docker_bash_setup_script.strip('\n '):
             extra_shell_script = (extra_shell_script or '') + \
                 ' ; '.join(line.strip()
-                           for line in docker_bash_setup_script.split('\n') if line.strip()) + \
+                           for line in docker_bash_setup_script.split('\n')
+                           if line.strip() and not line.lstrip().startswith("#")) + \
                 ' ; '
 
         self.debug(
