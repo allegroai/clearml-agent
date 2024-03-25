@@ -132,6 +132,10 @@ class K8sIntegration(Worker):
         :param str extra_bash_init_script: Additional bash script to run before starting the Task inside the container
         :param str namespace: K8S namespace to be used when creating the new pods (default: clearml)
         :param int max_pods_limit: Maximum number of pods that K8S glue can run at the same time
+        :param str pod_name_prefix: Define pod name prefix for k8s (default: clearml-id-)
+        :param str limit_pod_label: Define limit pod label for k8s (default: ai.allegro.agent.serial=pod-{pod_number})
+        :param bool force_system_packages: true when running tasks in containers (i.e. docker mode or k8s glue).
+            (default: true)
         """
         super(K8sIntegration, self).__init__()
         self.kind = os.environ.get("CLEARML_K8S_GLUE_KIND", "pod").strip().lower()
