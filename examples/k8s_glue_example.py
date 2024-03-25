@@ -13,6 +13,18 @@ def parse_args():
     group = parser.add_mutually_exclusive_group()
 
     parser.add_argument(
+        "--k8s-pending-queue-name", type=str,
+        help="Queue name to use when task is pending in the k8s scheduler (default: %(default)s)", default="k8s_scheduler"
+    )
+    parser.add_argument(
+        "--container-bash-script", type=str,
+        help="Path to the file with container bash script to be executed in k8s", default=None
+    )
+    parser.add_argument(
+        "--debug", action="store_true", default=False,
+        help="Switch logging on (default: %(default)s)"
+    )
+    parser.add_argument(
         "--queue", type=str, help="Queues to pull tasks from. If multiple queues, use comma separated list, e.g. 'queue1,queue2'",
     )
     group.add_argument(
@@ -66,6 +78,18 @@ def parse_args():
              "Should not be used with ports-mode"
     )
     parser.add_argument(
+        "--pod-name-prefix", type=str,
+        help="Define pod name prefix for k8s (default: %(default)s)", default="clearml-id-"
+    )
+    parser.add_argument(
+        "--limit-pod-label", type=str,
+        help="Define limit pod label for k8s (default: %(default)s)", default="ai.allegro.agent.serial=pod-{pod_number}"
+    )
+    parser.add_argument(
+        "--no-system-packages", action="store_true", default=False,
+        help="False when running tasks in containers (default: %(default)s)"
+    )
+    parser.add_argument(
         "--use-owner-token", action="store_true", default=False,
         help="Generate and use task owner token for the execution of each task"
     )
@@ -88,12 +112,20 @@ def main():
             return user_prop
         user_props_cb = k8s_user_props_cb
 
+    if args.container_bash_script:
+        with open(args.container_bash_script, "r") as file:
+            container_bash_script = file.read().splitlines()
+    else:
+        container_bash_script = None
+
     k8s = K8sIntegration(
+        k8s_pending_queue_name=args.k8s_pending_queue_name, container_bash_script=container_bash_script,
         ports_mode=args.ports_mode, num_of_services=args.num_of_services, base_pod_num=args.base_pod_num,
         user_props_cb=user_props_cb, overrides_yaml=args.overrides_yaml, clearml_conf_file=args.pod_clearml_conf,
         template_yaml=args.template_yaml, extra_bash_init_script=K8sIntegration.get_ssh_server_bash(
             ssh_port_number=args.ssh_server_port) if args.ssh_server_port else None,
-        namespace=args.namespace, max_pods_limit=args.max_pods or None,
+        namespace=args.namespace, max_pods_limit=args.max_pods or None, pod_name_prefix=args.pod_name_prefix,
+        limit_pod_label=args.limit_pod_label, force_system_packages=not args.no_system_packages, debug=args.debug,
     )
     args.queue = [q.strip() for q in args.queue.split(",") if q.strip()]
 
