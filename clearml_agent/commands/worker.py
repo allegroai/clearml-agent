@@ -1396,7 +1396,7 @@ class Worker(ServiceCommandSection):
     def _setup_dynamic_gpus(self, gpu_queues):
         available_gpus = self.get_runtime_properties()
         if available_gpus is None:
-            raise ValueError("Dynamic GPU allocation is not supported by the ClearML-server")
+            raise ValueError("Dynamic GPU allocation is not supported by your ClearML-server")
         available_gpus = [prop["value"] for prop in available_gpus if prop["key"] == 'available_gpus']
         if available_gpus:
             gpus = []
@@ -1413,7 +1413,9 @@ class Worker(ServiceCommandSection):
 
         if not self.set_runtime_properties(
                 key='available_gpus', value=','.join(str(g) for g in available_gpus)):
-            raise ValueError("Dynamic GPU allocation is not supported by the ClearML-server")
+            raise ValueError("Dynamic GPU allocation is not supported by your ClearML-server")
+
+        self.cluster_report_monitor(available_gpus=available_gpus, gpu_queues=gpu_queues)
 
         return available_gpus, gpu_queues
 
@@ -1810,7 +1812,7 @@ class Worker(ServiceCommandSection):
         available_gpus = self._dynamic_gpu_get_available(gpu_indexes)
         if not self.set_runtime_properties(
                 key='available_gpus', value=','.join(str(g) for g in available_gpus)):
-            raise ValueError("Dynamic GPU allocation is not supported by the ClearML-server")
+            raise ValueError("Dynamic GPU allocation is not supported by your ClearML-server")
 
     def report_monitor(self, report):
         if not self.monitor:
@@ -1818,6 +1820,13 @@ class Worker(ServiceCommandSection):
         else:
             self.monitor.set_report(report)
         self.monitor.send_report()
+
+    def cluster_report_monitor(self, available_gpus, gpu_queues):
+        if not self.monitor:
+            self.new_monitor()
+        self.monitor.setup_cluster_report(
+            worker_id=self.worker_id, available_gpus=available_gpus, gpu_queues=gpu_queues
+        )
 
     def stop_monitor(self):
         if self.monitor:
@@ -2062,6 +2071,7 @@ class Worker(ServiceCommandSection):
                 service_mode_internal_agent_started = True
                 filter_lines = printed_lines[:i+1]
             elif line.startswith(log_control_end_msg):
+                service_mode_internal_agent_started = True
                 return filter_lines, service_mode_internal_agent_started, 0
 
         return filter_lines, service_mode_internal_agent_started, None
@@ -4280,7 +4290,8 @@ class Worker(ServiceCommandSection):
         if docker_bash_setup_script and docker_bash_setup_script.strip('\n '):
             extra_shell_script = (extra_shell_script or '') + \
                 ' ; '.join(line.strip()
-                           for line in docker_bash_setup_script.split('\n') if line.strip()) + \
+                           for line in docker_bash_setup_script.split('\n')
+                           if line.strip() and not line.lstrip().startswith("#")) + \
                 ' ; '
 
         self.debug(
@@ -4504,10 +4515,15 @@ class Worker(ServiceCommandSection):
             if self._session.feature_set == "basic":
                 raise ValueError("Server does not support --use-owner-token option")
 
-            role = self._session.get_decoded_token(self._session.token).get("identity", {}).get("role", None)
-            if role and role not in ["admin", "root", "system"]:
+            identity = self._session.get_decoded_token(self._session.token).get("identity", {})
+            role = identity.get("role", None)
+            try:
+                service_account_type = int(identity.get("service_account_type", 0))
+            except ValueError:
+                service_account_type = 0
+            if role and (role not in ["admin", "root", "system"] and service_account_type < 2):
                 raise ValueError(
-                    "User role not suitable for --use-owner-token option (requires at least admin,"
+                    "User role not suitable for --use-owner-token option (requires at least admin or service account,"
                     " found {})".format(role)
                 )
 

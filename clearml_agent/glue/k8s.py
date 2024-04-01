@@ -570,7 +570,7 @@ class K8sIntegration(Worker):
             print("Kubernetes scheduling task id={}".format(task_id))
 
         try:
-            template = self._resolve_template(task_session, task_data, queue)
+            template = self._resolve_template(task_session, task_data, queue, task_id)
         except Exception as ex:
             print("ERROR: Failed resolving template (skipping): {}".format(ex))
             return
@@ -1095,8 +1095,9 @@ class K8sIntegration(Worker):
 
         :param list(str) queue: queue name to pull from
         """
+        queues = queue if isinstance(queue, (list, tuple)) else ([queue] if queue else None)
         return self.daemon(
-            queues=[ObjectID(name=q) for q in queue] if queue else None,
+            queues=[ObjectID(name=q) for q in queues] if queues else None,
             log_level=logging.INFO, foreground=True, docker=False, **kwargs,
         )
 
@@ -1105,7 +1106,7 @@ class K8sIntegration(Worker):
             self._session, queue=queue, get_task_info=get_task_info
         )
 
-    def _resolve_template(self, task_session, task_data, queue):
+    def _resolve_template(self, task_session, task_data, queue, task_id):
         if self.template_dict:
             return deepcopy(self.template_dict)
 

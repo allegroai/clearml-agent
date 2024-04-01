@@ -248,6 +248,8 @@ ENV_TEMP_STDOUT_FILE_DIR = EnvironmentConfig("CLEARML_AGENT_TEMP_STDOUT_FILE_DIR
 
 ENV_GIT_CLONE_VERBOSE = EnvironmentConfig("CLEARML_AGENT_GIT_CLONE_VERBOSE", type=bool)
 
+ENV_GPU_FRACTIONS = EnvironmentConfig("CLEARML_AGENT_GPU_FRACTIONS")
+
 
 class FileBuffering(IntEnum):
     """
