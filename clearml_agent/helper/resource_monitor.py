@@ -500,7 +500,7 @@ class GpuFractionsHandler:
 
     @classmethod
     def extract_custom_limits(cls, limits: dict):
-        for k, v in list(limits.items() or []):
+        for k, v in list((limits or {}).items()):
             if cls._number_re.match(k):
                 limits.pop(k, None)
 
