@@ -45,7 +45,7 @@ WORKER_ARGS = {
 
 DAEMON_ARGS = dict({
     '--polling-interval': {
-        'help': 'Polling interval in seconds (default 5)',
+        'help': 'Polling interval in seconds. Minimum is 5 (default 5)',
         'type': int,
         'default': 5,
     },
