@@ -640,8 +640,6 @@ class Worker(ServiceCommandSection):
         partial(PackageCollectorRequirement, collect_package=['clearml']),
     )
 
-    # poll queues every _polling_interval seconds
-    _polling_interval = 5.0
     # machine status update intervals, seconds
     _machine_update_interval = 30.0
 
@@ -1575,6 +1573,7 @@ class Worker(ServiceCommandSection):
         self._use_owner_token(kwargs.get('use_owner_token', False))
 
         self._standalone_mode = kwargs.get('standalone_mode', False)
+        self._polling_interval = max(kwargs.get('polling_interval', 5), 5)
         self._services_mode = kwargs.get('services_mode', False)
         # must have docker in services_mode
         if self._services_mode:
