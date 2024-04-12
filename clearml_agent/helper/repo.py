@@ -777,7 +777,21 @@ def clone_repository_cached(session, execution, destination):
                 # We clone the entire repository, not a specific branch
                 vcs.clone()  # branch=execution.branch)
 
-            vcs.pull()
+            print("pulling git")
+            try:
+                vcs.pull()
+            except Exception as ex:
+                if (
+                        session.config.get("agent.vcs_cache.enabled", False) and
+                        session.config.get("agent.vcs_cache.clone_on_pull_fail", True)
+                ):
+                    print("pulling git failed, re-cloning: {}".format(no_password_url))
+                    rm_tree(cached_repo_path)
+                    vcs.clone()
+                else:
+                    raise ex
+            print("pulling git completed")
+
             rm_tree(destination)
             shutil.copytree(Text(cached_repo_path), Text(clone_folder),
                             symlinks=select_for_platform(linux=True, windows=False),
