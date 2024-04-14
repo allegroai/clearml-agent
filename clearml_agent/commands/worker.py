@@ -640,6 +640,9 @@ class Worker(ServiceCommandSection):
         partial(PackageCollectorRequirement, collect_package=['clearml']),
     )
 
+    # default poll queues every _polling_interval seconds
+    _polling_interval = 5.0
+
     # machine status update intervals, seconds
     _machine_update_interval = 30.0
 
