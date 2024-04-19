@@ -322,6 +322,8 @@ class VCS(object):
                 return
 
             # rewrite ssh URLs only if either ssh port or ssh user are forced in config
+            # TODO: fix, when url is in the form of `git@domain.com:user/project.git` we will fail to get scheme
+            # need to add ssh:// and replace first ":" with / , unless port is specified
             if parsed_url.scheme == "ssh" and (
                 self.session.config.get('agent.force_git_ssh_port', None) or
                 self.session.config.get('agent.force_git_ssh_user', None)
@@ -595,6 +597,7 @@ class Git(VCS):
         )
 
     def pull(self):
+        self._set_ssh_url()
         self.call("fetch", "--all", "--recurse-submodules", cwd=self.location)
 
     def _git_pass_auth_wrapper(self, func, *args, **kwargs):
@@ -781,9 +784,10 @@ def clone_repository_cached(session, execution, destination):
             try:
                 vcs.pull()
             except Exception as ex:
+                print("git pull failed: {}".format(ex))
                 if (
                         session.config.get("agent.vcs_cache.enabled", False) and
-                        session.config.get("agent.vcs_cache.clone_on_pull_fail", True)
+                        session.config.get("agent.vcs_cache.clone_on_pull_fail", False)
                 ):
                     print("pulling git failed, re-cloning: {}".format(no_password_url))
                     rm_tree(cached_repo_path)
