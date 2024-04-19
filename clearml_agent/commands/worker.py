@@ -3817,7 +3817,7 @@ class Worker(ServiceCommandSection):
         host_pip_dl = load_path("agent.pip_download_cache.path")
         self.debug("host_pip_dl: {}".format(host_pip_dl))
 
-        host_vcs_cache = load_path("agent.vcs_cache.path")
+        host_vcs_cache = load_path("agent.vcs_cache.path") if temp_config.get("agent.vcs_cache.enabled", True) else ""
         self.debug("host_vcs_cache: {}".format(host_vcs_cache))
 
         host_venvs_cache = load_path("agent.venvs_cache.path")
