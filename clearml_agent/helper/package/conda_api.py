@@ -208,7 +208,6 @@ class CondaAPI(PackageManager):
             except Exception as ex:
                 print("WARNING: Failed using base conda environment, reverting to new environment: {}".format(ex))
 
-
         command = Argv(
             self.conda,
             "create",
@@ -273,7 +272,7 @@ class CondaAPI(PackageManager):
         Conda seems to load "vcruntime140.dll" from all its environment on startup.
         This means environment have to be deleted using 'conda env remove'.
         If necessary, conda can be fooled into deleting a partially-deleted environment by creating an empty file
-        in '<ENV>\conda-meta\history' (value found in 'conda.gateways.disk.test.PREFIX_MAGIC_FILE').
+        in '<ENV>\\conda-meta\\history' (value found in 'conda.gateways.disk.test.PREFIX_MAGIC_FILE').
         Otherwise, it complains that said directory is not a conda environment.
 
         See: https://github.com/conda/conda/issues/7682
@@ -800,6 +799,25 @@ class CondaAPI(PackageManager):
             if conda_env.is_file():
                 return conda_env
         return base_conda_env
+
+    def add_cached_venv(self, *args, **kwargs):
+        """
+        Copy the local venv folder into the venv cache (keys are based on the requirements+python+docker).
+        """
+        # do not cache if this is a base conda environment
+        if self.conda_env_as_base_docker or self.use_conda_base_env:
+            return
+        return super().add_cached_venv(*args, **kwargs)
+
+    def get_cached_venv(self, *args, **kwargs):
+        """
+        Copy a cached copy of the venv (based on the requirements) into destination_folder.
+        Return None if failed or cached entry does not exist
+        """
+        # do not cache if this is a base conda environment
+        if self.conda_env_as_base_docker or self.use_conda_base_env:
+            return
+        return super().get_cached_venv(*args, **kwargs)
 
 
 # enable hashing with cmp=False because pdb fails on un-hashable exceptions
