@@ -20,7 +20,7 @@ FROM python:${TAG} as target
 
 WORKDIR /app
 
-ARG KUBECTL_VERSION=1.24.0
+ARG KUBECTL_VERSION=1.29.3
 
 # Not sure about these ENV vars
 # ENV LC_ALL=en_US.UTF-8
