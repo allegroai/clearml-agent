@@ -67,7 +67,9 @@ DAEMON_ARGS = dict({
         'group': 'Docker support',
     },
     '--queue': {
-        'help': 'Queue ID(s)/Name(s) to pull tasks from (\'default\' queue)',
+        'help': 'Queue ID(s)/Name(s) to pull tasks from (\'default\' queue).'
+                ' Note that the queue list order determines priority, with the first listed queue having the'
+                ' highest priority',
         'nargs': '+',
         'default': tuple(),
         'dest': 'queues',
@@ -112,8 +114,10 @@ DAEMON_ARGS = dict({
     '--dynamic-gpus': {
         'help': 'Allow to dynamically allocate gpus based on queue properties, '
                 'configure with \'--queue <queue_name>=<num_gpus>\'.'
-                ' Example: \'--dynamic-gpus --gpus 0-3 --queue dual_gpus=2 single_gpu=1\''
-                ' Example Opportunistic: \'--dynamic-gpus --gpus 0-3 --queue dual_gpus=2 max_quad_gpus=1-4 \'',
+                ' Example: \'--dynamic-gpus --gpus 0-3 --queue dual_gpus=2 single_gpu=1\'.'
+                ' Example Opportunistic: \'--dynamic-gpus --gpus 0-3 --queue dual_gpus=2 max_quad_gpus=1-4\'.'
+                ' Note that the queue list order determines priority, with the first listed queue having the'
+                ' highest priority',
         'action': 'store_true',
     },
     '--uptime': {
