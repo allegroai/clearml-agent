@@ -32,7 +32,7 @@ def open_atomic(filename, binary=True):
     ...     os.remove(filename)
 
     >>> with open_atomic(filename) as fh:
-    ...     written = fh.write(b'test')
+    ...     written = fh.write(b"test")
     >>> assert os.path.exists(filename)
     >>> os.remove(filename)
 
@@ -67,7 +67,7 @@ class FileLock(object):
     def __init__(
             self, filename, mode='a', timeout=DEFAULT_TIMEOUT,
             check_interval=DEFAULT_CHECK_INTERVAL, fail_when_locked=False,
-            flags=LOCK_METHOD, **file_open_kwargs):
+            **file_open_kwargs):
         """Lock manager with build-in timeout
 
         filename -- filename
@@ -101,11 +101,12 @@ class FileLock(object):
         self.timeout = timeout
         self.check_interval = check_interval
         self.fail_when_locked = fail_when_locked
-        self.flags = flags
+        self.flags_read = constants.LOCK_SH | constants.LOCK_NB
+        self.flags_write = constants.LOCK_EX | constants.LOCK_NB
         self.file_open_kwargs = file_open_kwargs
 
     def acquire(
-            self, timeout=None, check_interval=None, fail_when_locked=None):
+            self, timeout=None, check_interval=None, fail_when_locked=None, readonly=False):
         """Acquire the locked filehandle"""
         if timeout is None:
             timeout = self.timeout
@@ -123,12 +124,13 @@ class FileLock(object):
         if fh:
             return fh
 
-        # Get a new filehandler
-        fh = self._get_fh()
+        _fh = None
         try:
+            # Get a new filehandler
+            _fh = self._get_fh()
             # Try to lock
-            fh = self._get_lock(fh)
-        except exceptions.LockException as exception:
+            fh = self._get_lock(_fh, readonly=readonly)
+        except (exceptions.LockException, IOError) as exception:
             # Try till the timeout has passed
             timeoutend = current_time() + timeout
             while timeoutend > current_time():
@@ -144,16 +146,18 @@ class FileLock(object):
                         raise exceptions.AlreadyLocked(exception)
 
                     else:  # pragma: no cover
+                        if not _fh:
+                            _fh = self._get_fh()
                         # We've got the lock
-                        fh = self._get_lock(fh)
+                        fh = self._get_lock(_fh, readonly=readonly)
                         break
 
-                except exceptions.LockException:
+                except (exceptions.LockException, IOError):
                     pass
 
             else:
                 # We got a timeout... reraising
-                raise exceptions.LockException(exception)
+                raise exceptions.LockTimeout(exception)
 
         # Prepare the filehandle (truncate if needed)
         fh = self._prepare_fh(fh)
@@ -176,16 +180,37 @@ class FileLock(object):
                 pass
             self.fh = None
 
+    def delete_lock_file(self):
+        # type: () -> bool
+        """
+        Remove the local file used for locking (fail if file is locked)
+
+        :return: True is successful
+        """
+        if self.fh:
+            return False
+        # noinspection PyBroadException
+        try:
+            os.unlink(path=self.filename)
+        except BaseException:
+            return False
+        return True
+
     def _get_fh(self):
         """Get a new filehandle"""
+        # Create the parent directory if it doesn't exist
+        path, name = os.path.split(self.filename)
+        if path and not os.path.isdir(path):  # pragma: no cover
+            os.makedirs(path, exist_ok=True)
+
         return open(self.filename, self.mode, **self.file_open_kwargs)
 
-    def _get_lock(self, fh):
+    def _get_lock(self, fh, readonly=False):
         """
         Try to lock the given filehandle
 
         returns LockException if it fails"""
-        lock(fh, self.flags)
+        lock(fh, self.flags_read if readonly else self.flags_write)
         return fh
 
     def _prepare_fh(self, fh):

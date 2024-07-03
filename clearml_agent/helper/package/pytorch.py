@@ -670,8 +670,7 @@ class PytorchRequirement(SimpleSubstitution):
             return MarkerRequirement(Requirement.parse(self._fix_setuptools))
         return None
 
-    @classmethod
-    def get_torch_index_url(cls, cuda_version, nightly=False):
+    def get_torch_index_url(self, cuda_version, nightly=False):
         # noinspection PyBroadException
         try:
             cuda = int(cuda_version)
@@ -681,39 +680,39 @@ class PytorchRequirement(SimpleSubstitution):
         if nightly:
             for c in range(cuda, max(-1, cuda-15), -1):
                 # then try the nightly builds, it might be there...
-                torch_url = cls.nightly_extra_index_url_template.format(c)
+                torch_url = self.nightly_extra_index_url_template.format(c)
                 # noinspection PyBroadException
                 try:
                     if requests.get(torch_url, timeout=10).ok:
                         print('Torch nightly CUDA {} index page found'.format(c))
-                        cls.torch_index_url_lookup[c] = torch_url
-                        return cls.torch_index_url_lookup[c], c
+                        self.torch_index_url_lookup[c] = torch_url
+                        return self.torch_index_url_lookup[c], c
                 except Exception:
                     pass
             return
 
         # first check if key is valid
-        if cuda in cls.torch_index_url_lookup:
-            return cls.torch_index_url_lookup[cuda], cuda
+        if cuda in self.torch_index_url_lookup:
+            return self.torch_index_url_lookup[cuda], cuda
 
         # then try a new cuda version page
         for c in range(cuda, max(-1, cuda-15), -1):
-            torch_url = cls.extra_index_url_template.format(c)
+            torch_url = self.extra_index_url_template.format(c)
             # noinspection PyBroadException
             try:
                 if requests.get(torch_url, timeout=10).ok:
                     print('Torch CUDA {} index page found, adding `{}`'.format(c, torch_url))
-                    cls.torch_index_url_lookup[c] = torch_url
-                    return cls.torch_index_url_lookup[c], c
+                    self.torch_index_url_lookup[c] = torch_url
+                    return self.torch_index_url_lookup[c], c
             except Exception:
                 pass
 
-        keys = sorted(cls.torch_index_url_lookup.keys(), reverse=True)
+        keys = sorted(self.torch_index_url_lookup.keys(), reverse=True)
         for k in keys:
             if k <= cuda:
-                return cls.torch_index_url_lookup[k], k
+                return self.torch_index_url_lookup[k], k
         # return default - zero
-        return cls.torch_index_url_lookup[0], 0
+        return self.torch_index_url_lookup[0], 0
 
     MAP = {
         "windows": {

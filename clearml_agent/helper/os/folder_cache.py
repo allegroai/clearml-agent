@@ -13,16 +13,17 @@ from .locks import FileLock
 
 class FolderCache(object):
     _lock_filename = '.clearml.lock'
-    _lock_timeout_seconds = 30
+    _def_lock_timeout_seconds = 30
     _temp_entry_prefix = '_temp.'
 
-    def __init__(self, cache_folder, max_cache_entries=5, min_free_space_gb=None):
+    def __init__(self, cache_folder, max_cache_entries=5, min_free_space_gb=None, lock_timeout_seconds=None):
         self._cache_folder = Path(os.path.expandvars(cache_folder)).expanduser().absolute()
         self._cache_folder.mkdir(parents=True, exist_ok=True)
         self._max_cache_entries = max_cache_entries
         self._last_copied_entry_folder = None
         self._min_free_space_gb = min_free_space_gb if min_free_space_gb and min_free_space_gb > 0 else None
         self._lock = FileLock((self._cache_folder / self._lock_filename).as_posix())
+        self._lock_timeout_seconds = float(lock_timeout_seconds or self._def_lock_timeout_seconds)
 
     def get_cache_folder(self):
         # type: () -> Path
@@ -46,9 +47,11 @@ class FolderCache(object):
         # lock so we make sure no one deletes it before we copy it
         # noinspection PyBroadException
         try:
-            self._lock.acquire(timeout=self._lock_timeout_seconds)
+            self._lock.acquire(timeout=self._lock_timeout_seconds, readonly=True)
         except BaseException as ex:
             warning('Could not lock cache folder {}: {}'.format(self._cache_folder, ex))
+            import traceback
+            warning('DEBUG: Exception {}: {}'.format(ex, traceback.format_exc()))
             return None
 
         src = None
@@ -115,6 +118,8 @@ class FolderCache(object):
                     self._lock.acquire(timeout=self._lock_timeout_seconds)
                 except BaseException as ex:
                     warning('Could not lock cache folder {}: {}'.format(self._cache_folder, ex))
+                    import traceback
+                    warning('DEBUG: Exception {}: {}'.format(ex, traceback.format_exc()))
                     # failed locking do nothing
                     return True
                 keys = sorted(list(set(keys) | set(cached_keys)))
@@ -194,16 +199,23 @@ class FolderCache(object):
                           if cache_folder.is_dir() and not cache_folder.name.startswith(self._temp_entry_prefix)]
         folder_entries = sorted(folder_entries, key=lambda x: x[1], reverse=True)
 
+        number_of_entries_to_keep = self._max_cache_entries - 1 \
+            if max_cache_entries is None else max(0, int(max_cache_entries))
+
+        # if nothing to do, leave
+        if not folder_entries[number_of_entries_to_keep:]:
+            return
+
         # lock so we make sure no one deletes it before we copy it
         # noinspection PyBroadException
         try:
             self._lock.acquire(timeout=self._lock_timeout_seconds)
         except BaseException as ex:
             warning('Could not lock cache folder {}: {}'.format(self._cache_folder, ex))
+            import traceback
+            warning('DEBUG: Exception {}: {}'.format(ex, traceback.format_exc()))
             return
 
-        number_of_entries_to_keep = self._max_cache_entries - 1 \
-            if max_cache_entries is None else max(0, int(max_cache_entries))
         for folder, ts in folder_entries[number_of_entries_to_keep:]:
             try:
                 shutil.rmtree(folder.as_posix(), ignore_errors=True)

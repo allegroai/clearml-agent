@@ -15,10 +15,8 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import json
-import os.path
 import platform
 import sys
-import time
 from datetime import datetime
 from typing import Optional
 
@@ -58,6 +56,21 @@ class GPUStat(object):
         e.g. GPU-12345678-abcd-abcd-uuid-123456abcdef
         """
         return self.entry['uuid']
+
+    @property
+    def mig_index(self):
+        """
+        Returns the index of the MIG partition (as in nvidia-smi).
+        """
+        return self.entry.get("mig_index")
+
+    @property
+    def mig_uuid(self):
+        """
+        Returns the uuid of the MIG partition returned by nvidia-smi when running in MIG mode,
+        e.g. MIG-12345678-abcd-abcd-uuid-123456abcdef
+        """
+        return self.entry.get("mig_uuid")
 
     @property
     def name(self):
@@ -163,14 +176,16 @@ class GPUStatCollection(object):
     _initialized = False
     _device_count = None
     _gpu_device_info = {}
+    _mig_device_info = {}
 
-    def __init__(self, gpu_list, driver_version=None):
+    def __init__(self, gpu_list, driver_version=None, driver_cuda_version=None):
         self.gpus = gpu_list
 
         # attach additional system information
         self.hostname = platform.node()
         self.query_time = datetime.now()
         self.driver_version = driver_version
+        self.driver_cuda_version = driver_cuda_version
 
     @staticmethod
     def clean_processes():
@@ -181,17 +196,18 @@ class GPUStatCollection(object):
     @staticmethod
     def new_query(shutdown=False, per_process_stats=False, get_driver_info=False):
         """Query the information of all the GPUs on local machine"""
-
+        initialized = False
         if not GPUStatCollection._initialized:
             N.nvmlInit()
             GPUStatCollection._initialized = True
+            initialized = True
 
         def _decode(b):
             if isinstance(b, bytes):
                 return b.decode()  # for python3, to unicode
             return b
 
-        def get_gpu_info(index, handle):
+        def get_gpu_info(index, handle, is_mig=False):
             """Get one GPU information specified by nvml handle"""
 
             def get_process_info(nv_process):
@@ -200,10 +216,10 @@ class GPUStatCollection(object):
                 if nv_process.pid not in GPUStatCollection.global_processes:
                     GPUStatCollection.global_processes[nv_process.pid] = \
                         psutil.Process(pid=nv_process.pid)
-                ps_process = GPUStatCollection.global_processes[nv_process.pid]
                 process['pid'] = nv_process.pid
                 # noinspection PyBroadException
                 try:
+                    # ps_process = GPUStatCollection.global_processes[nv_process.pid]
                     # we do not actually use these, so no point in collecting them
                     # process['username'] = ps_process.username()
                     # # cmdline returns full path;
@@ -227,12 +243,14 @@ class GPUStatCollection(object):
                     pass
                 return process
 
-            if not GPUStatCollection._gpu_device_info.get(index):
+            device_info = GPUStatCollection._mig_device_info if is_mig else GPUStatCollection._gpu_device_info
+
+            if not device_info.get(index):
                 name = _decode(N.nvmlDeviceGetName(handle))
                 uuid = _decode(N.nvmlDeviceGetUUID(handle))
-                GPUStatCollection._gpu_device_info[index] = (name, uuid)
+                device_info[index] = (name, uuid)
 
-            name, uuid = GPUStatCollection._gpu_device_info[index]
+            name, uuid = device_info[index]
 
             try:
                 temperature = N.nvmlDeviceGetTemperature(
@@ -286,11 +304,11 @@ class GPUStatCollection(object):
                 for nv_process in nv_comp_processes + nv_graphics_processes:
                     try:
                         process = get_process_info(nv_process)
-                        processes.append(process)
                     except psutil.NoSuchProcess:
                         # TODO: add some reminder for NVML broken context
                         # e.g. nvidia-smi reset  or  reboot the system
-                        pass
+                        process = None
+                    processes.append(process)
 
                 # we do not actually use these, so no point in collecting them
                 # # TODO: Do not block if full process info is not requested
@@ -314,7 +332,7 @@ class GPUStatCollection(object):
                 # Convert bytes into MBytes
                 'memory.used': memory.used // MB if memory else None,
                 'memory.total': memory.total // MB if memory else None,
-                'processes': processes,
+                'processes': None if (processes and all(p is None for p in processes)) else processes
             }
             if per_process_stats:
                 GPUStatCollection.clean_processes()
@@ -328,8 +346,36 @@ class GPUStatCollection(object):
         for index in range(GPUStatCollection._device_count):
             handle = N.nvmlDeviceGetHandleByIndex(index)
             gpu_info = get_gpu_info(index, handle)
-            gpu_stat = GPUStat(gpu_info)
-            gpu_list.append(gpu_stat)
+            mig_cnt = 0
+            # noinspection PyBroadException
+            try:
+                mig_cnt = N.nvmlDeviceGetMaxMigDeviceCount(handle)
+            except Exception:
+                pass
+
+            if mig_cnt <= 0:
+                gpu_list.append(GPUStat(gpu_info))
+                continue
+
+            got_mig_info = False
+            for mig_index in range(mig_cnt):
+                try:
+                    mig_handle = N.nvmlDeviceGetMigDeviceHandleByIndex(handle, mig_index)
+                    mig_info = get_gpu_info(mig_index, mig_handle, is_mig=True)
+                    mig_info["mig_name"] = mig_info["name"]
+                    mig_info["name"] = gpu_info["name"]
+                    mig_info["mig_index"] = mig_info["index"]
+                    mig_info["mig_uuid"] = mig_info["uuid"]
+                    mig_info["index"] = gpu_info["index"]
+                    mig_info["uuid"] = gpu_info["uuid"]
+                    mig_info["temperature.gpu"] = gpu_info["temperature.gpu"]
+                    mig_info["fan.speed"] = gpu_info["fan.speed"]
+                    gpu_list.append(GPUStat(mig_info))
+                    got_mig_info = True
+                except Exception as e:
+                    pass
+            if not got_mig_info:
+                gpu_list.append(GPUStat(gpu_info))
 
         # 2. additional info (driver version, etc).
         if get_driver_info:
@@ -337,15 +383,32 @@ class GPUStatCollection(object):
                 driver_version = _decode(N.nvmlSystemGetDriverVersion())
             except N.NVMLError:
                 driver_version = None  # N/A
+
+            # noinspection PyBroadException
+            try:
+                cuda_driver_version = str(N.nvmlSystemGetCudaDriverVersion())
+            except BaseException:
+                # noinspection PyBroadException
+                try:
+                    cuda_driver_version = str(N.nvmlSystemGetCudaDriverVersion_v2())
+                except BaseException:
+                    cuda_driver_version = None
+            if cuda_driver_version:
+                try:
+                    cuda_driver_version = '{}.{}'.format(
+                        int(cuda_driver_version)//1000, (int(cuda_driver_version) % 1000)//10)
+                except (ValueError, TypeError):
+                    pass
         else:
             driver_version = None
+            cuda_driver_version = None
 
         # no need to shutdown:
-        if shutdown:
+        if shutdown and initialized:
             N.nvmlShutdown()
             GPUStatCollection._initialized = False
 
-        return GPUStatCollection(gpu_list, driver_version=driver_version)
+        return GPUStatCollection(gpu_list, driver_version=driver_version, driver_cuda_version=cuda_driver_version)
 
     def __len__(self):
         return len(self.gpus)

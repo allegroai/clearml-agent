@@ -6,7 +6,6 @@ import stat
 import subprocess
 import sys
 import tempfile
-from distutils.spawn import find_executable
 from hashlib import md5
 from os import environ
 from random import random
@@ -19,7 +18,7 @@ from pathlib2 import Path
 
 import six
 
-from clearml_agent.definitions import ENV_AGENT_GIT_USER, ENV_AGENT_GIT_PASS, ENV_AGENT_GIT_HOST
+from clearml_agent.definitions import ENV_AGENT_GIT_USER, ENV_AGENT_GIT_PASS, ENV_AGENT_GIT_HOST, ENV_GIT_CLONE_VERBOSE
 from clearml_agent.helper.console import ensure_text, ensure_binary
 from clearml_agent.errors import CommandFailedError
 from clearml_agent.helper.base import (
@@ -30,7 +29,7 @@ from clearml_agent.helper.base import (
     create_file_if_not_exists, safe_remove_file,
 )
 from clearml_agent.helper.os.locks import FileLock
-from clearml_agent.helper.process import DEVNULL, Argv, PathLike, COMMAND_SUCCESS
+from clearml_agent.helper.process import DEVNULL, Argv, PathLike, COMMAND_SUCCESS, find_executable
 from clearml_agent.session import Session
 
 
@@ -197,8 +196,9 @@ class VCS(object):
             self.log.info("successfully applied uncommitted changes")
         return True
 
-    # Command-line flags for clone command
-    clone_flags = ()
+    def clone_flags(self):
+        """Command-line flags for clone command"""
+        return tuple()
 
     @abc.abstractmethod
     def executable_not_found_error_help(self):
@@ -322,6 +322,8 @@ class VCS(object):
                 return
 
             # rewrite ssh URLs only if either ssh port or ssh user are forced in config
+            # TODO: fix, when url is in the form of `git@domain.com:user/project.git` we will fail to get scheme
+            # need to add ssh:// and replace first ":" with / , unless port is specified
             if parsed_url.scheme == "ssh" and (
                 self.session.config.get('agent.force_git_ssh_port', None) or
                 self.session.config.get('agent.force_git_ssh_user', None)
@@ -345,11 +347,18 @@ class VCS(object):
         # if we have git_user / git_pass replace ssh credentials with https authentication
         if (ENV_AGENT_GIT_USER.get() or self.session.config.get('agent.git_user', None)) and \
                 (ENV_AGENT_GIT_PASS.get() or self.session.config.get('agent.git_pass', None)):
+
             # only apply to a specific domain (if requested)
             config_domain = \
                 ENV_AGENT_GIT_HOST.get() or self.session.config.get("agent.git_host", None)
-            if config_domain and config_domain != furl(self.url).host:
-                return
+            if config_domain:
+                if config_domain != furl(self.url).host:
+                    # bail out here if we have a git_host configured and it's different than the URL host
+                    # however, we should make sure this is not an ssh@ URL that furl failed to parse
+                    ssh_git_url_match = self.SSH_URL_GIT_SYNTAX.match(self.url)
+                    if not ssh_git_url_match or config_domain != ssh_git_url_match.groupdict().get("host"):
+                        # do not replace to ssh url
+                        return
 
             new_url = self.replace_ssh_url(self.url)
             if new_url != self.url:
@@ -366,7 +375,7 @@ class VCS(object):
         self._set_ssh_url()
         # if we are on linux no need for the full auth url because we use GIT_ASKPASS
         url = self.url_without_auth if self._use_ask_pass else self.url_with_auth
-        clone_command = ("clone", url, self.location) + self.clone_flags
+        clone_command = ("clone", url, self.location) + self.clone_flags()
         # clone all branches regardless of when we want to later checkout
         # if branch:
         #    clone_command += ("-b", branch)
@@ -543,7 +552,6 @@ class VCS(object):
 class Git(VCS):
     executable_name = "git"
     main_branch = ("master", "main")
-    clone_flags = ("--quiet", "--recursive")
     checkout_flags = ("--force",)
     COMMAND_ENV = {
         # do not prompt for password
@@ -555,7 +563,7 @@ class Git(VCS):
     def __init__(self, *args, **kwargs):
         super(Git, self).__init__(*args, **kwargs)
 
-        self._use_ask_pass = False if not self.session.config.get('agent.enable_git_ask_pass', None) \
+        self._use_ask_pass = False if not self.session.config.get('agent.enable_git_ask_pass', True) \
             else sys.platform == "linux"
 
         try:
@@ -568,6 +576,12 @@ class Git(VCS):
         return [
             "origin/{}".format(b) for b in ([branch] if isinstance(branch, str) else branch)
         ]
+
+    def clone_flags(self):
+        return (
+            "--recursive",
+            "--verbose" if ENV_GIT_CLONE_VERBOSE.get() else "--quiet"
+        )
 
     def executable_not_found_error_help(self):
         return 'Cannot find "{}" executable. {}'.format(
@@ -583,6 +597,7 @@ class Git(VCS):
         )
 
     def pull(self):
+        self._set_ssh_url()
         self.call("fetch", "--all", "--recurse-submodules", cwd=self.location)
 
     def _git_pass_auth_wrapper(self, func, *args, **kwargs):
@@ -765,7 +780,22 @@ def clone_repository_cached(session, execution, destination):
                 # We clone the entire repository, not a specific branch
                 vcs.clone()  # branch=execution.branch)
 
-            vcs.pull()
+            print("pulling git")
+            try:
+                vcs.pull()
+            except Exception as ex:
+                print("git pull failed: {}".format(ex))
+                if (
+                        session.config.get("agent.vcs_cache.enabled", False) and
+                        session.config.get("agent.vcs_cache.clone_on_pull_fail", False)
+                ):
+                    print("pulling git failed, re-cloning: {}".format(no_password_url))
+                    rm_tree(cached_repo_path)
+                    vcs.clone()
+                else:
+                    raise ex
+            print("pulling git completed")
+
             rm_tree(destination)
             shutil.copytree(Text(cached_repo_path), Text(clone_folder),
                             symlinks=select_for_platform(linux=True, windows=False),
@@ -796,8 +826,8 @@ def fix_package_import_diff_patch(entry_script_file):
             lines = f.readlines()
     except Exception:
         return
-    # make sre we are the first import (i.e. we patched the source code)
-    if not lines or not lines[0].strip().startswith('from clearml ') or 'Task.init' not in lines[1]:
+    # make sure we are the first import (i.e. we patched the source code)
+    if len(lines or []) < 2 or not lines[0].strip().startswith('from clearml ') or 'Task.init' not in lines[1]:
         return
 
     original_lines = lines
@@ -854,3 +884,90 @@ def fix_package_import_diff_patch(entry_script_file):
             f.writelines(new_lines)
     except Exception:
         return
+
+
+def _locate_future_import(lines):
+    # type: (list[str]) -> int
+    """
+    :param lines: string lines of a python file
+    :return: line index of the last __future_ import. return -1 if no __future__ was found
+    """
+    # skip over the first two lines, they are ours
+    # then skip over empty or comment lines
+    lines = [(i, line.split('#', 1)[0].rstrip()) for i, line in enumerate(lines)
+             if line.strip('\r\n\t ') and not line.strip().startswith('#')]
+
+    # remove triple quotes ' """ '
+    nested_c = -1
+    skip_lines = []
+    for i, line_pair in enumerate(lines):
+        for _ in line_pair[1].split('"""')[1:]:
+            if nested_c >= 0:
+                skip_lines.extend(list(range(nested_c, i + 1)))
+                nested_c = -1
+            else:
+                nested_c = i
+    # now select all the
+    lines = [pair for i, pair in enumerate(lines) if i not in skip_lines]
+
+    from_future = re.compile(r"^from[\s]*__future__[\s]*")
+    import_future = re.compile(r"^import[\s]*__future__[\s]*")
+    # test if we have __future__ import
+    found_index = -1
+    for a_i, (_, a_line) in enumerate(lines):
+        if found_index >= a_i:
+            continue
+        if from_future.match(a_line) or import_future.match(a_line):
+            found_index = a_i
+            # check the last import block
+            i, line = lines[found_index]
+            # wither we have \\ character at the end of the line or the line is indented
+            parenthesized_lines = '(' in line and ')' not in line
+            while line.endswith('\\') or parenthesized_lines:
+                found_index += 1
+                i, line = lines[found_index]
+                if ')' in line:
+                    break
+
+        else:
+            break
+
+    return found_index if found_index < 0 else lines[found_index][0]
+
+
+def patch_add_task_init_call(local_filename):
+    if not local_filename or not Path(local_filename).is_file():
+        return
+
+    idx_a = 0
+    # find the right entry for the patch if we have a local file (basically after __future__
+    try:
+        with open(local_filename, 'rt') as f:
+            lines = f.readlines()
+    except Exception as ex:
+        print("Failed patching entry point file {}: {}".format(local_filename, ex))
+        return
+
+    future_found = _locate_future_import(lines)
+    if future_found >= 0:
+        idx_a = future_found + 1
+
+    # check if we have not already patched it, no need to add another one
+    if len(lines or []) >= idx_a+2 and lines[idx_a].strip().startswith('from clearml ') and 'Task.init' in lines[idx_a+1]:
+        print("File {} already patched with Task.init()".format(local_filename))
+        return
+
+    patch = [
+        "from clearml import Task\n",
+        "(__name__ != \"__main__\") or Task.init()\n",
+    ]
+    lines = lines[:idx_a] + patch + lines[idx_a:]
+    # noinspection PyBroadException
+    try:
+        with open(local_filename, 'wt') as f:
+            f.writelines(lines)
+    except Exception as ex:
+        print("Failed patching entry point file {}: {}".format(local_filename, ex))
+        return
+
+    print("Force clearml Task.init patch adding to entry point script: {}".format(local_filename))

@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import platform
+import re
 import sys
 from copy import deepcopy
 from typing import Any, Callable
@@ -19,7 +20,7 @@ from clearml_agent.definitions import ENVIRONMENT_CONFIG, ENV_TASK_EXECUTE_AS_US
 from clearml_agent.errors import APIError
 from clearml_agent.helper.base import HOCONEncoder
 from clearml_agent.helper.process import Argv
-from clearml_agent.helper.docker_args import DockerArgsSanitizer
+from clearml_agent.helper.docker_args import DockerArgsSanitizer, sanitize_urls
 from .version import __version__
 
 POETRY = "poetry"
@@ -240,38 +241,49 @@ class Session(_Session):
             except:
                 pass
 
-    def print_configuration(
-            self,
-            remove_secret_keys=("secret", "pass", "token", "account_key", "contents"),
-            skip_value_keys=("environment", ),
-            docker_args_sanitize_keys=("extra_docker_arguments", ),
-    ):
+    def print_configuration(self):
+        def load_config(key, default):
+            return [re.compile(x) for x in self.config.get(f"agent.sanitize_config_printout.{key}", default=default)]
+
+        dont_hide_secret_keys = load_config("dont_hide_secrets", ("^enable_git_ask_pass$",))
+        hide_secret_keys = load_config("hide_secrets", ("secret", "pass", "token", "account_key", "contents"))
+        hide_secret_section_keys = load_config("hide_secrets_recursive", ("^environment$",))
+        docker_cmd_keys = load_config("docker_commands", ("^extra_docker_arguments$",))
+        urls_keys = load_config("urls", ("^extra_index_url$",))
+
         # remove all the secrets from the print
-        def recursive_remove_secrets(dictionary, secret_keys=(), empty_keys=()):
+        def recursive_remove_secrets(dictionary):
             for k in list(dictionary):
-                for s in secret_keys:
-                    if s in k:
-                        dictionary.pop(k)
-                        break
-                for s in empty_keys:
-                    if s == k:
+                if not any(r.search(k) for r in dont_hide_secret_keys):
+                    if any(r.search(k) for r in hide_secret_keys):
+                        dictionary[k] = '****'
+                        continue
+                    if any(r.search(k) for r in hide_secret_section_keys):
                         dictionary[k] = {key: '****' for key in dictionary[k]} \
                             if isinstance(dictionary[k], dict) else '****'
-                        break
+                        continue
+                if any(r.search(k) for r in urls_keys):
+                    value = dictionary.get(k, None)
+                    if isinstance(value, str):
+                        dictionary[k] = sanitize_urls(value)[0]
+                    elif isinstance(value, (list, tuple)):
+                        dictionary[k] = [sanitize_urls(v)[0] for v in value]
+                    elif isinstance(value, dict):
+                        dictionary[k] = {k_: sanitize_urls(v)[0] for k_, v in value.items()}
                 if isinstance(dictionary.get(k, None), dict):
-                    recursive_remove_secrets(dictionary[k], secret_keys=secret_keys, empty_keys=empty_keys)
+                    recursive_remove_secrets(dictionary[k])
                 elif isinstance(dictionary.get(k, None), (list, tuple)):
-                    if k in (docker_args_sanitize_keys or []):
+                    if any(r.match(k) for r in docker_cmd_keys):
                         dictionary[k] = DockerArgsSanitizer.sanitize_docker_command(self, dictionary[k])
                     for item in dictionary[k]:
                         if isinstance(item, dict):
-                            recursive_remove_secrets(item, secret_keys=secret_keys, empty_keys=empty_keys)
+                            recursive_remove_secrets(item)
 
         config = deepcopy(self.config.to_dict())
         # remove the env variable, it's not important
         config.pop('env', None)
-        if remove_secret_keys or skip_value_keys or docker_args_sanitize_keys:
-            recursive_remove_secrets(config, secret_keys=remove_secret_keys, empty_keys=skip_value_keys)
+        if hide_secret_keys or hide_secret_section_keys or docker_cmd_keys or urls_keys:
+            recursive_remove_secrets(config)
         # remove logging.loggers.urllib3.level from the print
         try:
             config['logging']['loggers']['urllib3'].pop('level', None)

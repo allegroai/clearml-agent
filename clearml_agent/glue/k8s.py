@@ -106,6 +106,7 @@ class K8sIntegration(Worker):
             max_pods_limit=None,
             pod_name_prefix=None,
             limit_pod_label=None,
+            force_system_packages=None,
             **kwargs
     ):
         """
@@ -142,7 +143,8 @@ class K8sIntegration(Worker):
         self.k8s_pending_queue_name = k8s_pending_queue_name or self.K8S_PENDING_QUEUE
         self.k8s_pending_queue_id = None
         self.container_bash_script = container_bash_script or self.CONTAINER_BASH_SCRIPT
-        force_system_packages = ENV_FORCE_SYSTEM_SITE_PACKAGES.get()
+        if force_system_packages is None:
+            force_system_packages = ENV_FORCE_SYSTEM_SITE_PACKAGES.get()
         self._force_system_site_packages = force_system_packages if force_system_packages is not None else True
         if self._force_system_site_packages:
             # Use system packages, because by we will be running inside a docker
@@ -370,8 +372,9 @@ class K8sIntegration(Worker):
             self.log.warning('Failed parsing kubectl output:\n{}\nEx: {}'.format(output, ex))
 
     def get_pods_for_jobs(self, job_condition: str = None, pod_filters: List[str] = None, debug_msg: str = None):
+        # Use metadata.uid so job related pods can be found filterin g following list with this param
         controller_uids = self.get_jobs_info(
-            "spec.selector.matchLabels.controller-uid", condition=job_condition, debug_msg=debug_msg
+            "metadata.uid", condition=job_condition, debug_msg=debug_msg
         )
         if not controller_uids:
             # No pods were found for these jobs
@@ -567,7 +570,7 @@ class K8sIntegration(Worker):
             print("Kubernetes scheduling task id={}".format(task_id))
 
         try:
-            template = self._resolve_template(task_session, task_data, queue)
+            template = self._resolve_template(task_session, task_data, queue, task_id)
         except Exception as ex:
             print("ERROR: Failed resolving template (skipping): {}".format(ex))
             return
@@ -665,9 +668,12 @@ class K8sIntegration(Worker):
             return {target: results} if results else {}
         return results
 
+    def get_task_worker_id(self, template, task_id, pod_name, namespace, queue):
+        return f"{self.worker_id}:{task_id}"
+
     def _create_template_container(
         self, pod_name: str, task_id: str, docker_image: str, docker_args: List[str],
-        docker_bash: str, clearml_conf_create_script: List[str]
+        docker_bash: str, clearml_conf_create_script: List[str], task_worker_id: str
     ) -> dict:
         container = self._get_docker_args(
             docker_args,
@@ -675,6 +681,16 @@ class K8sIntegration(Worker):
             flags={"-e", "--env"},
             convert=lambda env: {'name': env.partition("=")[0], 'value': env.partition("=")[2]},
         )
+
+        # Set worker ID
+        env_vars = container.get('env', [])
+        found_worker_id = False
+        for entry in env_vars:
+            if entry.get('name') == 'CLEARML_WORKER_ID':
+                entry['name'] = task_worker_id
+                found_worker_id = True
+        if not found_worker_id:
+            container['env'] = env_vars + [{'name': 'CLEARML_WORKER_ID', 'value': task_worker_id}]
 
         container_bash_script = [self.container_bash_script] if isinstance(self.container_bash_script, str) \
             else self.container_bash_script
@@ -723,7 +739,7 @@ class K8sIntegration(Worker):
         queue,
         task_id,
         namespace,
-        template=None,
+        template,
         pod_number=None
     ):
         if "apiVersion" not in template:
@@ -763,13 +779,16 @@ class K8sIntegration(Worker):
         containers = spec.setdefault('containers', [])
         spec.setdefault('restartPolicy', 'Never')
 
+        task_worker_id = self.get_task_worker_id(template, task_id, name, namespace, queue)
+
         container = self._create_template_container(
             pod_name=name,
             task_id=task_id,
             docker_image=docker_image,
             docker_args=docker_args,
             docker_bash=docker_bash,
-            clearml_conf_create_script=clearml_conf_create_script
+            clearml_conf_create_script=clearml_conf_create_script,
+            task_worker_id=task_worker_id
         )
 
         if containers:
@@ -1023,6 +1042,8 @@ class K8sIntegration(Worker):
                         print("No tasks in queue {}".format(queue))
                         continue
 
+                    print('Received task {} from queue {}'.format(task_id, queue))
+
                     task_session = None
                     if self._impersonate_as_task_owner:
                         try:
@@ -1074,8 +1095,9 @@ class K8sIntegration(Worker):
 
         :param list(str) queue: queue name to pull from
         """
+        queues = queue if isinstance(queue, (list, tuple)) else ([queue] if queue else None)
         return self.daemon(
-            queues=[ObjectID(name=queue)] if queue else None,
+            queues=[ObjectID(name=q) for q in queues] if queues else None,
             log_level=logging.INFO, foreground=True, docker=False, **kwargs,
         )
 
@@ -1084,7 +1106,7 @@ class K8sIntegration(Worker):
             self._session, queue=queue, get_task_info=get_task_info
         )
 
-    def _resolve_template(self, task_session, task_data, queue):
+    def _resolve_template(self, task_session, task_data, queue, task_id):
         if self.template_dict:
             return deepcopy(self.template_dict)
 

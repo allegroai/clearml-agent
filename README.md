@@ -2,14 +2,17 @@
 
 <img src="https://github.com/allegroai/clearml-agent/blob/master/docs/clearml_agent_logo.png?raw=true" width="250px">
 
-**ClearML Agent - ML-Ops made easy  
-ML-Ops scheduler & orchestration solution supporting Linux, macOS and Windows**
+**ClearML Agent - MLOps/LLMOps made easy  
+MLOps/LLMOps scheduler & orchestration solution supporting Linux, macOS and Windows**
 
 [![GitHub license](https://img.shields.io/github/license/allegroai/clearml-agent.svg)](https://img.shields.io/github/license/allegroai/clearml-agent.svg)
 [![PyPI pyversions](https://img.shields.io/pypi/pyversions/clearml-agent.svg)](https://img.shields.io/pypi/pyversions/clearml-agent.svg)
 [![PyPI version shields.io](https://img.shields.io/pypi/v/clearml-agent.svg)](https://img.shields.io/pypi/v/clearml-agent.svg)
 [![PyPI Downloads](https://pepy.tech/badge/clearml-agent/month)](https://pypi.org/project/clearml-agent/)
 [![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/allegroai)](https://artifacthub.io/packages/search?repo=allegroai)
+
+`🌟 ClearML is open-source - Leave a star to support the project! 🌟`
+
 </div>
 
 ---
@@ -65,36 +68,39 @@ or [Free tier Hosting](https://app.clear.ml)
 
 ### Kubernetes Integration (Optional)
 
-We think Kubernetes is awesome, but it should be a choice. We designed `clearml-agent` so you can run bare-metal or
-inside a pod with any mix that fits your environment.
+We think Kubernetes is awesome, but it is not a must to get started with remote execution agents and cluster management.
+We designed `clearml-agent` so you can run both bare-metal and on top of Kubernetes, in any combination that fits your environment.
 
-Find Dockerfiles in the [docker](./docker) dir and a helm Chart in https://github.com/allegroai/clearml-helm-charts
+You can find the Dockerfiles in the [docker folder](./docker) and the helm Chart in https://github.com/allegroai/clearml-helm-charts
 
-#### Benefits of integrating existing K8s with ClearML-Agent
+#### Benefits of integrating existing Kubernetes cluster with ClearML
 
-- ClearML-Agent adds the missing scheduling capabilities to K8s
-- Allowing for more flexible automation from code
-- A programmatic interface for easier learning curve (and debugging)
-- Seamless integration with ML/DL experiment manager
+- ClearML-Agent adds the missing scheduling capabilities to your Kubernetes cluster
+- Users do not need to have direct Kubernetes access!
+- Easy learning curve with UI and CLI requiring no DevOps knowledge from end users
+- Unlike other solutions, ClearML-Agents work in tandem with other customers of your Kubernetes cluster 
+- Allows for more flexible automation from code, building pipelines and visibility
+- A programmatic interface for easy CI/CD workflows, enabling GitOps to trigger jobs inside your cluster
+- Seamless integration with the ClearML ML/DL/GenAI experiment manager
 - Web UI for customization, scheduling & prioritization of jobs
+- **Enterprise Features**: RBAC, vault, multi-tenancy, scheduler, quota management, fractional GPU support 
 
-**Two K8s integration flavours**
+**Run the agent in Kubernetes Glue mode an map ClearML jobs directly to K8s jobs:**
+- Use the [ClearML Agent Helm Chart](https://github.com/allegroai/clearml-helm-charts/tree/main/charts/clearml-agent) to spin an agent pod acting as a controller
+  - Or run the [clearml-k8s glue](https://github.com/allegroai/clearml-agent/blob/master/examples/k8s_glue_example.py) on
+    a Kubernetes cpu node
+- The clearml-k8s glue pulls jobs from the ClearML job execution queue and prepares a Kubernetes job (based on provided
+  yaml template)
+- Inside each pod the clearml-agent will install the job (experiment) environment and spin and monitor the
+  experiment's process, fully visible in the clearml UI
+- Benefits: Kubernetes full view of all running jobs in the system
+- **Enterprise Features**
+  - Full scheduler features added on Top of Kubernetes, with quota/over-quota management, priorities and order.
+  - Fractional GPU support, allowing multiple isolated containers sharing the same GPU with memory/compute limit per container 
 
-- Spin ClearML-Agent as a long-lasting service pod:
-    - Use [clearml-agent](https://hub.docker.com/r/allegroai/clearml-agent) docker image
-    - map docker socket into the pod (soon replaced by [podman](https://github.com/containers/podman))
-    - Allow the clearml-agent to manage sibling dockers
-    - Benefits: full use of the ClearML scheduling, no need to worry about wrong container images / lost pods etc.
-    - Downside: sibling containers
-- Kubernetes Glue, map ClearML jobs directly to K8s jobs:
-    - Run the [clearml-k8s glue](https://github.com/allegroai/clearml-agent/blob/master/examples/k8s_glue_example.py) on
-      a K8s cpu node
-    - The clearml-k8s glue pulls jobs from the ClearML job execution queue and prepares a K8s job (based on provided
-      yaml template)
-    - Inside the pod itself the clearml-agent will install the job (experiment) environment and spin and monitor the
-      experiment's process
-    - Benefits: Kubernetes full view of all running jobs in the system
-    - Downside: No real scheduling (k8s scheduler), no docker image verification (post-mortem only)
+### SLURM (Optional)
+
+Yes! Slurm integration is available, check the [documentation](https://clear.ml/docs/latest/docs/clearml_agent/#slurm) for further details 
 
 ### Using the ClearML Agent
 

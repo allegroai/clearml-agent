@@ -19,8 +19,6 @@ import traceback
 from collections import defaultdict
 from copy import deepcopy, copy
 from datetime import datetime
-from distutils.spawn import find_executable
-from distutils.util import strtobool
 from functools import partial
 from os.path import basename
 from tempfile import mkdtemp, NamedTemporaryFile
@@ -78,7 +76,7 @@ from clearml_agent.definitions import (
     ENV_EXTRA_DOCKER_LABELS,
     ENV_AGENT_FORCE_CODE_DIR,
     ENV_AGENT_FORCE_EXEC_SCRIPT,
-    ENV_TEMP_STDOUT_FILE_DIR,
+    ENV_TEMP_STDOUT_FILE_DIR, ENV_AGENT_FORCE_TASK_INIT,
 )
 from clearml_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
 from clearml_agent.errors import (
@@ -114,6 +112,7 @@ from clearml_agent.helper.base import (
 )
 from clearml_agent.helper.check_update import start_check_update_daemon
 from clearml_agent.helper.console import ensure_text, print_text, decode_binary_lines
+from clearml_agent.helper.environment.converters import strtobool
 from clearml_agent.helper.os.daemonize import daemonize_process
 from clearml_agent.helper.package.base import PackageManager
 from clearml_agent.helper.package.conda_api import CondaAPI
@@ -140,9 +139,10 @@ from clearml_agent.helper.process import (
     commit_docker,
     terminate_process,
     check_if_command_exists,
-    terminate_all_child_processes,
+    terminate_all_child_processes, find_executable,
 )
-from clearml_agent.helper.repo import clone_repository_cached, RepoInfo, VCS, fix_package_import_diff_patch
+from clearml_agent.helper.repo import clone_repository_cached, RepoInfo, VCS, fix_package_import_diff_patch, \
+    patch_add_task_init_call
 from clearml_agent.helper.resource_monitor import ResourceMonitor
 from clearml_agent.helper.runtime_verification import check_runtime, print_uptime_properties
 from clearml_agent.helper.singleton import Singleton
@@ -505,19 +505,7 @@ class TaskStopSignal(object):
             return True
 
         # check if abort callback is turned on
-        cb_completed = None
-        # TODO: add retries on network error with timeout
-        try:
-            task_info = self.session.get(
-                service="tasks", action="get_all", version="2.13", id=[self.task_id],
-                only_fields=["status", "status_message", "runtime._abort_callback_timeout",
-                             "runtime._abort_poll_freq", "runtime._abort_callback_completed"])
-            abort_timeout = task_info['tasks'][0]['runtime'].get('_abort_callback_timeout', 0)
-            poll_timeout = task_info['tasks'][0]['runtime'].get('_abort_poll_freq', 0)
-            cb_completed = task_info['tasks'][0]['runtime'].get('_abort_callback_completed', None)
-        except:  # noqa
-            abort_timeout = None
-            poll_timeout = None
+        abort_timeout, poll_timeout, cb_completed = self._get_abort_callback_stat()
 
         if not abort_timeout:
             # no callback set we can leave
@@ -540,8 +528,39 @@ class TaskStopSignal(object):
         self._active_callback_timeout = timeout
         return bool(cb_completed)
 
-    def was_abort_function_called(self):
-        return bool(self._active_callback_timestamp)
+    def _get_abort_callback_stat(self):
+        # TODO: add retries on network error with timeout
+        try:
+            task_info = self.session.get(
+                service="tasks", action="get_all", version="2.13", id=[self.task_id],
+                only_fields=["status", "status_message", "runtime._abort_callback_timeout",
+                             "runtime._abort_poll_freq", "runtime._abort_callback_completed"])
+            abort_timeout = task_info['tasks'][0]['runtime'].get('_abort_callback_timeout', 0)
+            poll_timeout = task_info['tasks'][0]['runtime'].get('_abort_poll_freq', 0)
+            cb_completed = task_info['tasks'][0]['runtime'].get('_abort_callback_completed', None)
+        except:  # noqa
+            abort_timeout = None
+            poll_timeout = None
+            cb_completed = None
+
+        return abort_timeout, poll_timeout, cb_completed
+
+    def was_abort_function_called(self, process_error_code=None):
+        if not self._support_callback:
+            return False
+
+        if self._active_callback_timestamp:
+            return True
+
+        # if the process error code is SIGKILL (exit code 137) -
+        # check the runtime info of the Task - it might have killed itself because it was aborted
+        if process_error_code in (-9, 137):
+            # check if abort callback is turned on
+            _, _, cb_completed = self._get_abort_callback_stat()
+            if cb_completed:
+                return True
+
+        return False
 
     def _test(self):
         # type: () -> TaskStopReason
@@ -621,8 +640,9 @@ class Worker(ServiceCommandSection):
         partial(PackageCollectorRequirement, collect_package=['clearml']),
     )
 
-    # poll queues every _polling_interval seconds
+    # default poll queues every _polling_interval seconds
     _polling_interval = 5.0
+
     # machine status update intervals, seconds
     _machine_update_interval = 30.0
 
@@ -1377,7 +1397,7 @@ class Worker(ServiceCommandSection):
     def _setup_dynamic_gpus(self, gpu_queues):
         available_gpus = self.get_runtime_properties()
         if available_gpus is None:
-            raise ValueError("Dynamic GPU allocation is not supported by the ClearML-server")
+            raise ValueError("Dynamic GPU allocation is not supported by your ClearML-server")
         available_gpus = [prop["value"] for prop in available_gpus if prop["key"] == 'available_gpus']
         if available_gpus:
             gpus = []
@@ -1394,7 +1414,9 @@ class Worker(ServiceCommandSection):
 
         if not self.set_runtime_properties(
                 key='available_gpus', value=','.join(str(g) for g in available_gpus)):
-            raise ValueError("Dynamic GPU allocation is not supported by the ClearML-server")
+            raise ValueError("Dynamic GPU allocation is not supported by your ClearML-server")
+
+        self.cluster_report_monitor(available_gpus=available_gpus, gpu_queues=gpu_queues)
 
         return available_gpus, gpu_queues
 
@@ -1554,6 +1576,7 @@ class Worker(ServiceCommandSection):
         self._use_owner_token(kwargs.get('use_owner_token', False))
 
         self._standalone_mode = kwargs.get('standalone_mode', False)
+        self._polling_interval = max(kwargs.get('polling_interval', 5), 5)
         self._services_mode = kwargs.get('services_mode', False)
         # must have docker in services_mode
         if self._services_mode:
@@ -1661,7 +1684,8 @@ class Worker(ServiceCommandSection):
                 open_kwargs={
                     "buffering": self._session.config.get("agent.log_files_buffering", 1)
                 },
-                dir=(ENV_TEMP_STDOUT_FILE_DIR.get() or None)
+                dir=(ENV_TEMP_STDOUT_FILE_DIR.get() or None),
+                mode="a",
             )
             print(
                 "Running CLEARML-AGENT daemon in background mode, writing stdout/stderr to {}".format(
@@ -1789,7 +1813,7 @@ class Worker(ServiceCommandSection):
         available_gpus = self._dynamic_gpu_get_available(gpu_indexes)
         if not self.set_runtime_properties(
                 key='available_gpus', value=','.join(str(g) for g in available_gpus)):
-            raise ValueError("Dynamic GPU allocation is not supported by the ClearML-server")
+            raise ValueError("Dynamic GPU allocation is not supported by your ClearML-server")
 
     def report_monitor(self, report):
         if not self.monitor:
@@ -1797,6 +1821,13 @@ class Worker(ServiceCommandSection):
         else:
             self.monitor.set_report(report)
         self.monitor.send_report()
+
+    def cluster_report_monitor(self, available_gpus, gpu_queues):
+        if not self.monitor:
+            self.new_monitor()
+        self.monitor.setup_cluster_report(
+            worker_id=self.worker_id, available_gpus=available_gpus, gpu_queues=gpu_queues
+        )
 
     def stop_monitor(self):
         if self.monitor:
@@ -1856,16 +1887,28 @@ class Worker(ServiceCommandSection):
     ):
         # type: (...) -> Tuple[Optional[int], Optional[TaskStopReason]]
         def _print_file(file_path, prev_pos=0):
-            with open(file_path, "ab+") as f:
-                f.seek(prev_pos)
-                binary_text = f.read()
-                if not self._truncate_task_output_files:
-                    # non-buffered behavior
+            mode = "rb+" if self._truncate_task_output_files else "rb"
+            # noinspection PyBroadException
+            try:
+                with open(file_path, mode) as f:
+                    f.seek(prev_pos)
+                    binary_text = f.read()
                     pos = f.tell()
-                else:
-                    # buffered - read everything and truncate
-                    f.truncate(0)
-                    pos = 0
+                    if self._truncate_task_output_files:
+                        # buffered - read everything and truncate
+                        # noinspection PyBroadException
+                        try:
+                            # we must seek to the beginning otherwise truncate will add \00
+                            f.seek(0)
+                            # os level truncate because f.truncate will push \00 at the end of the file
+                            os.ftruncate(f.fileno(), 0)
+                            os.fsync(f.fileno())
+                        except Exception:
+                            pass
+                        pos = 0
+            except Exception:
+                return [], prev_pos
+
             # skip the previously printed lines,
             blines = binary_text.split(b'\n') if binary_text else []
             if not blines:
@@ -1877,8 +1920,13 @@ class Worker(ServiceCommandSection):
                 pos
             )
 
-        stdout = open(stdout_path, "wt")
-        stderr = open(stderr_path, "wt") if stderr_path else stdout
+        safe_remove_file(stdout_path)
+        stdout = open(stdout_path, "at")
+        if stderr_path:
+            safe_remove_file(stderr_path)
+            stderr = open(stderr_path, "at")
+        else:
+            stderr = stdout
         stdout_line_count, stdout_pos_count, stdout_last_lines = 0, 0, []
         stderr_line_count, stderr_pos_count, stderr_last_lines = 0, 0, []
         lines_buffer = defaultdict(list)
@@ -2005,8 +2053,13 @@ class Worker(ServiceCommandSection):
             stderr_line_count += report_lines(printed_lines, "stderr")
 
         # make sure that if the abort function was called, the task is marked as aborted
-        if stop_signal and stop_signal.was_abort_function_called():
+        if stop_signal and stop_signal.was_abort_function_called(status):
             stop_reason = TaskStopReason.stopped
+
+        # now we delete the temp files
+        safe_remove_file(stdout_path)
+        if stderr_path:
+            safe_remove_file(stdout_path)
 
         return status, stop_reason
 
@@ -2019,6 +2072,7 @@ class Worker(ServiceCommandSection):
                 service_mode_internal_agent_started = True
                 filter_lines = printed_lines[:i+1]
             elif line.startswith(log_control_end_msg):
+                service_mode_internal_agent_started = True
                 return filter_lines, service_mode_internal_agent_started, 0
 
         return filter_lines, service_mode_internal_agent_started, None
@@ -2642,7 +2696,8 @@ class Worker(ServiceCommandSection):
                 execution_info=execution,
                 update_requirements=not skip_freeze_update,
             )
-            script_dir = (directory if isinstance(directory, Path) else Path(directory)).absolute().as_posix()
+            script_dir = (directory if isinstance(directory, Path) else Path(directory)
+                          ).expanduser().absolute().as_posix()
 
         # run code
         # print("Running task id [%s]:" % current_task.id)
@@ -2652,6 +2707,10 @@ class Worker(ServiceCommandSection):
             extra.append(
                 WorkerParams(optimization=optimization).get_optimization_flag()
             )
+
+        # check if we need to patch entry point script
+        if ENV_AGENT_FORCE_TASK_INIT.get():
+            patch_add_task_init_call((Path(script_dir) / execution.entry_point).as_posix())
 
         # check if this is a module load, then load it.
         # noinspection PyBroadException
@@ -3146,6 +3205,18 @@ class Worker(ServiceCommandSection):
         if cached_requirements and (cached_requirements.get('pip') is not None or
                                     cached_requirements.get('conda') is not None):
             self.log("Found task requirements section, trying to install")
+            if ENV_AGENT_FORCE_TASK_INIT.get():
+                # notice we have PackageCollectorRequirement to protect against double includes of "clearml"
+                print("Force clearml Task.init patch adding clearml package to requirements")
+                if cached_requirements.get('pip'):
+                    cached_requirements["pip"] = ("clearml\n" + cached_requirements["pip"]) \
+                        if isinstance(cached_requirements["pip"], str) else \
+                        (["clearml"] + cached_requirements["pip"])
+                if cached_requirements.get('conda'):
+                    cached_requirements["conda"] = ("clearml\n" + cached_requirements["conda"]) \
+                        if isinstance(cached_requirements["conda"], str) else \
+                        (["clearml"] + cached_requirements["conda"])
+
             try:
                 package_api.load_requirements(cached_requirements)
             except Exception as e:
@@ -3173,6 +3244,11 @@ class Worker(ServiceCommandSection):
                 continue
             print("Trying pip install: {}".format(requirements_file))
             requirements_text = requirements_file.read_text()
+            if ENV_AGENT_FORCE_TASK_INIT.get():
+                # notice we have PackageCollectorRequirement to protect against double includes of "clearml"
+                print("Force clearml Task.init patch adding clearml package to requirements")
+                requirements_text = "clearml\n" + requirements_text
+
             new_requirements = requirements_manager.replace(requirements_text)
 
             temp_file = None
@@ -3301,7 +3377,14 @@ class Worker(ServiceCommandSection):
                         stderr=subprocess.STDOUT
                     )
                 except subprocess.CalledProcessError as ex:
-                    self.log.warning("error getting %s version: %s", executable, ex)
+                    # Windows returns 9009 code and suggests to install Python from Windows Store
+                    if is_windows_platform() and ex.returncode == 9009:
+                        self.log.debug("version not found: {}".format(ex))
+                    else:
+                        self.log.warning("error getting %s version: %s", executable, ex)
+                    continue
+                except FileNotFoundError as ex:
+                    self.log.debug("version not found: {}".format(ex))
                     continue
 
                 if not default_python:
@@ -3498,8 +3581,8 @@ class Worker(ServiceCommandSection):
                     executable_version, executable_version_suffix, executable_name = \
                         self.find_python_executable_for_version(def_python_version)
 
-                self._session.config.put("agent.default_python", executable_version_suffix)
-                self._session.config.put("agent.python_binary", executable_name)
+            self._session.config.put("agent.default_python", executable_version_suffix)
+            self._session.config.put("agent.python_binary", executable_name)
 
         venv_dir = Path(venv_dir) if venv_dir else \
             Path(self._session.config["agent.venvs_dir"], executable_version_suffix)
@@ -3734,7 +3817,7 @@ class Worker(ServiceCommandSection):
         host_pip_dl = load_path("agent.pip_download_cache.path")
         self.debug("host_pip_dl: {}".format(host_pip_dl))
 
-        host_vcs_cache = load_path("agent.vcs_cache.path")
+        host_vcs_cache = load_path("agent.vcs_cache.path") if temp_config.get("agent.vcs_cache.enabled", True) else ""
         self.debug("host_vcs_cache: {}".format(host_vcs_cache))
 
         host_venvs_cache = load_path("agent.venvs_cache.path")
@@ -4026,15 +4109,20 @@ class Worker(ServiceCommandSection):
             docker_arguments = self._filter_docker_args(docker_arguments)
             if self._session.config.get("agent.docker_allow_host_environ", None):
                 docker_arguments = self._resolve_docker_env_args(docker_arguments)
-            base_cmd += [a for a in docker_arguments if a]
 
         if extra_docker_arguments:
             # we always resolve environments in the `extra_docker_arguments` becuase the admin set them (not users)
             extra_docker_arguments = self._resolve_docker_env_args(extra_docker_arguments)
-
             extra_docker_arguments = [extra_docker_arguments] \
                 if isinstance(extra_docker_arguments, six.string_types) else extra_docker_arguments
-            base_cmd += [str(a) for a in extra_docker_arguments if a]
+
+        # decide on order of docker args when merging overlapping arguments
+        # from extra_docker_args and the Task's docker_args
+        base_cmd += DockerArgsSanitizer.merge_docker_args(
+            config=self._session.config,
+            task_docker_arguments=docker_arguments,
+            extra_docker_arguments=extra_docker_arguments
+        )
 
         # set docker labels
         base_cmd += ['-l', self._worker_label.format(worker_id)]
@@ -4203,7 +4291,8 @@ class Worker(ServiceCommandSection):
         if docker_bash_setup_script and docker_bash_setup_script.strip('\n '):
             extra_shell_script = (extra_shell_script or '') + \
                 ' ; '.join(line.strip()
-                           for line in docker_bash_setup_script.split('\n') if line.strip()) + \
+                           for line in docker_bash_setup_script.split('\n')
+                           if line.strip() and not line.lstrip().startswith("#")) + \
                 ' ; '
 
         self.debug(
@@ -4427,10 +4516,15 @@ class Worker(ServiceCommandSection):
             if self._session.feature_set == "basic":
                 raise ValueError("Server does not support --use-owner-token option")
 
-            role = self._session.get_decoded_token(self._session.token).get("identity", {}).get("role", None)
-            if role and role not in ["admin", "root", "system"]:
+            identity = self._session.get_decoded_token(self._session.token).get("identity", {})
+            role = identity.get("role", None)
+            try:
+                service_account_type = int(identity.get("service_account_type", 0))
+            except ValueError:
+                service_account_type = 0
+            if role and (role not in ["admin", "root", "system"] and service_account_type < 2):
                 raise ValueError(
-                    "User role not suitable for --use-owner-token option (requires at least admin,"
+                    "User role not suitable for --use-owner-token option (requires at least admin or service account,"
                     " found {})".format(role)
                 )
 
