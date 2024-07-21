@@ -76,7 +76,9 @@ from clearml_agent.definitions import (
     ENV_EXTRA_DOCKER_LABELS,
     ENV_AGENT_FORCE_CODE_DIR,
     ENV_AGENT_FORCE_EXEC_SCRIPT,
-    ENV_TEMP_STDOUT_FILE_DIR, ENV_AGENT_FORCE_TASK_INIT,
+    ENV_TEMP_STDOUT_FILE_DIR,
+    ENV_AGENT_FORCE_TASK_INIT,
+    ENV_AGENT_DEBUG_GET_NEXT_TASK,
 )
 from clearml_agent.definitions import WORKING_REPOSITORY_DIR, PIP_EXTRA_INDICES
 from clearml_agent.errors import (
@@ -108,7 +110,7 @@ from clearml_agent.helper.base import (
     is_linux_platform,
     rm_file,
     add_python_path,
-    safe_remove_tree,
+    safe_remove_tree, get_python_version,
 )
 from clearml_agent.helper.check_update import start_check_update_daemon
 from clearml_agent.helper.console import ensure_text, print_text, decode_binary_lines
@@ -305,9 +307,12 @@ def get_next_task(session, queue, get_task_info=False):
     """
     Returns dict that contains next task and its additional info (company, user)
     """
+    debug = ENV_AGENT_DEBUG_GET_NEXT_TASK.get()
     request = {'queue': queue}
     if get_task_info:
         request["get_task_info"] = True
+    if debug:
+        print(f"debug> get_next_task: {Request.def_method} payload {request}")
     result = session.send_request(
         service='queues',
         action='get_next_task',
@@ -316,6 +321,8 @@ def get_next_task(session, queue, get_task_info=False):
         method=Request.def_method,
         async_enable=False,
     )
+    if debug:
+        print(f"debug> get_next_task: response {result.status_code} text {result.text}")
     if not result.ok:
         raise APIError(result)
     data = result.json().get('data')
@@ -3567,7 +3574,8 @@ class Worker(ServiceCommandSection):
             if override_interpreter_path:
                 print("Python interpreter {} is set from environment var".format(override_interpreter_path))
                 executable_name = override_interpreter_path
-                executable_version_suffix = self._get_python_version_suffix(executable_name)
+                executable_version_suffix = (get_python_version(executable_name, self.log) or
+                                             self._get_python_version_suffix(executable_name))
             else:
                 try:
                     executable_version, executable_version_suffix, executable_name = \

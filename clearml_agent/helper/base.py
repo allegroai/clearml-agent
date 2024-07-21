@@ -543,6 +543,36 @@ def convert_cuda_version_to_int_10_base_str(cuda_version):
     return str(int(float(cuda_version)*10))
 
 
+def get_python_version(python_executable, log=None):
+    from clearml_agent.helper.process import Argv
+    try:
+        output = Argv(python_executable, "--version").get_output(
+            stderr=subprocess.STDOUT
+        )
+    except subprocess.CalledProcessError as ex:
+        # Windows returns 9009 code and suggests to install Python from Windows Store
+        if is_windows_platform() and ex.returncode == 9009:
+            if log:
+                log.debug("version not found: {}".format(ex))
+        else:
+            if log:
+                log.warning("error getting %s version: %s", python_executable, ex)
+        return None
+    except FileNotFoundError as ex:
+        if log:
+            log.debug("version not found: {}".format(ex))
+        return None
+
+    match = re.search(r"Python ({}(?:\.\d+)*)".format(r"\d+"), output)
+    if match:
+        if log:
+            log.debug("Found: {}".format(python_executable))
+        # only return major.minor version
+        return ".".join(str(match.group(1)).split(".")[:2])
+
+    return None
+
+
 class NonStrictAttrs(object):
 
     @classmethod
