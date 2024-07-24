@@ -224,6 +224,17 @@ class LiteralScriptManager(object):
         :return: directory and script path
         """
         log = logging.getLogger(__name__)
+        target_file_name_module_call = None
+        if execution.entry_point and execution.entry_point.strip().startswith("-m "):
+            # this is a module we cannot use it as file name
+            target_file_name_module_call = 'untitled.py'
+            # let's [arse the working_dir
+            if execution.working_dir and ":" in execution.working_dir:
+                execution.working_dir, target_file_name_module_call = execution.working_dir.split(":", 1)
+            log.warning(
+                "found task with `script.entry_point` "
+                "using a module defaulting to: {}".format(target_file_name_module_call))
+
         if repo_info and repo_info.root:
             location = Path(repo_info.root, execution.working_dir)
         else:
@@ -234,7 +245,7 @@ class LiteralScriptManager(object):
                 )
             if not execution.entry_point:
                 execution.entry_point = 'untitled.py'
-            else:
+            elif not target_file_name_module_call:
                 # ignore any folders in the entry point we only need the file name
                 execution.entry_point = execution.entry_point.split(os.path.sep)[-1]
             location = None
@@ -243,7 +254,8 @@ class LiteralScriptManager(object):
             location = Path(self.venv_folder, WORKING_STANDALONE_DIR)
             location.mkdir(exist_ok=True, parents=True)
         log.debug("selected execution directory: %s", location)
-        return Text(location), self.write(task, location, execution.entry_point)
+        target_file = self.write(task, location, target_file_name_module_call or execution.entry_point)
+        return Text(location), execution.entry_point if target_file_name_module_call else target_file
 
 
 def get_repo_auth_string(user, password):
