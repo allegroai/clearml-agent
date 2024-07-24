@@ -598,7 +598,7 @@ class Git(VCS):
 
     def pull(self):
         self._set_ssh_url()
-        self.call("fetch", "--all", "--recurse-submodules", cwd=self.location)
+        self.call("fetch", "--all", "--tags", "--recurse-submodules", cwd=self.location)
 
     def _git_pass_auth_wrapper(self, func, *args, **kwargs):
         try:
