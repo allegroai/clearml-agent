@@ -3328,7 +3328,6 @@ class Worker(ServiceCommandSection):
         if not self.poetry.enabled:
             # add to cache
             if add_venv_folder_cache and not self._standalone_mode:
-                print('Adding venv into cache: {}'.format(add_venv_folder_cache))
                 self.package_api.add_cached_venv(
                     requirements=[freeze, previous_reqs],
                     docker_cmd=execution_info.docker_cmd if execution_info else None,
@@ -4036,8 +4035,15 @@ class Worker(ServiceCommandSection):
         if force_system_site_packages:
             temp_config.put("agent.package_manager.system_site_packages", True)
 
+        # if venvs_cache is NOT disabled,
+        # we have to update the mount path and the path inside the container
         if temp_config.get("agent.venvs_cache.path", None):
-            temp_config.put("agent.venvs_cache.path", '/root/.clearml/venvs-cache')
+            venvs_cache_path = temp_config.get("agent.docker_internal_mounts.venvs_cache", None)
+            if not venvs_cache_path:
+                venvs_cache_path = "/root/.clearml/venvs-cache"
+                temp_config.put("agent.docker_internal_mounts.venvs_cache", venvs_cache_path)
+            # update the venvs cache path to the container scope
+            temp_config.put("agent.venvs_cache.path", venvs_cache_path)
 
         if (ENV_SSH_AUTH_SOCK.get() or '').strip():
             self._host_ssh_cache = None
@@ -4157,7 +4163,7 @@ class Worker(ServiceCommandSection):
         mounted_cache_dir = temp_config.get("sdk.storage.cache.default_base_dir")
         mounted_pip_dl_dir = temp_config.get("agent.pip_download_cache.path")
         mounted_vcs_cache = temp_config.get("agent.vcs_cache.path")
-        mounted_venvs_cache = temp_config.get("agent.venvs_cache.path", "")
+        mounted_venvs_cache = temp_config.get("agent.docker_internal_mounts.venvs_cache", "")
         mount_ssh = temp_config.get("agent.docker_internal_mounts.ssh_folder", None)
         mount_ssh_ro = temp_config.get("agent.docker_internal_mounts.ssh_ro_folder", None)
         mount_apt_cache = temp_config.get("agent.docker_internal_mounts.apt_cache", None)

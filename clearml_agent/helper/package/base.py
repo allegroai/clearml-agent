@@ -219,6 +219,8 @@ class PackageManager(object):
         if not self._get_cache_manager():
             return
 
+        print('Adding venv into cache: {}'.format(source_folder))
+
         try:
             keys = self._generate_reqs_hash_keys(requirements, docker_cmd, python_version, cuda_version)
             return self._get_cache_manager().add_entry(
