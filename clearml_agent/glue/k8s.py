@@ -25,6 +25,7 @@ from clearml_agent.definitions import (
     ENV_AGENT_GIT_USER,
     ENV_AGENT_GIT_PASS,
     ENV_FORCE_SYSTEM_SITE_PACKAGES,
+    ENV_AGENT_DEBUG_GET_NEXT_TASK,
 )
 from clearml_agent.errors import APIError, UsageError
 from clearml_agent.glue.errors import GetPodCountError
@@ -40,6 +41,7 @@ from clearml_agent.glue.definitions import (
     ENV_START_AGENT_SCRIPT_PATH,
     ENV_DEFAULT_EXECUTION_AGENT_ARGS,
     ENV_POD_AGENT_INSTALL_ARGS,
+    ENV_POD_USE_IMAGE_ENTRYPOINT,
 )
 
 
@@ -692,6 +694,13 @@ class K8sIntegration(Worker):
         if not found_worker_id:
             container['env'] = env_vars + [{'name': 'CLEARML_WORKER_ID', 'value': task_worker_id}]
 
+        if ENV_POD_USE_IMAGE_ENTRYPOINT.get():
+            # Don't add a cmd and args, just the image
+            return self._merge_containers(
+                container, dict(name=pod_name, image=docker_image)
+            )
+
+        # Create bash script for container and
         container_bash_script = [self.container_bash_script] if isinstance(self.container_bash_script, str) \
             else self.container_bash_script
 
@@ -771,7 +780,7 @@ class K8sIntegration(Worker):
             spec.setdefault('backoffLimit', 0)
             spec_template = spec.setdefault('template', {})
             if labels:
-                # Place same labels fro any pod spawned by the job
+                # Place same labels for any pod spawned by the job
                 place_labels(spec_template.setdefault('metadata', {}))
 
             spec = spec_template.setdefault('spec', {})
@@ -992,6 +1001,8 @@ class K8sIntegration(Worker):
         :param worker_params: Worker command line arguments
         :type worker_params: ``clearml_agent.helper.process.WorkerParams``
         """
+        # print("debug> running tasks loop")
+
         events_service = self.get_service(Events)
 
         # make sure we have a k8s pending queue
@@ -1023,12 +1034,14 @@ class K8sIntegration(Worker):
                     continue
 
             # iterate over queues (priority style, queues[0] is highest)
+            # print("debug> iterating over queues")
             for queue in queues:
                 # delete old completed / failed pods
                 self._cleanup_old_pods(namespaces, extra_msg="Cleanup cycle {cmd}")
 
                 # get next task in queue
                 try:
+                    # print(f"debug> getting tasks for queue {queue}")
                     response = self._get_next_task(queue=queue, get_task_info=self._impersonate_as_task_owner)
                 except Exception as e:
                     print("Warning: Could not access task queue [{}], error: {}".format(queue, e))
