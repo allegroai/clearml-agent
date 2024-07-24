@@ -2086,7 +2086,7 @@ class Worker(ServiceCommandSection):
             if lines and ENV_MULTI_NODE_SINGLE_TASK.get() and ENV_MULTI_NODE_SINGLE_TASK.get() > 0:
                 # noinspection PyBroadException
                 try:
-                    rank = int(os.environ.get("RANK") or 0)
+                    rank = int(os.environ.get("RANK", os.environ.get('SLURM_PROCID')) or 0)
                 except Exception:
                     rank = 0
                 if rank:
