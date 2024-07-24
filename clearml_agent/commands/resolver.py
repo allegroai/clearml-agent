@@ -1,14 +1,16 @@
 import json
 import re
 import shlex
+from copy import copy
 
 from clearml_agent.backend_api.session import Request
+from clearml_agent.helper.docker_args import DockerArgsSanitizer
 from clearml_agent.helper.package.requirements import (
     RequirementsManager, MarkerRequirement,
     compare_version_rules, )
 
 
-def resolve_default_container(session, task_id, container_config):
+def resolve_default_container(session, task_id, container_config, ignore_match_rules=False):
     container_lookup = session.config.get('agent.default_docker.match_rules', None)
     if not session.check_min_api_version("2.13") or not container_lookup:
         return container_config
@@ -17,6 +19,12 @@ def resolve_default_container(session, task_id, container_config):
     try:
         session.verify_feature_set('advanced')
     except ValueError:
+        # ignoring matching rules only supported in higher tiers
+        return container_config
+
+    if ignore_match_rules:
+        print("INFO: default docker command line override, ignoring default docker container match rules")
+        # ignoring matching rules only supported in higher tiers
         return container_config
 
     result = session.send_request(
@@ -159,9 +167,10 @@ def resolve_default_container(session, task_id, container_config):
             if not container_config.get('image'):
                 container_config['image'] = entry.get('image', None)
             if not container_config.get('arguments'):
-                container_config['arguments'] = entry.get('arguments', None)
-                container_config['arguments'] = shlex.split(str(container_config.get('arguments') or '').strip())
-            print('Matching default container with rule:\n{}'.format(json.dumps(entry)))
+                container_config['arguments'] = entry.get('arguments', None) or ''
+                if isinstance(container_config.get('arguments'), str):
+                    container_config['arguments'] = shlex.split(str(container_config.get('arguments') or '').strip())
+            print('INFO: Matching default container with rule:\n{}'.format(json.dumps(entry)))
             return container_config
 
     return container_config

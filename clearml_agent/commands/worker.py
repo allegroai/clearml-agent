@@ -362,7 +362,7 @@ def get_task_fields(session, task_id, fields: list, log=None) -> dict:
     return {}
 
 
-def get_task_container(session, task_id):
+def get_task_container(session, task_id, ignore_match_rules=False):
     """
     Returns dict with Task docker container setup {container: '', arguments: '', setup_shell_script: ''}
     """
@@ -398,7 +398,11 @@ def get_task_container(session, task_id):
                     pass
 
     if (not container or not container.get('image')) and session.check_min_api_version("2.13"):
-        container = resolve_default_container(session=session, task_id=task_id, container_config=container)
+        container = resolve_default_container(
+            session=session, task_id=task_id,
+            container_config=container,
+            ignore_match_rules=ignore_match_rules,
+        )
 
     return container
 
@@ -732,6 +736,8 @@ class Worker(ServiceCommandSection):
         self._patch_docker_cmd_func = None
         self._docker_image = None
         self._docker_arguments = None
+        # if True, docker default passed on command line, which means we ignore the default docker match rules
+        self._docker_default_cmd_override = False
         PackageManager.set_pip_version(self._session.config.get("agent.package_manager.pip_version", None))
         self._extra_docker_arguments = (
                 ENV_EXTRA_DOCKER_ARGS.get() or self._session.config.get("agent.extra_docker_arguments", None)
@@ -943,7 +949,8 @@ class Worker(ServiceCommandSection):
         if self.docker_image_func:
             # noinspection PyBroadException
             try:
-                task_container = get_task_container(task_session, task_id)
+                task_container = get_task_container(
+                    task_session, task_id, ignore_match_rules=self._docker_default_cmd_override)
             except Exception:
                 task_container = {}
 
@@ -2454,7 +2461,8 @@ class Worker(ServiceCommandSection):
         else:
             # noinspection PyBroadException
             try:
-                task_container = get_task_container(self._session, task_id)
+                task_container = get_task_container(
+                    self._session, task_id, ignore_match_rules=self._docker_default_cmd_override)
                 if (
                     task_container.get('image')
                     and not self._session.config.get('agent.disable_task_docker_override', False)
@@ -3964,6 +3972,8 @@ class Worker(ServiceCommandSection):
         if len(docker_arguments) > 1:
             docker_image = docker_arguments[0]
             docker_arguments = docker_arguments[1:]
+        elif docker_args and isinstance(docker_args, list) and len(docker_args) > 1:
+            docker_arguments = docker_args[1:]
         else:
             docker_arguments = self._session.config.get("agent.default_docker.arguments", None) or []
             if isinstance(docker_arguments, six.string_types):
@@ -3973,9 +3983,16 @@ class Worker(ServiceCommandSection):
         self._docker_image = docker_image
         self._docker_arguments = docker_arguments
 
-        print("Running in Docker{} mode (v19.03 and above) - using default docker image: {} {}\n".format(
-            ' *standalone*' if self._standalone_mode else '', self._docker_image,
-            DockerArgsSanitizer.sanitize_docker_command(self._session, self._docker_arguments) or ''))
+        if docker_args:
+            self._docker_default_cmd_override = True
+
+        print("Running in Docker{} mode (v19.03 and above) - using default docker image: {} {} {}\n".format(
+            ' *standalone*' if self._standalone_mode else '',
+            self._docker_image,
+            DockerArgsSanitizer.sanitize_docker_command(self._session, self._docker_arguments) or '',
+            "\n(default docker commandline override, config matching rules are ignored)"
+            if self._docker_default_cmd_override else "",
+        ))
 
         temp_config = deepcopy(self._session.config)
         self.remove_non_backwards_compatible_entries(temp_config)
