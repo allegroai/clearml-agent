@@ -38,7 +38,7 @@ from clearml_agent.backend_api.services import workers as workers_api
 from clearml_agent.backend_api.session import CallResult, Request
 from clearml_agent.backend_api.session.defs import (
     ENV_ENABLE_ENV_CONFIG_SECTION, ENV_ENABLE_FILES_CONFIG_SECTION,
-    ENV_VENV_CONFIGURED, ENV_PROPAGATE_EXITCODE, )
+    ENV_VENV_CONFIGURED, ENV_PROPAGATE_EXITCODE, ENV_MULTI_NODE_SINGLE_TASK, )
 from clearml_agent.backend_config import Config
 from clearml_agent.backend_config.defs import UptimeConf
 from clearml_agent.backend_config.utils import apply_environment, apply_files
@@ -2063,6 +2063,18 @@ class Worker(ServiceCommandSection):
         lines_buffer = defaultdict(list)
 
         def report_lines(lines, source):
+            # support colored multi-node reporting on the same Task for easier debugging
+            if lines and ENV_MULTI_NODE_SINGLE_TASK.get() and ENV_MULTI_NODE_SINGLE_TASK.get() > 0:
+                # noinspection PyBroadException
+                try:
+                    rank = int(os.environ.get("RANK") or 0)
+                except Exception:
+                    rank = 0
+                if rank:
+                    # see ANSI color: https://en.wikipedia.org/wiki/ANSI_escape_code#8-bit
+                    # Only the "RANK x: line is colored to preserve the original color reporting
+                    lines = ["\033[38;5;{}mRANK {}:\033[0m\n".format(20+(rank % 210), rank)] + lines
+
             if not self._truncate_task_output_files:
                 # non-buffered
                 return self.send_logs(task_id, lines, session=session)
