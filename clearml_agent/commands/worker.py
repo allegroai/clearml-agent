@@ -225,10 +225,14 @@ class LiteralScriptManager(object):
         """
         log = logging.getLogger(__name__)
         target_file_name_module_call = None
-        if execution.entry_point and execution.entry_point.strip().startswith("-m "):
+        if execution.entry_point and (
+                execution.entry_point.strip().startswith("-m ") or
+                execution.entry_point.strip().startswith("-c ")
+        ):
             # this is a module we cannot use it as file name
-            target_file_name_module_call = 'untitled.py'
-            # let's [arse the working_dir
+            target_file_name_module_call = 'untitled.sh' \
+                if execution.entry_point.strip().startswith("-c ") else 'untitled.py'
+            # let's parse the working_dir and override the default literal file
             if execution.working_dir and ":" in execution.working_dir:
                 execution.working_dir, target_file_name_module_call = execution.working_dir.split(":", 1)
             log.warning(
@@ -2910,7 +2914,7 @@ class Worker(ServiceCommandSection):
         # check if this is a module load, then load it.
         # noinspection PyBroadException
         try:
-            if is_python_binary and execution.entry_point and execution.entry_point.split()[0].strip() == '-m':
+            if is_python_binary and execution.entry_point and execution.entry_point.strip().split()[0].strip() == '-m':
                 # do not parse $env when running as user
                 if "$" in execution.entry_point and not ENV_TASK_EXECUTE_AS_USER.get() and is_linux_platform():
                     print("INFO: parsing environment variables: {}".format(execution.entry_point))
@@ -2941,6 +2945,9 @@ class Worker(ServiceCommandSection):
                     patch_add_task_init_call(converted_script_filename)
 
                 extra.append(converted_script_filename)
+            elif is_bash_binary and execution.entry_point and execution.entry_point.strip().split()[0].strip() == '-c':
+                extra.append("-c")
+                extra.append(" ".join(execution.entry_point.strip().split()[1:]))
             else:
                 extra.append(execution.entry_point)
         except Exception:
