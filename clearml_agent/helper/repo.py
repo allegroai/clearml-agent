@@ -936,7 +936,7 @@ def _locate_future_import(lines):
 
 
 def patch_add_task_init_call(local_filename):
-    if not local_filename or not Path(local_filename).is_file():
+    if not local_filename or not Path(local_filename).is_file() or not str(local_filename).lower().endswith(".py"):
         return
 
     idx_a = 0
