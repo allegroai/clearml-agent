@@ -1737,7 +1737,7 @@ class Worker(ServiceCommandSection):
         if self._services_mode and dynamic_gpus:
             raise ValueError("Combining --dynamic-gpus and --services-mode is not supported")
 
-        if self._dynamic_gpus == "fractional" and not docker:
+        if self._dynamic_gpus == "fractional" and docker in (None, False):
             raise ValueError("Fractional GPUs are only supported in docker-mode, "
                              "add --docker to allow docker-mode operation")
 
