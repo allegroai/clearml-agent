@@ -438,6 +438,7 @@ class ResourceMonitor(object):
 class GpuFractionsHandler:
     _number_re = re.compile(r"^clear\.ml/fraction(-\d+)?$")
     _mig_re = re.compile(r"^nvidia\.com/mig-(?P<compute>[0-9]+)g\.(?P<memory>[0-9]+)gb$")
+    _frac_gpu_injector_re = re.compile(r"^clearml-injector/fraction$")
 
     _gpu_name_to_memory_gb = {
         "A30": 24,
@@ -514,10 +515,14 @@ class GpuFractionsHandler:
         return 0
 
     @classmethod
-    def encode_fractions(cls, limits: dict) -> str:
-        if any(cls._number_re.match(x) for x in (limits or {})):
-            return ",".join(str(v) for k, v in sorted(limits.items()) if cls._number_re.match(k))
-        return ",".join(("{}:{}".format(k, v) for k, v in (limits or {}).items() if cls._mig_re.match(k)))
+    def encode_fractions(cls, limits: dict, annotations: dict) -> str:
+        if limits:
+            if any(cls._number_re.match(x) for x in (limits or {})):
+                return ",".join(str(v) for k, v in sorted(limits.items()) if cls._number_re.match(k))
+            return ",".join(("{}:{}".format(k, v) for k, v in (limits or {}).items() if cls._mig_re.match(k)))
+        elif annotations:
+            if any(cls._frac_gpu_injector_re.match(x) for x in (annotations or {})):
+                return ",".join(str(v) for k, v in sorted(annotations.items()) if cls._frac_gpu_injector_re.match(k))
 
     @staticmethod
     def decode_fractions(fractions: str) -> Union[List[float], Dict[str, int]]:
