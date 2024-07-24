@@ -938,9 +938,9 @@ class Worker(ServiceCommandSection):
         # set task status to in_progress so we know it was popped from the queue
         # noinspection PyBroadException
         try:
-            task_session.send_api(tasks_api.StartedRequest(task=task_id, status_message="pulled by agent", force=True))
+            task_session.send_api(tasks_api.StartedRequest(task=task_id, status_message="launch by agent", force=True))
         except Exception:
-            print("Warning: Could not start task id '{}', skipping".format(task_id))
+            print("Warning: Could not set status=in_progress task id '{}', skipping".format(task_id))
             return
         # setup console log
         temp_stdout_name = safe_mkstemp(
@@ -1330,6 +1330,16 @@ class Worker(ServiceCommandSection):
                             except:
                                 pass
 
+                        # set task status to in_progress so we know it was popped from the queue
+                        # next api version we will set the status when pulling from the queue
+                        # noinspection PyBroadException
+                        try:
+                            self._session.send_api(
+                                tasks_api.StartedRequest(task=task_id, status_message="pulled by agent", force=True))
+                        except Exception:
+                            print("Warning: Could not set status=in_progress task id '{}', retrying in a bit".format(task_id))
+
+                        # check if we need to impersonate
                         task_session = None
                         if self._impersonate_as_task_owner:
                             try:
