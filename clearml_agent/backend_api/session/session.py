@@ -341,11 +341,12 @@ class Session(TokenManager):
                 if self._propagate_exceptions_on_send:
                     raise
                 sleep_time = sys_random.uniform(*self._request_exception_retry_timeout)
-                self._logger.error(
-                    "{} exception sending {} {}: {} (retrying in {:.1f}sec)".format(
-                        type(ex).__name__, method.upper(), url, str(ex), sleep_time
+                if self._logger:
+                    self._logger.error(
+                        "{} exception sending {} {}: {} (retrying in {:.1f}sec)".format(
+                            type(ex).__name__, method.upper(), url, str(ex), sleep_time
+                        )
                     )
-                )
                 time.sleep(sleep_time)
                 continue
 
@@ -364,11 +365,12 @@ class Session(TokenManager):
                 res.status_code == requests.codes.service_unavailable
                 and self.config.get("api.http.wait_on_maintenance_forever", True)
             ):
-                self._logger.warning(
-                    "Service unavailable: {} is undergoing maintenance, retrying...".format(
-                        host
+                if self._logger:
+                    self._logger.warning(
+                        "Service unavailable: {} is undergoing maintenance, retrying...".format(
+                            host
+                        )
                     )
-                )
                 continue
             break
         self._session_requests += 1
