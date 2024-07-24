@@ -597,6 +597,7 @@ class K8sIntegration(Worker):
             task_id=task_id,
             queue=queue,
             namespace=namespace,
+            task_token=task_session.token.encode("ascii") if task_session else None,
         )
 
         print('kubectl output:\n{}\n{}'.format(error, output))
@@ -675,7 +676,7 @@ class K8sIntegration(Worker):
 
     def _create_template_container(
         self, pod_name: str, task_id: str, docker_image: str, docker_args: List[str],
-        docker_bash: str, clearml_conf_create_script: List[str], task_worker_id: str
+        docker_bash: str, clearml_conf_create_script: List[str], task_worker_id: str, task_token: str = None
     ) -> dict:
         container = self._get_docker_args(
             docker_args,
@@ -684,18 +685,27 @@ class K8sIntegration(Worker):
             convert=lambda env: {'name': env.partition("=")[0], 'value': env.partition("=")[2]},
         )
 
+        def add_or_update_env_var(name, value):
+            env_vars = container.get('env', [])
+            for entry in env_vars:
+                if entry.get('name') == name:
+                    entry['value'] = value
+                    break
+            else:
+                container['env'] = env_vars + [{'name': name, 'value': value}]
+
         # Set worker ID
-        env_vars = container.get('env', [])
-        found_worker_id = False
-        for entry in env_vars:
-            if entry.get('name') == 'CLEARML_WORKER_ID':
-                entry['name'] = task_worker_id
-                found_worker_id = True
-        if not found_worker_id:
-            container['env'] = env_vars + [{'name': 'CLEARML_WORKER_ID', 'value': task_worker_id}]
+        add_or_update_env_var('CLEARML_WORKER_ID', task_worker_id)
 
         if ENV_POD_USE_IMAGE_ENTRYPOINT.get():
             # Don't add a cmd and args, just the image
+
+            # Add the task ID and token since we need it (it's usually in the init script passed to us
+            add_or_update_env_var('CLEARML_TASK_ID', task_id)
+            if task_token:
+                # TODO: find a way to base64 encode the token
+                add_or_update_env_var('CLEARML_AUTH_TOKEN', task_token)
+
             return self._merge_containers(
                 container, dict(name=pod_name, image=docker_image)
             )
@@ -749,7 +759,8 @@ class K8sIntegration(Worker):
         task_id,
         namespace,
         template,
-        pod_number=None
+        pod_number=None,
+        task_token=None,
     ):
         if "apiVersion" not in template:
             template["apiVersion"] = "batch/v1" if self.using_jobs else "v1"
@@ -797,7 +808,8 @@ class K8sIntegration(Worker):
             docker_args=docker_args,
             docker_bash=docker_bash,
             clearml_conf_create_script=clearml_conf_create_script,
-            task_worker_id=task_worker_id
+            task_worker_id=task_worker_id,
+            task_token=task_token,
         )
 
         if containers:
