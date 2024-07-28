@@ -69,7 +69,8 @@ DAEMON_ARGS = dict({
     '--queue': {
         'help': 'Queue ID(s)/Name(s) to pull tasks from (\'default\' queue).'
                 ' Note that the queue list order determines priority, with the first listed queue having the'
-                ' highest priority',
+                ' highest priority. To change this behavior, use --order-fairness to pull from each queue in a'
+                ' round-robin order',
         'nargs': '+',
         'default': tuple(),
         'dest': 'queues',
@@ -117,7 +118,8 @@ DAEMON_ARGS = dict({
                 ' Example: \'--dynamic-gpus --gpus 0-3 --queue dual_gpus=2 single_gpu=1\'.'
                 ' Example Opportunistic: \'--dynamic-gpus --gpus 0-3 --queue dual_gpus=2 max_quad_gpus=1-4\'.'
                 ' Note that the queue list order determines priority, with the first listed queue having the'
-                ' highest priority',
+                ' highest priority. To change this behavior, use --order-fairness to pull from each queue in a'
+                ' round-robin order',
         'action': 'store_true',
     },
     '--uptime': {
