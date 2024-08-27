@@ -3153,9 +3153,11 @@ class Worker(ServiceCommandSection):
         has_repository = bool(execution.repository)
         is_literal_script = literal_script.is_literal_script(task)
         if not has_repository and not is_literal_script:
-            raise CommandFailedError(
-                "Can not run task without repository or literal script in `script.diff`"
-            )
+            print("WARNING: running a task without repository or literal script in `script.diff`")
+            location = Path(venv_folder) / WORKING_STANDALONE_DIR
+            location.mkdir(exist_ok=True, parents=True)
+            return location.as_posix(), None, None
+
         repo_info = None
         directory = None
         vcs = None
