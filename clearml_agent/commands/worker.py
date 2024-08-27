@@ -3360,8 +3360,12 @@ class Worker(ServiceCommandSection):
         # disable caching with poetry because we cannot make it install into a specific folder
         # Todo: add support for poetry caching
         if not self.poetry.enabled:
-            # add to cache
-            if add_venv_folder_cache and not self._standalone_mode:
+            # disable caching if we skipped the venv creation or the entire python setup
+            if add_venv_folder_cache and not self._standalone_mode and (
+                not ENV_AGENT_SKIP_PIP_VENV_INSTALL.get() and
+                not ENV_AGENT_SKIP_PYTHON_ENV_INSTALL.get()
+            ):
+                # add to cache
                 self.package_api.add_cached_venv(
                     requirements=[freeze, previous_reqs],
                     docker_cmd=execution_info.docker_cmd if execution_info else None,
