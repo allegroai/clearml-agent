@@ -3294,12 +3294,12 @@ class Worker(ServiceCommandSection):
         rank = self._get_node_rank()
         rank_text = " - rank {}".format(rank) if rank else ""
 
-        self.log("Task process terminated"+rank_text)
+        self.log("Task process terminated" + rank_text)
         # only RANK 0 can change the Task status.
 
         if exit_code == COMMAND_SUCCESS:
-            self.log("Task success: completing"+rank_text)
-            self.send_logs(task_id, ["Process completed successfully"+rank_text], session=session)
+            self.log("Task success: completing" + rank_text)
+            self.send_logs(task_id, ["Process completed successfully" + rank_text], session=session)
             if not rank:
                 session.send_api(
                     tasks_api.CompletedRequest(
@@ -3309,8 +3309,8 @@ class Worker(ServiceCommandSection):
                     )
                 )
         elif exit_code in (ExitStatus.interrupted, 256+ExitStatus.interrupted):
-            self.log("Task interrupted: stopping"+rank_text)
-            self.send_logs(task_id, ["Process terminated by user"+rank_text], session=session)
+            self.log("Task interrupted: stopping" + rank_text)
+            self.send_logs(task_id, ["Process terminated by user" + rank_text], session=session)
             if not rank:
                 session.send_api(
                     tasks_api.StoppedRequest(
@@ -3320,8 +3320,8 @@ class Worker(ServiceCommandSection):
                     )
                 )
         else:
-            self.log("Task failure: setting status to 'failed'"+rank_text)
-            self.send_logs(task_id, ["Process failed, exit code {}"+rank_text.format(exit_code)], session=session)
+            self.log("Task failure: setting status to 'failed'" + rank_text)
+            self.send_logs(task_id, ["Process failed, exit code {}".format(exit_code) + rank_text], session=session)
             if not rank:
                 session.send_api(
                     tasks_api.FailedRequest(
