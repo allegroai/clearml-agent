@@ -290,6 +290,13 @@ class TaskStopReason(object):
     exception = 4       # type: TaskStopReason
     not_found = 5       # type: TaskStopReason
 
+    @classmethod
+    def to_str(cls, reason):
+        for k, v in vars(cls).items():
+            if isinstance(v, int) and v == reason:
+                return k
+        return "unknown"
+
 
 def get_task(session, task_id, **kwargs):
     """Use manual api call so that we can pass 'search_hidden' param from api v2.14"""
@@ -619,7 +626,7 @@ class TaskStopSignal(object):
             # actively waiting for task to complete
             if self._wait_for_abort_callback() is False:
                 return TaskStopReason.no_stop
-            return TaskStopReason.status_changed
+            return TaskStopReason.exception if status == self.statuses.failed else TaskStopReason.status_changed
 
         if status == self.statuses.created:
             if (
@@ -2146,7 +2153,11 @@ class Worker(ServiceCommandSection):
                     if daemon:
                         self.send_logs(
                             task_id=task_id,
-                            lines=["User aborted: stopping task ({})\n".format(str(stop_reason))],
+                            lines=["{}: stopping task ({}) {}\n".format(
+                                "User aborted" if stop_reason != TaskStopReason.exception else "Task failed",
+                                stop_reason,
+                                TaskStopReason.to_str(stop_reason))
+                            ],
                             level="ERROR",
                             session=session,
                         )
