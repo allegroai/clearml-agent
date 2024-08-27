@@ -64,6 +64,7 @@ class Session(TokenManager):
     default_key = "EGRTCO8JMSIGI6S39GTP43NFWXDQOW"
     default_secret = "x!XTov_G-#vspE*Y(h$Anm&DIc5Ou-F)jsl$PdOyj5wG1&E!Z8"
     force_max_api_version = ENV_FORCE_MAX_API_VERSION.get()
+    server_version = "1.0.0"
 
     # TODO: add requests.codes.gateway_timeout once we support async commits
     _retry_codes = [
@@ -191,6 +192,7 @@ class Session(TokenManager):
 
             Session.api_version = str(api_version)
             Session.feature_set = str(token_dict.get('feature_set', self.feature_set) or "basic")
+            Session.server_version = token_dict.get('server_version', self.server_version)
         except (jwt.DecodeError, ValueError):
             pass
 
@@ -651,11 +653,14 @@ class Session(TokenManager):
         """
         Return True if Session.api_version is greater or equal >= to min_api_version
         """
-        def version_tuple(v):
-            v = tuple(map(int, (v.split("."))))
-            return v + (0,) * max(0, 3 - len(v))
         return version_tuple(cls.api_version) >= version_tuple(str(min_api_version))
 
+    @classmethod
+    def check_min_server_version(cls, min_server_version):
+        """
+        Return True if Session.server_version is greater or equal >= to min_server_version
+        """
+        return version_tuple(cls.server_version) >= version_tuple(str(min_server_version))
     def _do_refresh_token(self, current_token, exp=None):
         """ TokenManager abstract method implementation.
             Here we ignore the old token and simply obtain a new token.
@@ -733,3 +738,8 @@ class Session(TokenManager):
     def propagate_exceptions_on_send(self, value):
         # type: (bool) -> None
         self._propagate_exceptions_on_send = value
+
+
+def version_tuple(v):
+    v = tuple(map(int, (v.split("."))))
+    return v + (0,) * max(0, 3 - len(v))

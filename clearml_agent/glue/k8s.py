@@ -194,6 +194,10 @@ class K8sIntegration(Worker):
         self._min_cleanup_interval_per_ns_sec = 1.0
         self._last_pod_cleanup_per_ns = defaultdict(lambda: 0.)
 
+        self._server_supports_same_state_transition = (
+                self._session.feature_set != "basic" and self._session.check_min_server_version("3.22.3")
+        )
+
     def _create_daemon_instance(self, cls_, **kwargs):
         return cls_(agent=self, **kwargs)
 
@@ -435,7 +439,9 @@ class K8sIntegration(Worker):
         if self._is_same_tenant(task_session):
             try:
                 print('Pushing task {} into temporary pending queue'.format(task_id))
-                _ = session.api_client.tasks.stop(task_id, force=True, status_reason="moving to k8s pending queue")
+
+                if not self._server_supports_same_state_transition:
+                    _ = session.api_client.tasks.stop(task_id, force=True, status_reason="moving to k8s pending queue")
 
                 # Just make sure to clean up in case the task is stuck in the queue (known issue)
                 self._session.api_client.queues.remove_task(
@@ -956,7 +962,7 @@ class K8sIntegration(Worker):
                 result = self._session.get(
                     service='tasks',
                     action='get_all',
-                    json={"id": task_ids, "status": ["in_progress", "queued"], "only_fields": ["id", "status"]},
+                    json={"id": task_ids, "status": ["in_progress", "queued"], "only_fields": ["id", "status", "status_reason"]},
                     method=Request.def_method,
                 )
                 tasks_to_abort = result["tasks"]
@@ -966,8 +972,12 @@ class K8sIntegration(Worker):
         for task in tasks_to_abort:
             task_id = task.get("id")
             status = task.get("status")
+            status_reason = (task.get("status_reason") or "").lower()
             if not task_id or not status:
                 self.log.warning('Failed getting task information: id={}, status={}'.format(task_id, status))
+                continue
+            if status == "queued" and "pushed back by policy manager" in status_reason:
+                # Task was pushed back to policy queue by policy manager, don't touch it
                 continue
             try:
                 if status == "queued":
