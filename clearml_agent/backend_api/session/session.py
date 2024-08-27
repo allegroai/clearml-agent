@@ -65,6 +65,7 @@ class Session(TokenManager):
     default_secret = "x!XTov_G-#vspE*Y(h$Anm&DIc5Ou-F)jsl$PdOyj5wG1&E!Z8"
     force_max_api_version = ENV_FORCE_MAX_API_VERSION.get()
     server_version = "1.0.0"
+    user_id = None
 
     # TODO: add requests.codes.gateway_timeout once we support async commits
     _retry_codes = [
@@ -193,6 +194,7 @@ class Session(TokenManager):
             Session.api_version = str(api_version)
             Session.feature_set = str(token_dict.get('feature_set', self.feature_set) or "basic")
             Session.server_version = token_dict.get('server_version', self.server_version)
+            Session.user_id = (token_dict.get("identity") or {}).get("user") or ""
         except (jwt.DecodeError, ValueError):
             pass
 
@@ -258,8 +260,9 @@ class Session(TokenManager):
         def parse(vault):
             # noinspection PyBroadException
             try:
-                print("Loaded {} vault: {}".format(
+                print("Loaded {} vault{}: {}".format(
                     vault.get("scope", ""),
+                    "" if not self.user_id else " for user {}".format(self.user_id),
                     (vault.get("description", None) or "")[:50] or vault.get("id", ""))
                 )
                 d = vault.get("data", None)
