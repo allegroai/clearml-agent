@@ -37,7 +37,9 @@ class VirtualenvPip(SystemPip, PackageManager):
 
     def load_requirements(self, requirements):
         if isinstance(requirements, dict) and requirements.get("pip"):
-            requirements["pip"] = self.requirements_manager.replace(requirements["pip"])
+            requirements["pip"] = self.requirements_manager.replace(
+                requirements["pip"], existing_packages=self._existing_packages
+            )
         super(VirtualenvPip, self).load_requirements(requirements)
         self.requirements_manager.post_install(self.session, package_manager=self)
 

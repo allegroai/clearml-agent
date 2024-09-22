@@ -97,7 +97,7 @@ class SystemPip(PackageManager):
         return Argv(self.bin, '-m', 'pip', '--disable-pip-version-check', *command)
 
     def install_flags(self):
-        indices_args = tuple(
+        base_args = tuple(self._base_install_flags or []) + tuple(
             chain.from_iterable(('--extra-index-url', x) for x in PIP_EXTRA_INDICES)
         )
 
@@ -105,7 +105,7 @@ class SystemPip(PackageManager):
             ENV_PIP_EXTRA_INSTALL_FLAGS.get() or \
             self.session.config.get("agent.package_manager.extra_pip_install_flags", None)
 
-        return (indices_args + tuple(extra_pip_flags)) if extra_pip_flags else indices_args
+        return (base_args + tuple(extra_pip_flags)) if extra_pip_flags else base_args
 
     def download_flags(self):
         indices_args = tuple(

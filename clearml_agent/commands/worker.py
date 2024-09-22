@@ -123,7 +123,8 @@ from clearml_agent.helper.package.pip_api.system import SystemPip
 from clearml_agent.helper.package.pip_api.venv import VirtualenvPip
 from clearml_agent.helper.package.poetry_api import PoetryConfig, PoetryAPI
 from clearml_agent.helper.package.post_req import PostRequirement
-from clearml_agent.helper.package.priority_req import PriorityPackageRequirement, PackageCollectorRequirement
+from clearml_agent.helper.package.priority_req import PriorityPackageRequirement, PackageCollectorRequirement, \
+    CachedPackageRequirement
 from clearml_agent.helper.package.pytorch import PytorchRequirement
 from clearml_agent.helper.package.requirements import (
     RequirementsManager, )
@@ -2433,7 +2434,7 @@ class Worker(ServiceCommandSection):
             OnlyExternalRequirements.cwd = package_api.cwd = cwd
             package_api.requirements_manager = self._get_requirements_manager(
                 base_interpreter=package_api.requirements_manager.get_interpreter(),
-                requirement_substitutions=[OnlyExternalRequirements],
+                requirement_substitutions=[CachedPackageRequirement, OnlyExternalRequirements],
             )
             # manually update the current state,
             # for the external git reference chance (in the replace callback)
@@ -2852,7 +2853,7 @@ class Worker(ServiceCommandSection):
                     OnlyExternalRequirements.cwd = package_api.cwd = cwd
                     package_api.requirements_manager = self._get_requirements_manager(
                         base_interpreter=package_api.requirements_manager.get_interpreter(),
-                        requirement_substitutions=[OnlyExternalRequirements]
+                        requirement_substitutions=[CachedPackageRequirement, OnlyExternalRequirements]
                     )
                     # manually update the current state,
                     # for the external git reference chance (in the replace callback)
