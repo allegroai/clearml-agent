@@ -3198,7 +3198,11 @@ class Worker(ServiceCommandSection):
             execution.working_dir = execution.working_dir or "."
 
         # fix our import patch (in case we have __future__)
-        if script_file and script_file.is_file():
+        try:
+            is_file = script_file and script_file.is_file()
+        except OSError:
+            is_file = False
+        if is_file:
             fix_package_import_diff_patch(script_file.as_posix())
 
         if is_literal_script and not has_repository:
