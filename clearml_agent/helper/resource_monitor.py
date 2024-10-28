@@ -401,6 +401,7 @@ class ResourceMonitor(object):
                         fractions = self._fractions_handler.fractions
                         stats["gpu_fraction_{}".format(report_index)] = \
                             (fractions[i] if i < len(fractions) else fractions[-1]) if fractions else 1.0
+                    report_index += 1
 
             except Exception as ex:
                 # something happened and we can't use gpu stats,
