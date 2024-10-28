@@ -1183,7 +1183,10 @@ class Worker(ServiceCommandSection):
         Requires that agent session credentials will allow impersonation as task user
         """
         def get_new_session(session, headers):
-            result = session.send(auth_api.LoginRequest(), headers=headers)
+            result = session.send(
+                auth_api.LoginRequest(expiration_sec=session.req_token_expiration_sec),
+                headers=headers
+            )
             if not (result.ok() and result.response):
                 return
             new_session = copy(session)
