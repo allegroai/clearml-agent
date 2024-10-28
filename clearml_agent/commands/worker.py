@@ -1692,7 +1692,7 @@ class Worker(ServiceCommandSection):
 
     def reload_config(self):
         try:
-            reloaded = self._session.reload()
+            reloaded = self._session.config.reload()
         except Exception as ex:
             self.log("Failed reloading config file")
             self.log_traceback(ex)
