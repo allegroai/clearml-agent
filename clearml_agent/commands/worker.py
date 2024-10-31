@@ -122,6 +122,7 @@ from clearml_agent.helper.package.external_req import ExternalRequirements, Only
 from clearml_agent.helper.package.pip_api.system import SystemPip
 from clearml_agent.helper.package.pip_api.venv import VirtualenvPip
 from clearml_agent.helper.package.poetry_api import PoetryConfig, PoetryAPI
+from clearml_agent.helper.package.uv_api import UvConfig, UvAPI
 from clearml_agent.helper.package.post_req import PostRequirement
 from clearml_agent.helper.package.priority_req import PriorityPackageRequirement, PackageCollectorRequirement, \
     CachedPackageRequirement
@@ -756,6 +757,7 @@ class Worker(ServiceCommandSection):
 
         self.is_venv_update = self._session.config.agent.venv_update.enabled
         self.poetry = PoetryConfig(self._session)
+        self.uv = UvConfig(self._session)
         self.docker_image_func = None
         self._patch_docker_cmd_func = None
         self._docker_image = None
@@ -3017,7 +3019,7 @@ class Worker(ServiceCommandSection):
                 ENV_TASK_EXECUTE_AS_USER.get())
             use_execv = False
         else:
-            use_execv = is_linux_platform() and not isinstance(self.package_api, (PoetryAPI, CondaAPI))
+            use_execv = is_linux_platform() and not isinstance(self.package_api, (PoetryAPI, UvAPI ,CondaAPI))
 
         self._session.api_client.tasks.started(
             task=current_task.id,
@@ -3434,6 +3436,33 @@ class Worker(ServiceCommandSection):
         except Exception as ex:
             self.log.error("failed installing poetry requirements: {}".format(ex))
         return None
+    
+    def _install_uv_requirements(self, repo_info, working_dir=None):
+        # type: (Optional[RepoInfo], Optional[str]) -> Optional[UvAPI]
+        if not repo_info:
+            return None
+
+        files_from_working_dir = self._session.config.get(
+            "agent.package_manager.uv_files_from_repo_working_dir", False)
+        lockfile_path = Path(repo_info.root) / ((working_dir or "") if files_from_working_dir else "")
+
+        try:
+            if not self.uv.enabled:
+                return None
+
+            self.uv.initialize(cwd=lockfile_path)
+            api = self.uv.get_api(lockfile_path)
+            if api.enabled:
+                # TODO: what should this be? This controls where uv installs its venv
+                os.environ["UV_PROJECT_ENVIRONMENT"] = "this should be the correct path to "
+                print('UV Enabled: Ignoring requested python packages, using repository uv lock file!')
+                api.install()
+                return api
+            
+            print(f"Could not find pyproject.toml or uv.lock file in {lockfile_path} \n")
+        except Exception as ex:
+            self.log.error("failed installing uv requirements: {}".format(ex))
+        return None
 
     def install_requirements(
         self, execution, repo_info, requirements_manager, cached_requirements=None, cwd=None, package_api=None
@@ -3463,6 +3492,7 @@ class Worker(ServiceCommandSection):
             package_api.cwd = cwd
 
         api = self._install_poetry_requirements(repo_info, execution.working_dir)
+        api = self._install_uv_requirements(repo_info, execution.working_dir)
         if api:
             # update back the package manager, this hack should be fixed
             if package_api == self.package_api:
