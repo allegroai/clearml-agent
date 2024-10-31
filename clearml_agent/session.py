@@ -24,6 +24,7 @@ from clearml_agent.helper.docker_args import DockerArgsSanitizer, sanitize_urls
 from .version import __version__
 
 POETRY = "poetry"
+UV = "uv"
 
 
 @attr.s
