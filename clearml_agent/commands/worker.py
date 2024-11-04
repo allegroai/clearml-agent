@@ -3453,8 +3453,6 @@ class Worker(ServiceCommandSection):
             self.uv.initialize(cwd=lockfile_path)
             api = self.uv.get_api(lockfile_path)
             if api.enabled:
-                # TODO: what should this be? This controls where uv installs its venv
-                os.environ["UV_PROJECT_ENVIRONMENT"] = None
                 print('UV Enabled: Ignoring requested python packages, using repository uv lock file!')
                 api.install()
                 return api

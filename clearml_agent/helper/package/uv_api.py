@@ -73,8 +73,12 @@ class UvConfig:
                 kwargs["env"]["PATH"] = path
 
         if self.session and self.session.config and args and args[0] == "sync":
+            # Set the cache dir to venvs dir
+            if (cache_dir := self.session.config.get("agent.venvs_dir", None)) is not None:
+                os.environ["UV_CACHE_DIR"] = cache_dir
+            
             extra_args = self.session.config.get(
-                "agent.package_manager.uv_install_extra_args", None
+                "agent.package_manager.uv_sync_extra_args", None
             )
             if extra_args:
                 args = args + tuple(extra_args)
