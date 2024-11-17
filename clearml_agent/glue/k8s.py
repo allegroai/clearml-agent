@@ -83,7 +83,7 @@ class K8sIntegration(Worker):
             for line in _CONTAINER_APT_SCRIPT_SECTION
         ),
         "declare LOCAL_PYTHON",
-        "[ ! -z $LOCAL_PYTHON ] || for i in {{15..5}}; do which python3.$i && python3.$i -m pip --version && "
+        "[ ! -z $LOCAL_PYTHON ] || for i in {{20..5}}; do which python3.$i && python3.$i -m pip --version && "
         "export LOCAL_PYTHON=$(which python3.$i) && break ; done",
         '[ ! -z "$CLEARML_AGENT_SKIP_CONTAINER_APT" ] || [ ! -z "$LOCAL_PYTHON" ] || apt-get install -y python3-pip',
         "[ ! -z $LOCAL_PYTHON ] || export LOCAL_PYTHON=python3",

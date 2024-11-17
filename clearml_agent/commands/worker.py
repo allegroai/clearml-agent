@@ -4582,7 +4582,7 @@ class Worker(ServiceCommandSection):
                     "cp -Rf {mount_ssh_ro} -T {mount_ssh}" if host_ssh_cache else "",
                     "[ ! -z $(which git) ] || export CLEARML_APT_INSTALL=\"$CLEARML_APT_INSTALL git\"",
                     "declare LOCAL_PYTHON",
-                    "[ ! -z $LOCAL_PYTHON ] || for i in {{15..5}}; do which {python_single_digit}.$i && " +
+                    "[ ! -z $LOCAL_PYTHON ] || for i in {{20..5}}; do which {python_single_digit}.$i && " +
                     "{python_single_digit}.$i -m pip --version && " +
                     "export LOCAL_PYTHON=$(which {python_single_digit}.$i) && break ; done",
                     "[ ! -z $LOCAL_PYTHON ] || export CLEARML_APT_INSTALL=\"$CLEARML_APT_INSTALL {python_single_digit}-pip\"",  # noqa
