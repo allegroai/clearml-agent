@@ -7,6 +7,7 @@ import os
 from pathlib2 import Path
 
 from clearml_agent.definitions import ENV_AGENT_FORCE_UV
+from clearml_agent.helper.base import select_for_platform
 from clearml_agent.helper.process import Argv, DEVNULL, check_if_command_exists
 from clearml_agent.session import Session, UV
 
@@ -199,13 +200,18 @@ class UvAPI(object):
         )
 
     def freeze(self, freeze_full_environment=False):
-        lines = self.config.run("pip", "show", cwd=str(self.path)).splitlines()
-        lines = [[p for p in line.split(" ") if p] for line in lines]
+        python = Path(self.path) / ".venv" / select_for_platform(linux="bin/python", windows="scripts/python.exe")
+        lines = self.config.run("pip", "freeze", "--python", str(python), cwd=str(self.path)).splitlines()
+        # fix local filesystem reference in freeze
+        from clearml_agent.external.requirements_parser.requirement import Requirement
+        packages = [Requirement.parse(p) for p in lines]
+        for p in packages:
+            if p.local_file and p.editable:
+                p.path = str(Path(p.path).relative_to(self.path))
+                p.line = "-e {}".format(p.path)
+
         return {
-            "pip": [
-                parts[0] + "==" + parts[1] + " # " + " ".join(parts[2:])
-                for parts in lines
-            ]
+            "pip": [p.line for p in packages]
         }
 
     def get_python_command(self, extra):

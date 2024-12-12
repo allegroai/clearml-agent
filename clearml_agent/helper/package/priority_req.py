@@ -7,7 +7,7 @@ from .requirements import SimpleSubstitution
 
 class PriorityPackageRequirement(SimpleSubstitution):
 
-    name = ("cython", "numpy", "setuptools", "pip", )
+    name = ("cython", "numpy", "setuptools", "pip", "uv", )
     optional_package_names = tuple()
 
     def __init__(self, *args, **kwargs):

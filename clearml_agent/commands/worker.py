@@ -3002,9 +3002,11 @@ class Worker(ServiceCommandSection):
 
         # Add the script CWD to the python path
         if repo_info and repo_info.root and self._session.config.get('agent.force_git_root_python_path', None):
-            python_path = get_python_path(repo_info.root, None, self.package_api, is_conda_env=self.is_conda)
+            python_path = get_python_path(repo_info.root, None, self.package_api,
+                                          is_conda_env=self.is_conda or self.uv.enabled)
         else:
-            python_path = get_python_path(script_dir, execution.entry_point, self.package_api, is_conda_env=self.is_conda)
+            python_path = get_python_path(script_dir, execution.entry_point, self.package_api,
+                                          is_conda_env=self.is_conda or self.uv.enabled)
         if ENV_TASK_EXTRA_PYTHON_PATH.get():
             python_path = add_python_path(python_path, ENV_TASK_EXTRA_PYTHON_PATH.get())
         if python_path:
@@ -3385,7 +3387,7 @@ class Worker(ServiceCommandSection):
 
         # disable caching with poetry because we cannot make it install into a specific folder
         # Todo: add support for poetry caching
-        if not self.poetry.enabled:
+        if not self.poetry.enabled and not self.uv.enabled:
             # disable caching if we skipped the venv creation or the entire python setup
             if add_venv_folder_cache and not self._standalone_mode and (
                 not ENV_AGENT_SKIP_PIP_VENV_INSTALL.get() and
@@ -3490,7 +3492,9 @@ class Worker(ServiceCommandSection):
             package_api.cwd = cwd
 
         api = self._install_poetry_requirements(repo_info, execution.working_dir)
-        api = self._install_uv_requirements(repo_info, execution.working_dir)
+        if not api:
+            api = self._install_uv_requirements(repo_info, execution.working_dir)
+
         if api:
             # update back the package manager, this hack should be fixed
             if package_api == self.package_api:
@@ -3948,12 +3952,14 @@ class Worker(ServiceCommandSection):
                   'To accelerate spin-up time set `agent.venvs_cache.path=~/.clearml/venvs-cache` :::\n')
 
         # check if we have a cached folder
-        if cached_requirements and not skip_pip_venv_install and self.package_api.get_cached_venv(
-            requirements=cached_requirements,
-            docker_cmd=execution_info.docker_cmd if execution_info else None,
-            python_version=self.package_api.python,
-            cuda_version=self._session.config.get("agent.cuda_version"),
-            destination_folder=Path(venv_dir)
+        if (cached_requirements and not skip_pip_venv_install and
+            not self.poetry.enabled and not self.uv.enabled and
+            self.package_api.get_cached_venv(
+                requirements=cached_requirements,
+                docker_cmd=execution_info.docker_cmd if execution_info else None,
+                python_version=self.package_api.python,
+                cuda_version=self._session.config.get("agent.cuda_version"),
+                destination_folder=Path(venv_dir))
         ):
             print('::: Using Cached environment {} :::'.format(self.package_api.get_last_used_entry_cache()))
             return venv_dir, requirements_manager, True
