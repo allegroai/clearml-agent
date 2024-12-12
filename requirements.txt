@@ -13,3 +13,4 @@ six>=1.13.0,<1.17.0
 typing>=3.6.4,<3.8.0 ; python_version < '3.5'
 urllib3>=1.21.1,<2
 virtualenv>=16,<21
+setuptools ; python_version > '3.11'
