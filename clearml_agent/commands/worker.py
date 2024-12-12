@@ -4837,7 +4837,7 @@ class Worker(ServiceCommandSection):
                 worker_name = '{}:cpu'.format(worker_name)
         return worker_id, worker_name
 
-    def _resolve_queue_names(self, queues, create_if_missing=False):
+    def _resolve_queue_names(self, queues, create_if_missing=False, create_system_tags=None):
         if not queues:
             # try to look for queues with "default" tag
             try:
@@ -4849,15 +4849,25 @@ class Worker(ServiceCommandSection):
 
         queues = return_list(queues)
         if not create_if_missing:
-            return [self._resolve_name(q if isinstance(q, str) else q.name, "queues") for q in queues]
+            return [
+                self._resolve_name(q if isinstance(q, str) else q.name, service="queues", search_hidden=True)
+                for q in queues
+            ]
 
         queue_ids = []
         for q in queues:
+            # noinspection PyBroadException
             try:
-                q_id = self._resolve_name(q if isinstance(q, str) else q.name, "queues")
+                q_id = self._resolve_name(
+                    q if isinstance(q, str) else q.name, service="queues", search_hidden=True
+                )
             except:
-                self._session.send_api(queues_api.CreateRequest(name=q if isinstance(q, str) else q.name))
-                q_id = self._resolve_name(q if isinstance(q, str) else q.name, "queues")
+                self._session.send_api(
+                    queues_api.CreateRequest(name=q if isinstance(q, str) else q.name, system_tags=create_system_tags)
+                )
+                q_id = self._resolve_name(
+                    q if isinstance(q, str) else q.name, service="queues", search_hidden=True
+                )
             queue_ids.append(q_id)
         return queue_ids
 
